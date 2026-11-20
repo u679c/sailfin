@@ -20,6 +20,9 @@ import (
 const relayPrefix = "/__tracelite/"
 
 func (a *Agent) startRelay() (*http.Server, error) {
+	if a.opt.AutoBrowserSite != nil {
+		return a.listenRelay()
+	}
 	for _, site := range a.sites {
 		if site.BrowserOrigin != "" {
 			return a.listenRelay()
@@ -65,6 +68,9 @@ func (a *Agent) relayHandler() http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		site, ok := a.sites[r.Header.Get("X-TraceLite-Site")]
+		if r.Header.Get("X-TraceLite-Auto") != "" && a.opt.AutoBrowserSite != nil {
+			site, ok = a.opt.AutoBrowserSite(r)
+		}
 		if !ok || site.BrowserOrigin == "" {
 			http.NotFound(w, r)
 			return

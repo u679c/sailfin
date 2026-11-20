@@ -33,7 +33,7 @@ cp .env.example .env
 
 `.env` 由 `make dev` 读取，已有 shell 环境变量优先；不会执行变量插值或 Shell 命令。直接运行 Core 二进制时使用进程环境变量。
 
-更换 Core 端口时同步配置 `TRACELITE_ADDR` 和 `TRACELITE_CORE_URL`；更换 Web 端口时同步 `TRACELITE_WEB_PORT` 和 `TRACELITE_PUBLIC_URL`。管理浏览器地址必须匹配 PUBLIC_URL Origin，管理界面可通过受信任的 HTTPS 反向代理访问。
+更换 Core 端口时同步配置 `TRACELITE_ADDR` 和 `TRACELITE_CORE_URL`；更换 Web 端口时同步 `TRACELITE_WEB_PORT` 和 `TRACELITE_PUBLIC_URL`。管理浏览器地址应匹配 PUBLIC_URL Origin，同协议同端口的本机回环地址可以互换。使用自定义域名或代理端口时，可运行 `npm run dev -- --public-url https://实际后台域名`。
 
 数据位置：Core 默认 `var/tracelite.db`（`TRACELITE_DB`）；探针状态默认位于数据库同级的 `local-probe` 目录（`TRACELITE_PROBE_STATE`）。日志偏移、待发队列和暂停状态均持久化。
 
@@ -43,7 +43,14 @@ cp .env.example .env
 
 后台收到首批有效数据后自动显示站点。首次使用时站点列表为空属于正常情况。完整配置见 [本机探针与 Nginx 接入](docs/host-nginx.md)。
 
-已有 Nginx 站点可以用 `tracelite-core nginx-inject` 自动接入，继续使用原域名和端口。默认预览，添加 `--apply` 才写入并重载。[现有站点接入命令](docs/host-nginx.md#自动为现有站点加-js-注入)
+本地开发时启动 `make dev`，登录后打开 **系统状态 → Nginx 采集 → 启用 Nginx 采集**。先预览本机正在运行的 Nginx 站点，再确认统一接入。接入后仍使用原网址，无需逐个填写站点或环境变量。现有手动命令保留给特殊配置。[本机 Nginx 接入说明](docs/host-nginx.md)
+
+## TODO：单机安装与发布
+
+- [ ] 为 macOS 和 Linux 生成 `tracelite-<md5>.bin`。检查 Docker 已安装且可连接，缺失时报错。在安装文件所在目录解压项目文件，创建并启动 TraceLite 专用容器。
+- [ ] 单机安装时自动部署同机探针。生成 `./u679c start|stop|restart|status`，统一管理管理节点与探针，重启时保留数据库和配置。
+- [ ] 打包部署时准备 Nginx 配置与重载权限，站点接入仍在 Web 后台启用。
+- [ ] 分布式部署留待后续，届时探针可以部署在与管理节点不同的设备。
 
 ## 测试、检查与主动构建
 

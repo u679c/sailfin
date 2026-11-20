@@ -31,6 +31,8 @@ type Options struct {
 	AllowHTTP                     bool
 	Sites                         []Site
 	RelayAddress                  string
+	AutoBrowserSite               func(*http.Request) (Site, bool)
+	RelayState                    func(bool)
 }
 type Cursor struct {
 	Offset  int64  `json:"offset"`
@@ -234,6 +236,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	if relay != nil {
 		defer relay.Close()
+		if a.opt.RelayState != nil {
+			a.opt.RelayState(true)
+			defer a.opt.RelayState(false)
+		}
 	}
 	slog.Info("TraceLite probe started", "agentId", a.state.AgentID)
 	return a.collect(ctx)

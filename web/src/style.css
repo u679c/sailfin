@@ -913,3 +913,7 @@ footer span {
   display: grid;
   gap: 16px;
 }
+
+.nginx-confirm-actions {
+  margin-top: 16px;
+}

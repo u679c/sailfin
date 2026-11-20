@@ -5,6 +5,8 @@
 - `GET /sites` 列出已经收到数据的站点。
 - `GET /system/probe` 查看本机探针状态及心跳。
 - `PATCH /system/probe` 接收 `{enabled: boolean}`，暂停或恢复采集，需要管理员会话和 CSRF。
+- `POST /system/nginx/scan` 扫描本机运行中的 Nginx，返回接入预览与预览 ID。扫描不修改配置。
+- `POST /system/nginx/apply` 使用 `{id}` 确认当前预览。需要管理员会话和 CSRF，验证当前配置后才重载。
 - Nginx 的浏览器上报经本机探针进入 Core。探针内部的首批事件和站点记录在同一事务提交。
 
 所有路径以 `/api/v1` 开头。JSON 成功响应；失败为 `{ "error": "..." }`，HTTP 400/401/403/404/429/500/503。管理 API 用会话 Cookie；修改操作需 `X-CSRF-Token`。登录响应或 `GET /auth/me` 获取 CSRF 值；浏览器在同源调用时自动携带 Cookie。

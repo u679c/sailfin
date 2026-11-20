@@ -196,6 +196,17 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 			}
 			return fail(401, "invalid or disabled host")
 		}
+		if local && strings.HasPrefix(p, "site_") {
+			// Dynamic Host names from a default vhost must not create an
+			// unbounded number of site records.
+			var exists, total int
+			if e = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM projects WHERE id=?), (SELECT count(*) FROM (SELECT 1 FROM projects WHERE id GLOB 'site_*' LIMIT 500))", p).Scan(&exists, &total); e != nil {
+				return e
+			}
+			if exists == 0 && total >= 500 {
+				return fail(429, "site capacity reached")
+			}
+		}
 		if _, e = tx.Exec("INSERT INTO projects(id,name,description,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING", p, siteName, "", Now()); e != nil {
 			return e
 		}

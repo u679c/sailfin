@@ -6,3 +6,9 @@ bin/
 .env
 *.db*
 .DS_Store
+
+# Local Nginx deployment state and configuration backups
+.nginx-relay-key
+.nginx-relay-auth.conf
+.tracelite-backup-*
+.tracelite-write-*

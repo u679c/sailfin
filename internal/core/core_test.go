@@ -305,3 +305,39 @@ func TestManagementHistoryAndDeletion(t *testing.T) {
 		t.Fatal("capacity status missing")
 	}
 }
+
+func TestNginxScanManagementOrigins(t *testing.T) {
+	h := newHarness(t)
+	cases := []struct {
+		configured, origin string
+		want               bool
+	}{
+		{"http://localhost:5173", "http://localhost:5173", true},
+		{"http://localhost:5173", "http://127.0.0.1:5173", true},
+		{"http://127.0.0.1:5173", "http://[::1]:5173", true},
+		{"http://localhost:5173", "http://localhost:5174", false},
+		{"http://localhost:5173", "https://localhost:5173", false},
+		{"http://localhost:5173", "http://localhost.example:5173", false},
+		{"http://localhost:5173", "http://127.0.0.1:5173/elsewhere", false},
+		{"https://trace.example", "https://trace.example", true},
+		{"https://trace.example", "https://localhost", false},
+	}
+	for _, tt := range cases {
+		h.s.cfg.PublicURL = tt.configured
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/system/nginx/scan", nil)
+		r.AddCookie(h.cookie)
+		r.Header.Set("Origin", tt.origin)
+		r.Header.Set("X-CSRF-Token", h.csrf)
+		err := h.s.authorize(r)
+		if (err == nil) != tt.want {
+			t.Errorf("origin %q with management URL %q: want authorized=%t, got %v", tt.origin, tt.configured, tt.want, err)
+		}
+	}
+	h.s.cfg.PublicURL = "http://localhost:5173"
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/system/nginx/scan", nil)
+	r.AddCookie(h.cookie)
+	r.Header.Set("Origin", "http://127.0.0.1:5173")
+	if h.s.authorize(r) == nil {
+		t.Fatal("a loopback alias must still require a CSRF token")
+	}
+}

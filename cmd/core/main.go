@@ -58,11 +58,15 @@ func run(options serveOptions) error {
 	if addr == "" {
 		addr = "127.0.0.1:8080"
 	}
+	auto, err := newNginxAuto(filepath.Dir(dbPath), options.relayAddr)
+	if err != nil {
+		return err
+	}
 	s, err := core.Open(core.Config{
 		Address: addr, DBPath: dbPath, PublicURL: options.publicURL,
 		WebDir: options.webDir, AdminName: os.Getenv("TRACELITE_ADMIN_NAME"),
 		AdminPassword: os.Getenv("TRACELITE_ADMIN_PASSWORD"), OfflineSeconds: options.offline,
-		LocalOnly: true,
+		LocalOnly: true, Nginx: auto,
 	})
 	if err != nil {
 		return err
@@ -99,7 +103,7 @@ func run(options serveOptions) error {
 	probeDone := make(chan struct{})
 	go func() {
 		defer close(probeDone)
-		probeErr = runProbe(ctx, s, filepath.Dir(dbPath), options, managed)
+		probeErr = runProbe(ctx, s, filepath.Dir(dbPath), options, managed, auto)
 		if probeErr != nil {
 			s.ReportProbeFailure(probeErr)
 			slog.Error("Local probe stopped", "error", probeErr)
@@ -137,7 +141,7 @@ func run(options serveOptions) error {
 	return err
 }
 
-func runProbe(ctx context.Context, s *core.Server, dataDir string, options serveOptions, managed *managedNginx) error {
+func runProbe(ctx context.Context, s *core.Server, dataDir string, options serveOptions, managed *managedNginx, auto *nginxAuto) error {
 	configPath := options.sitesFile
 	if configPath == "" {
 		defaultPath := filepath.Join(dataDir, "sites.json")
@@ -151,7 +155,7 @@ func runProbe(ctx context.Context, s *core.Server, dataDir string, options serve
 	if err != nil {
 		return err
 	}
-	relay := options.relayAddr
+	relay := auto.relay
 	if managed != nil {
 		sites, err = managed.addSite(sites)
 		if err != nil {
@@ -171,7 +175,7 @@ func runProbe(ctx context.Context, s *core.Server, dataDir string, options serve
 	}
 	probe, err := agent.OpenLocal(agent.Options{
 		StateDir: stateDir, Sites: sites, LogRoots: roots,
-		RelayAddress: relay,
+		RelayAddress: relay, AutoBrowserSite: auto.browserSite, RelayState: auto.ready.Store,
 	}, core.LocalProbeID, s.ProbeHandler())
 	if err != nil {
 		return err

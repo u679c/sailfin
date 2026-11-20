@@ -34,6 +34,7 @@ type Config struct {
 	Address, DBPath, PublicURL, WebDir, AdminName, AdminPassword, BootstrapPath string
 	OfflineSeconds                                                              int
 	LocalOnly                                                                   bool
+	Nginx                                                                       NginxIntegration
 }
 type bucket struct {
 	Start time.Time
@@ -304,8 +305,8 @@ func (s *Server) authorize(r *http.Request) error {
 		if subtle.ConstantTimeCompare([]byte(csrf), []byte(r.Header.Get("X-CSRF-Token"))) != 1 {
 			return fail(403, "invalid CSRF token")
 		}
-		if origin := r.Header.Get("Origin"); origin != "" && origin != s.cfg.PublicURL {
-			return fail(403, "untrusted origin")
+		if origin := r.Header.Get("Origin"); origin != "" && !trustedManagementOrigin(s.cfg.PublicURL, origin) {
+			return fail(403, "untrusted origin: use the management URL "+s.cfg.PublicURL)
 		}
 	}
 	return nil
@@ -375,6 +376,10 @@ func (s *Server) routes() {
 	if s.cfg.LocalOnly {
 		s.route("GET /api/v1/system/probe", true, s.probeStatus)
 		s.route("PATCH /api/v1/system/probe", true, s.setProbeEnabled)
+		if s.cfg.Nginx != nil {
+			s.route("POST /api/v1/system/nginx/scan", true, s.scanNginx)
+			s.route("POST /api/v1/system/nginx/apply", true, s.applyNginx)
+		}
 	} else {
 		s.route("POST /api/v1/agent/sites/batch", false, s.siteEvents)
 		s.route("GET /api/v1/projects", true, func(w http.ResponseWriter, r *http.Request) error {

@@ -1049,7 +1049,7 @@ function LocalProbe({ revision }: { revision: number }) {
               <dd>
                 {[probe.os, probe.arch].filter(Boolean).join(" / ") || "—"}
               </dd>
-              <dt>已配置站点</dt>
+              <dt>文件配置站点</dt>
               <dd>{parse<Row>(probe.metrics, {}).configuredSites ?? "—"}</dd>
               <dt>最后心跳</dt>
               <dd>{when(probe.last_seen)}</dd>
@@ -1068,6 +1068,126 @@ function LocalProbe({ revision }: { revision: number }) {
   );
 }
 
+type NginxScan = {
+  id: string;
+  ready: number;
+  sites: {
+    site: string;
+    file?: string;
+    status: "ready" | "configured" | "skipped" | "applied";
+    reason?: string;
+  }[];
+};
+
+function NginxCollection() {
+  const [plan, setPlan] = useState<NginxScan | null>(null);
+  const [pending, setPending] = useState<"scan" | "apply" | null>(null);
+  const [error, setError] = useState("");
+  const statusLabel: Record<NginxScan["sites"][number]["status"], string> = {
+    ready: "可接入",
+    configured: "已配置",
+    skipped: "已跳过",
+    applied: "已请求重载",
+  };
+
+  async function scan() {
+    setPlan(null);
+    setError("");
+    setPending("scan");
+    try {
+      setPlan(await api<NginxScan>("/system/nginx/scan", { method: "POST" }));
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function apply() {
+    if (!plan?.ready) return;
+    setError("");
+    setPending("apply");
+    try {
+      setPlan(
+        await api<NginxScan>("/system/nginx/apply", {
+          method: "POST",
+          body: JSON.stringify({ id: plan.id }),
+        }),
+      );
+    } catch (error) {
+      setPlan(null);
+      setError((error as Error).message);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <section className="panel" aria-labelledby="nginx-collection-title">
+      <div className="panel-title">
+        <h2 id="nginx-collection-title">Nginx 采集</h2>
+        <button
+          className="primary"
+          disabled={pending !== null}
+          onClick={() => void scan()}
+        >
+          {pending === "scan"
+            ? "扫描中…"
+            : plan
+              ? "重新扫描"
+              : "启用 Nginx 采集"}
+        </button>
+      </div>
+      <ErrorBox message={error} />
+      {plan && (
+        <>
+          {plan.ready > 0 && (
+            <p>
+              将为 {plan.ready}{" "}
+              个站点配置浏览器采集。确认后会备份配置，校验通过才重载 Nginx。
+            </p>
+          )}
+          {plan.sites.some((site) => site.status === "applied") && (
+            <p role="status">
+              配置已校验并请求重载。继续访问原网站，收到数据后站点会自动出现。
+            </p>
+          )}
+          <Table
+            rows={plan.sites}
+            columns={[
+              { key: "site", label: "站点" },
+              {
+                key: "status",
+                label: "状态",
+                render: (row) =>
+                  statusLabel[
+                    row.status as NginxScan["sites"][number]["status"]
+                  ],
+              },
+              { key: "reason", label: "说明" },
+              { key: "file", label: "配置文件" },
+            ]}
+          />
+          {plan.ready > 0 && (
+            <div className="actions nginx-confirm-actions">
+              <button
+                className="primary"
+                disabled={pending !== null}
+                onClick={() => void apply()}
+              >
+                {pending === "apply" ? "应用中…" : "确认启用"}
+              </button>
+              <button disabled={pending !== null} onClick={() => setPlan(null)}>
+                取消
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function System({ revision }: { revision: number }) {
   const state = useData(() => api<Row>("/system/status"), [revision]);
   const [error, setError] = useState(""),
@@ -1076,6 +1196,7 @@ function System({ revision }: { revision: number }) {
   return (
     <>
       <LocalProbe revision={revision} />
+      <NginxCollection />
       <AsyncPanel state={state}>
         {d && (
           <section className="panel">
