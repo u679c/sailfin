@@ -408,7 +408,7 @@ function App() {
   const selectedSite = projects.data?.find((item) => item.id === project);
   const primarySection = settingsView ? "system" : section === "collection" ? "collection" : "sites";
   return (
-    <div className="shell">
+    <div className={`shell ${siteView ? "site-shell" : ""}`}>
       <header className="topbar">
         <a className="brand" href={href("sites", { projectId: "" })} onClick={followLink}>
           <Activity size={23} /><span>TraceLite</span>
@@ -442,6 +442,7 @@ function App() {
           {siteView && <SiteAssets state={projects} selected={project}
             siteHref={(id) => href(section, { projectId: id })} onNavigate={followLink} />}
           <div className="detail-workspace">
+          <div className={siteView ? "site-sticky-header" : undefined}>
           <div className="page-title">
             <div>
               <h1>{siteView ? selectedSite?.name || (project ? "站点数据" : "全部站点") : settingsView ? "系统设置" : current.name}</h1>
@@ -454,9 +455,7 @@ function App() {
               </button>
             )}
           </div>
-          {siteView && showConnect && <NginxCollection />}
           {siteView && (
-            <>
               <nav className="tabs" aria-label="站点导航">
                 {siteSections.map((item) => (
                   <a key={item.id} href={href(item.id)} onClick={followLink}
@@ -464,6 +463,11 @@ function App() {
                     aria-current={section === item.id ? "page" : undefined}>{item.name}</a>
                 ))}
               </nav>
+          )}
+          </div>
+          <div className={siteView ? "detail-scroll" : undefined}>
+          {siteView && showConnect && <NginxCollection />}
+          {siteView && (
               <div className="filterbar">
                 <div className="filters">
                   <label>时间<select value={range} onChange={(e) => navigate(href(section, { range: e.target.value === "24" ? "" : e.target.value }), true)}>
@@ -476,7 +480,6 @@ function App() {
                   </>}
                 </div>
               </div>
-            </>
           )}
           {settingsView && (
             <nav className="tabs" aria-label="设置导航">
@@ -497,11 +500,12 @@ function App() {
             { key: "requests", label: "HTTP 请求" }, { key: "pv", label: "浏览量" }, { key: "uv", label: "匿名访客" }, { key: "events", label: "事件总数" },
           ]} />}
           {section === "events" && <Events key="events" query={query} revision={revision} />}
-          {section === "clicks" && <Events key="clicks" query={query} revision={revision} eventType="click" />}
+          {section === "clicks" && <Clicks query={query} revision={revision} />}
           {section === "sessions" && <Sessions query={query} revision={revision} />}
           {section === "collection" && <><NginxCollection /><LocalProbe revision={revision} /></>}
           {section === "security" && <Security revision={revision} />}
           {section === "system" && <System revision={revision} />}
+          </div>
           </div>
         </div>
       </main>
@@ -681,6 +685,31 @@ function DataTable({
     <section className="panel">
       <AsyncPanel state={state}>
         <Table rows={state.data || []} columns={columns} />
+      </AsyncPanel>
+    </section>
+  );
+}
+function Clicks({ query, revision }: { query: string; revision: number }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [query]);
+  const state = useData(
+    () => api("/stats/clicks" + query + `&page=${page}`),
+    [query, page, revision],
+  );
+  const allSites = !new URLSearchParams(query).get("projectId");
+  return (
+    <section className="panel">
+      <AsyncPanel state={state}>
+        <Table rows={state.data || []} columns={[
+          ...(allSites ? [{ key: "site_name", label: "站点" }] : []),
+          { key: "path", label: "页面" },
+          { key: "label", label: "元素名称", render: (row) => row.label || "未命名元素" },
+          { key: "region", label: "区域", render: (row) => row.region || "—" },
+          { key: "clicks", label: "点击次数", render: (row) => number(row.clicks) },
+          { key: "visitors", label: "匿名访客", render: (row) => number(row.visitors) },
+          { key: "last_click", label: "最近点击", render: (row) => when(row.last_click) },
+        ]} />
+        <Pager page={page} setPage={setPage} count={state.data?.length || 0} />
       </AsyncPanel>
     </section>
   );

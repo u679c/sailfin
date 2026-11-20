@@ -418,7 +418,7 @@ func (s *Server) routes() {
 	s.route("GET /api/v1/events", true, s.events)
 	s.route("GET /api/v1/sessions", true, s.sessions)
 	s.route("GET /api/v1/sessions/{id}", true, s.sessionDetail)
-	for _, kind := range []string{"overview", "trends", "devices", "pages"} {
+	for _, kind := range []string{"overview", "trends", "devices", "pages", "clicks"} {
 		k := kind
 		s.route("GET /api/v1/stats/"+k, true, func(w http.ResponseWriter, r *http.Request) error { return s.stats(w, r, k) })
 	}

@@ -38,6 +38,9 @@
 | GET /stats/trends | 按 UTC 小时分组 |
 | GET /stats/devices | 设备/浏览器/OS 分组 |
 | GET /stats/pages | 路径分组 |
+| GET /stats/clicks | 按站点、页面和元素聚合点击，按点击次数降序分页 |
+
+`/stats/clicks` 使用 `projectId/from/to` 筛选和 `page/limit` 分页，返回 `project_id, site_name, path, element_key, label, region, element_id, selector, clicks, visitors, last_click`。仅统计浏览器 click 事件，页面优先使用 properties.pagePath（包含 Hash 路由），元素优先使用 elementId，其次 selector。历史事件缺少定位信息时按元素类型、名称和区域归并。名称、区域及定位信息取组内最近一次点击，匿名访客按 visitor_id 去重；不同站点和页面不合并。旧数据可能无法区分同名同类型元素。
 | GET /security/summary | 限流/拒绝计数、UTC 今日配额、管理审计 |
 | GET /system/status | 服务与数据库状态 |
 | POST /system/backup | 下载 SQLite 一致性快照 |

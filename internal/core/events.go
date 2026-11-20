@@ -361,6 +361,40 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) erro
 		return e
 	}
 	switch kind {
+	case "clicks":
+		limit, offset := pagination(r)
+		a = append(a, limit, offset)
+		return s.query(w, r, `WITH clicked AS (
+			SELECT project_id,visitor_id,timestamp,id,
+				COALESCE(NULLIF(json_extract(properties,'$.pagePath'),''),path) AS page,
+				CASE
+					WHEN NULLIF(json_extract(properties,'$.elementId'),'') IS NOT NULL
+						THEN json_array('id',json_extract(properties,'$.elementId'))
+					WHEN NULLIF(json_extract(properties,'$.selector'),'') IS NOT NULL
+						THEN json_array('selector',json_extract(properties,'$.selector'))
+					ELSE json_array('legacy',json_extract(properties,'$.element'),json_extract(properties,'$.label'),json_extract(properties,'$.region'))
+				END AS element_key,
+				json_extract(properties,'$.label') AS label,
+				json_extract(properties,'$.region') AS region,
+				json_extract(properties,'$.elementId') AS element_id,
+				json_extract(properties,'$.selector') AS selector
+			FROM events WHERE type='click' AND source_type='browser' AND `+q+`
+		), ranked AS (
+			SELECT *,row_number() OVER (
+				PARTITION BY project_id,page,element_key ORDER BY timestamp DESC,id DESC
+			) AS position FROM clicked
+		)
+		SELECT r.project_id,p.name AS site_name,r.page AS path,r.element_key,
+			max(CASE WHEN position=1 THEN label END) AS label,
+			max(CASE WHEN position=1 THEN region END) AS region,
+			max(CASE WHEN position=1 THEN element_id END) AS element_id,
+			max(CASE WHEN position=1 THEN selector END) AS selector,
+			count(*) AS clicks,count(DISTINCT NULLIF(visitor_id,'')) AS visitors,
+			max(timestamp) AS last_click
+		FROM ranked r JOIN projects p ON p.id=r.project_id
+		GROUP BY r.project_id,r.page,r.element_key
+		ORDER BY clicks DESC,last_click DESC,r.project_id,r.page,r.element_key
+		LIMIT ? OFFSET ?`, a...)
 	case "overview":
 		return s.query(w, r, `SELECT count(*) AS events,count(CASE WHEN type='http_request' THEN 1 END) AS requests,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv,count(DISTINCT CASE WHEN visitor_id!='' THEN project_id||':'||visitor_id END) AS uv,count(DISTINCT CASE WHEN session_id!='' AND timestamp>`+strconv.FormatInt(Now()-1800000, 10)+` THEN project_id||':'||session_id END) AS active_sessions,count(CASE WHEN type IN ('js_error','unhandled_rejection') THEN 1 END) AS js_errors,COALESCE(avg(CASE WHEN type='page_hidden' THEN json_extract(properties,'$.durationMs') END),0) AS avg_duration_ms FROM events WHERE `+q, a...)
 	case "trends":
