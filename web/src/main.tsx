@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
+  Globe,
+  Search,
   LogOut,
   RefreshCw,
   ArrowRight,
@@ -305,13 +307,52 @@ function Login({ onLogin }: { onLogin: () => void }) {
     </div>
   );
 }
+function SiteAssets({ state, selected, siteHref, onNavigate }: {
+  state: { data: Row[] | null; loading: boolean; error: string };
+  selected: string;
+  siteHref: (id: string) => string;
+  onNavigate: React.MouseEventHandler<HTMLAnchorElement>;
+}) {
+  const [search, setSearch] = useState("");
+  const sites = state.data || [];
+  const term = search.trim().toLocaleLowerCase();
+  const matches = sites.filter((site) => String(site.name).toLocaleLowerCase().includes(term));
+  return (
+    <aside className="site-assets" aria-label="站点资产">
+      <div className="asset-search">
+        <Search size={16} aria-hidden="true" />
+        <input type="search" aria-label="搜索站点" placeholder="搜索站点" value={search}
+          onChange={(event) => setSearch(event.target.value)} />
+      </div>
+      <ErrorBox message={state.error} />
+      {state.loading && !state.data ? <div className="loading">加载中…</div> : (
+        <>
+          <a className={`asset-all ${!selected ? "selected" : ""}`} href={siteHref("")}
+            onClick={onNavigate} aria-current={!selected ? "page" : undefined}>
+            <Globe size={16} aria-hidden="true" /><span>全部站点</span><span className="asset-count">{state.data ? sites.length : "—"}</span>
+          </a>
+          <nav className="asset-items" aria-label="站点列表">
+            {matches.map((site) => (
+              <a key={site.id} href={siteHref(site.id)} onClick={onNavigate}
+                className={`asset-item ${selected === site.id ? "selected" : ""}`}
+                title={site.name} aria-current={selected === site.id ? "page" : undefined}>
+                <Globe size={15} aria-hidden="true" /><span>{site.name}</span>
+              </a>
+            ))}
+            {!matches.length && <div className="asset-empty">{term ? "无匹配站点" : "暂无站点"}</div>}
+          </nav>
+        </>
+      )}
+    </aside>
+  );
+}
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null),
     [revision, setRevision] = useState(0),
     [error, setError] = useState("");
   const [showConnect, setShowConnect] = useState(false);
   const { current, params, href, navigate } = useDashboardLocation();
-  const section = current.id;
+  const section = current.id === "sites" ? "overview" : current.id;
   const project = params.get("projectId") ?? "";
   const selectedRange = params.get("range") ?? "";
   const range = ["24", "168", "720", "custom"].includes(selectedRange)
@@ -396,22 +437,24 @@ function App() {
           }}><LogOut size={16} />退出</button>
         </div>
       </header>
-      <main>
-        <div className="workspace">
-          {siteView && (
-            <a className="back-link" href={href("sites", { projectId: "" })} onClick={followLink}>
-              <ChevronLeft size={14} />站点
-            </a>
-          )}
+      <main className={siteView ? "site-main" : undefined}>
+        <div className={`workspace ${siteView ? "site-workspace" : ""}`}>
+          {siteView && <SiteAssets state={projects} selected={project}
+            siteHref={(id) => href(section, { projectId: id })} onNavigate={followLink} />}
+          <div className="detail-workspace">
           <div className="page-title">
-            <h1>{siteView ? selectedSite?.name || (project ? "站点数据" : "全部站点") : settingsView ? "系统设置" : current.name}</h1>
-            {section === "sites" && (
+            <div>
+              <h1>{siteView ? selectedSite?.name || (project ? "站点数据" : "全部站点") : settingsView ? "系统设置" : current.name}</h1>
+              {siteView && selectedSite && <div className="site-meta">最近上报：{when(selectedSite.last_event)}</div>}
+            </div>
+            {siteView && (
               <button className={showConnect ? "" : "primary"} aria-expanded={showConnect}
                 onClick={() => setShowConnect((value) => !value)}>
                 {showConnect ? "收起接入" : "接入站点"}
               </button>
             )}
           </div>
+          {siteView && showConnect && <NginxCollection />}
           {siteView && (
             <>
               <nav className="tabs" aria-label="站点导航">
@@ -423,10 +466,6 @@ function App() {
               </nav>
               <div className="filterbar">
                 <div className="filters">
-                  <label>站点<select value={project} onChange={(e) => navigate(href(section, { projectId: e.target.value }), true)}>
-                    <option value="">全部站点</option>
-                    {projects.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </select></label>
                   <label>时间<select value={range} onChange={(e) => navigate(href(section, { range: e.target.value === "24" ? "" : e.target.value }), true)}>
                     <option value="24">最近 24 小时</option><option value="168">最近 7 天</option>
                     <option value="720">最近 30 天</option><option value="custom">自定义</option>
@@ -447,25 +486,7 @@ function App() {
               ))}
             </nav>
           )}
-          <ErrorBox message={error || (section === "sites" || !siteView ? "" : projects.error)} />
-          {section === "sites" && <>
-            {showConnect && <NginxCollection />}
-            <section className="panel">
-              <AsyncPanel state={projects}>
-                {projects.data?.length ? <Table rows={projects.data}
-                  onRow={(row) => navigate(href("overview", { projectId: row.id }))}
-                  columns={[
-                    { key: "name", label: "站点名称" },
-                    { key: "last_event", label: "数据状态", render: (row) => <span className={`badge ${row.last_event ? "good" : "neutral"}`}>{row.last_event ? "已收到数据" : "暂无数据"}</span> },
-                    { key: "created_at", label: "首次接入", render: (row) => when(row.created_at) },
-                    { key: "received", label: "最近上报", render: (row) => row.last_event ? when(row.last_event) : "—" },
-                    { key: "actions", label: "操作", render: (row) => <a href={href("overview", { projectId: row.id })} onClick={followLink}>查看数据</a> },
-                  ]} /> : <div className="empty"><p>暂无站点</p>
-                    {!showConnect && <button className="primary" onClick={() => setShowConnect(true)}>接入站点</button>}
-                  </div>}
-              </AsyncPanel>
-            </section>
-          </>}
+          <ErrorBox message={error} />
           {section === "overview" && <Overview query={query} revision={revision} />}
           {section === "pages" && <DataTable path="/stats/pages" query={query} revision={revision} columns={[
             { key: "path", label: "页面 / 请求路径" }, { key: "pv", label: "浏览量" },
@@ -481,6 +502,7 @@ function App() {
           {section === "collection" && <><NginxCollection /><LocalProbe revision={revision} /></>}
           {section === "security" && <Security revision={revision} />}
           {section === "system" && <System revision={revision} />}
+          </div>
         </div>
       </main>
     </div>
