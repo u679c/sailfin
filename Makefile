@@ -14,7 +14,7 @@ test:
 	npm test
 build:
 	mkdir -p bin
-	go build -ldflags="$(GO_LDFLAGS)" -trimpath -o bin/tracelite-core ./cmd/core
+	go build -ldflags="$(GO_LDFLAGS)" -trimpath -o bin/sailfin-core ./cmd/core
 	npm run build -w web
 docker-test:
 	go test -ldflags="$(GO_LDFLAGS)" ./internal/agent -run TestLocalDocker -v -count=1

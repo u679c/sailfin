@@ -7,11 +7,11 @@ let closing = false,
   restarting = false,
   again = false;
 mkdirSync("var", { recursive: true });
-const webPort = process.env.TRACELITE_WEB_PORT || "5173";
+const webPort = process.env.SAILFIN_WEB_PORT || "5173";
 const env = {
   ...process.env,
-  TRACELITE_PUBLIC_URL:
-    process.env.TRACELITE_PUBLIC_URL || `http://localhost:${webPort}`,
+  SAILFIN_PUBLIC_URL:
+    process.env.SAILFIN_PUBLIC_URL || `http://localhost:${webPort}`,
 };
 const goArgs =
   process.platform === "darwin" ? ["-ldflags=-linkmode=external"] : [];
@@ -116,5 +116,5 @@ async function shutdown(code = 0) {
 process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 console.log(
-  `TraceLite Web: ${env.TRACELITE_PUBLIC_URL} • Core: ${env.TRACELITE_CORE_URL || "http://127.0.0.1:8080"} • Ctrl+C stops these development processes.`,
+  `Sailfin Web: ${env.SAILFIN_PUBLIC_URL} • Core: ${env.SAILFIN_CORE_URL || "http://127.0.0.1:8080"} • Ctrl+C stops these development processes.`,
 );

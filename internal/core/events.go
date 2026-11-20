@@ -7,11 +7,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sailfin/internal/device"
+	"sailfin/internal/protocol"
 	"strconv"
 	"strings"
 	"time"
-	"tracelite/internal/device"
-	"tracelite/internal/protocol"
 )
 
 var browserTypes = map[string]bool{"page_view": true, "route_change": true, "click": true, "session_start": true, "page_hidden": true, "js_error": true, "unhandled_rejection": true, "performance_event": true}
@@ -467,7 +467,7 @@ func (s *Server) backup(w http.ResponseWriter, r *http.Request) error {
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		return e
 	}
-	name := "tracelite-" + time.Now().UTC().Format("20060102T150405") + "-" + Random()[:6] + ".db"
+	name := "sailfin-" + time.Now().UTC().Format("20060102T150405") + "-" + Random()[:6] + ".db"
 	path := filepath.Join(dir, name)
 	defer os.Remove(path)
 	if _, e := s.DB.ExecContext(r.Context(), "VACUUM INTO ?", path); e != nil {

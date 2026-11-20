@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TraceLite 本机采集验证站点</title>
+    <title>帆鳍 本机采集验证站点</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
@@ -31,18 +31,18 @@
       <p id="status" role="status">尚未启用</p>
       <hr />
       <nav>
-        <button data-path="/home" data-tracelite-id="nav-home">首页</button
-        ><button data-path="/pricing" data-tracelite-id="nav-pricing">
+        <button data-path="/home" data-sailfin-id="nav-home">首页</button
+        ><button data-path="/pricing" data-sailfin-id="nav-pricing">
           方案页</button
-        ><button data-path="/contact" data-tracelite-id="nav-contact">
+        ><button data-path="/contact" data-sailfin-id="nav-contact">
           联系页
         </button>
       </nav>
       <h2 id="route">/</h2>
-      <button id="action" data-tracelite-id="test-action">
+      <button id="action" data-sailfin-id="test-action">
         记录一次真实点击</button
-      ><button id="error" data-tracelite-id="test-error">触发测试错误</button
-      ><button id="stop" data-tracelite-id="stop-collection">停止采集</button
+      ><button id="error" data-sailfin-id="test-error">触发测试错误</button
+      ><button id="stop" data-sailfin-id="stop-collection">停止采集</button
       ><label
         >隐私检查输入框（值不采集）<input
           type="password"
@@ -50,7 +50,7 @@
           placeholder="这里的内容不会采集"
       /></label>
       <p>
-        切换页面可见状态、点击导航或刷新页面，然后在 TraceLite
+        切换页面可见状态、点击导航或刷新页面，然后在 帆鳍
         查看会话轨迹。测试错误用于主动验证 js_error，不代表网站故障。
       </p>
     </main>

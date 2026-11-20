@@ -24,7 +24,8 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/argon2"
-	"tracelite/internal/protocol"
+	"sailfin/internal/branding"
+	"sailfin/internal/protocol"
 )
 
 //go:embed schema.sql
@@ -93,7 +94,7 @@ func Open(c Config) (*Server, error) {
 		c.Address = "127.0.0.1:8080"
 	}
 	if c.DBPath == "" {
-		c.DBPath = "var/tracelite.db"
+		c.DBPath = branding.DefaultDBPath()
 	}
 	if c.PublicURL == "" {
 		c.PublicURL = "http://localhost:5173"
@@ -104,7 +105,7 @@ func Open(c Config) (*Server, error) {
 	c.PublicURL = strings.TrimRight(c.PublicURL, "/")
 	public, e := url.Parse(c.PublicURL)
 	if e != nil || public.Host == "" || (public.Scheme != "http" && public.Scheme != "https") || public.Path != "" || public.RawQuery != "" || public.Fragment != "" || public.User != nil {
-		return nil, errors.New("TRACELITE_PUBLIC_URL must be an HTTP(S) origin")
+		return nil, errors.New("SAILFIN_PUBLIC_URL must be an HTTP(S) origin")
 	}
 	if c.OfflineSeconds < 0 {
 		return nil, errors.New("offline threshold must be positive")
@@ -293,7 +294,7 @@ func (s *Server) route(pattern string, auth bool, fn func(http.ResponseWriter, *
 	})
 }
 func (s *Server) authorize(r *http.Request) error {
-	c, e := r.Cookie("tracelite_session")
+	c, e := r.Cookie("sailfin_session")
 	if e != nil {
 		return fail(401, "login required")
 	}
@@ -362,13 +363,13 @@ func (s *Server) routes() {
 	s.route("POST /api/v1/auth/login", false, s.login)
 	s.route("POST /api/v1/auth/password", true, s.changePassword)
 	s.route("GET /api/v1/auth/me", true, func(w http.ResponseWriter, r *http.Request) error {
-		c, _ := r.Cookie("tracelite_session")
+		c, _ := r.Cookie("sailfin_session")
 		return s.query(w, r, "SELECT u.name,u.role,a.csrf FROM auth_sessions a JOIN users u ON u.id=a.user_id WHERE a.token=?", hash(c.Value))
 	})
 	s.route("POST /api/v1/auth/logout", true, func(w http.ResponseWriter, r *http.Request) error {
-		c, _ := r.Cookie("tracelite_session")
+		c, _ := r.Cookie("sailfin_session")
 		_, e := s.DB.ExecContext(r.Context(), "DELETE FROM auth_sessions WHERE token=?", hash(c.Value))
-		http.SetCookie(w, &http.Cookie{Name: "tracelite_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: strings.HasPrefix(s.cfg.PublicURL, "https://")})
+		http.SetCookie(w, &http.Cookie{Name: "sailfin_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: strings.HasPrefix(s.cfg.PublicURL, "https://")})
 		jsonOut(w, 200, map[string]bool{"ok": true})
 		return e
 	})
@@ -458,7 +459,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	if e != nil {
 		return e
 	}
-	http.SetCookie(w, &http.Cookie{Name: "tracelite_session", Value: tok, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: strings.HasPrefix(s.cfg.PublicURL, "https://"), MaxAge: 43200})
+	http.SetCookie(w, &http.Cookie{Name: "sailfin_session", Value: tok, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: strings.HasPrefix(s.cfg.PublicURL, "https://"), MaxAge: 43200})
 	s.audit("login", b.Name)
 	jsonOut(w, 200, map[string]string{"csrf": csrf, "name": b.Name})
 	return nil
@@ -788,7 +789,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	if len(b.New) < 12 || len(b.New) > 256 || len(b.Current) > 256 {
 		return fail(400, "new password must contain 12..256 characters")
 	}
-	c, _ := r.Cookie("tracelite_session")
+	c, _ := r.Cookie("sailfin_session")
 	var id, encoded string
 	if e := s.DB.QueryRowContext(r.Context(), "SELECT u.id,u.password FROM users u JOIN auth_sessions a ON a.user_id=u.id WHERE a.token=?", hash(c.Value)).Scan(&id, &encoded); e != nil {
 		return e

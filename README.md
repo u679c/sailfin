@@ -1,4 +1,4 @@
-# TraceLite
+# 帆鳍（Sailfin）
 
 Go + SQLite + React 的单机 Web 采集与分析平台。所有管理视图调用真实 API；初始数据库没有示例项目或统计数据。
 
@@ -15,7 +15,7 @@ make dev
 
 默认管理界面：[http://localhost:5173](http://localhost:5173)，Core：[http://127.0.0.1:8080/api/v1/health](http://127.0.0.1:8080/api/v1/health)。Core 首次启动自动创建数据库、迁移与随机管理员密码。
 
-查看 **`var/bootstrap-admin.txt`** 获取登录凭据。文件权限 0600，不是公开默认密码。不要提交、分享此文件。登录后可在“系统状态”修改密码。可在首次启动前设置 `TRACELITE_ADMIN_NAME` / `TRACELITE_ADMIN_PASSWORD`（至少 12 字符）。已有数据库不会被这些变量重置。
+查看 **`var/bootstrap-admin.txt`** 获取登录凭据。文件权限 0600，不是公开默认密码。不要提交、分享此文件。登录后可在“系统状态”修改密码。可在首次启动前设置 `SAILFIN_ADMIN_NAME` / `SAILFIN_ADMIN_PASSWORD`（至少 12 字符）。已有数据库不会被这些变量重置。
 
 `make dev` 同时启动：
 
@@ -26,6 +26,10 @@ Ctrl+C 只终止此次编排启动的进程组。脚本不调用 Docker CLI、�
 
 ## 配置
 
+命名统一为：英文与代码 Sailfin，中文界面“帆鳍”。环境变量使用 `SAILFIN_`，采集路由使用 `/__sailfin/`，SDK 全局对象为 `Sailfin`。
+
+升级兼容：已有 `TRACELITE_` 环境变量仍可读取，显式的 `SAILFIN_` 配置优先；没有新数据库时继续使用已有 `var/tracelite.db`，不移动正在使用的 SQLite 文件。已部署的旧 Nginx 采集路由、同意事件、匿名访客存储和元素标记保留兼容。新接入与示例均使用新名称。管理员 Cookie 已改名，升级后需重新登录。
+
 ```sh
 cp .env.example .env
 # 编辑 .env 后重新运行 make dev
@@ -33,9 +37,9 @@ cp .env.example .env
 
 `.env` 由 `make dev` 读取，已有 shell 环境变量优先；不会执行变量插值或 Shell 命令。直接运行 Core 二进制时使用进程环境变量。
 
-更换 Core 端口时同步配置 `TRACELITE_ADDR` 和 `TRACELITE_CORE_URL`；更换 Web 端口时同步 `TRACELITE_WEB_PORT` 和 `TRACELITE_PUBLIC_URL`。管理浏览器地址应匹配 PUBLIC_URL Origin，同协议同端口的本机回环地址可以互换。使用自定义域名或代理端口时，可运行 `npm run dev -- --public-url https://实际后台域名`。
+更换 Core 端口时同步配置 `SAILFIN_ADDR` 和 `SAILFIN_CORE_URL`；更换 Web 端口时同步 `SAILFIN_WEB_PORT` 和 `SAILFIN_PUBLIC_URL`。管理浏览器地址应匹配 PUBLIC_URL Origin，同协议同端口的本机回环地址可以互换。使用自定义域名或代理端口时，可运行 `npm run dev -- --public-url https://实际后台域名`。
 
-数据位置：Core 默认 `var/tracelite.db`（`TRACELITE_DB`）；探针状态默认位于数据库同级的 `local-probe` 目录（`TRACELITE_PROBE_STATE`）。日志偏移、待发队列和暂停状态均持久化。
+数据位置：Core 默认 `var/sailfin.db`（`SAILFIN_DB`）；探针状态默认位于数据库同级的 `local-probe` 目录（`SAILFIN_PROBE_STATE`）。日志偏移、待发队列和暂停状态均持久化。
 
 ## 接入站点
 
@@ -47,7 +51,7 @@ cp .env.example .env
 
 ## TODO：单机安装与发布
 
-- [ ] 为 macOS 和 Linux 生成 `tracelite-<md5>.bin`。检查 Docker 已安装且可连接，缺失时报错。在安装文件所在目录解压项目文件，创建并启动 TraceLite 专用容器。
+- [ ] 为 macOS 和 Linux 生成 `sailfin-<md5>.bin`。检查 Docker 已安装且可连接，缺失时报错。在安装文件所在目录解压项目文件，创建并启动 Sailfin 专用容器。
 - [ ] 单机安装时自动部署同机探针。生成 `./u679c start|stop|restart|status`，统一管理管理节点与探针，重启时保留数据库和配置。
 - [ ] 打包部署时准备 Nginx 配置与重载权限，站点接入仍在 Web 后台启用。
 - [ ] 分布式部署留待后续，届时探针可以部署在与管理节点不同的设备。
@@ -60,12 +64,12 @@ make check   # TypeScript 无产物检查 + 编排脚本语法检查
 make build   # 生成包含探针和 SDK 的 Core 二进制及 Web 静态文件
 ```
 
-`make build` 是实际实现的本机生产程序构建命令，不是正式发布打包。输出 `bin/tracelite-core` 和 `web/dist`。macOS 使用外部链接兼容当前系统与 Go 1.22；Linux 使用默认链接。CGO 构建需要本机 C 工具链，跨架构发布后续处理。
+`make build` 是实际实现的本机生产程序构建命令，不是正式发布打包。输出 `bin/sailfin-core` 和 `web/dist`。macOS 使用外部链接兼容当前系统与 Go 1.22；Linux 使用默认链接。CGO 构建需要本机 C 工具链，跨架构发布后续处理。
 
 用户自行构建后，可以不运行 Node 服务：
 
 ```sh
-./bin/tracelite-core serve --web-dir web/dist --public-url http://localhost:8080
+./bin/sailfin-core serve --web-dir web/dist --public-url http://localhost:8080
 ```
 
 ## 数据与安全

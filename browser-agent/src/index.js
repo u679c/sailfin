@@ -1,7 +1,7 @@
 import { clickProperties, pagePath, safePath, safeProps, shouldCollect } from "./policy.js";
 export function init(options) {
   if (typeof window === "undefined")
-    throw new Error("TraceLite requires a browser");
+    throw new Error("Sailfin requires a browser");
   if (!options?.projectId || !options?.endpoint)
     throw new Error("projectId and endpoint are required");
   const endpoint = new URL(options.endpoint, location.href);
@@ -30,14 +30,16 @@ export function init(options) {
   const listeners = [];
   const project = options.projectId;
   const id = () => crypto.randomUUID();
-  const key = `tracelite:${project}`;
+  const key = `sailfin:${project}`;
+  const legacyKey = `tracelite:${project}`;
+  const disabled = () => window.SAILFIN_DISABLED || window.TRACELITE_DISABLED;
   function identity() {
     const now = Date.now();
     try {
-      visitor = localStorage.getItem(`${key}:visitor`) || id();
+      visitor = localStorage.getItem(`${key}:visitor`) || localStorage.getItem(`${legacyKey}:visitor`) || id();
       localStorage.setItem(`${key}:visitor`, visitor);
       const old = JSON.parse(
-        sessionStorage.getItem(`${key}:session`) || "null",
+        sessionStorage.getItem(`${key}:session`) || sessionStorage.getItem(`${legacyKey}:session`) || "null",
       );
       if (!session) {
         session = old?.id || id();
@@ -77,7 +79,7 @@ export function init(options) {
       stopped ||
       !config.enabled ||
       navigator.doNotTrack === "1" ||
-      window.TRACELITE_DISABLED
+      disabled()
     )
       return;
     const path = page.path;
@@ -116,7 +118,7 @@ export function init(options) {
     if (
       stopped ||
       !config.enabled ||
-      window.TRACELITE_DISABLED ||
+      disabled() ||
       navigator.doNotTrack === "1"
     ) {
       queue = [];
@@ -125,7 +127,7 @@ export function init(options) {
     if (inflight || !queue.length) return;
     inflight = true;
     try {
-      while (queue.length && !stopped && config.enabled && !window.TRACELITE_DISABLED && navigator.doNotTrack !== "1") {
+      while (queue.length && !stopped && config.enabled && !disabled() && navigator.doNotTrack !== "1") {
         const batch = [];
         let bytes = 32;
         const limit = Math.max(1, Math.min(config.batchSize || 20, 100));
@@ -168,7 +170,7 @@ export function init(options) {
     }
   }
   async function sync() {
-    if (stopped || window.TRACELITE_DISABLED || navigator.doNotTrack === "1") {
+    if (stopped || disabled() || navigator.doNotTrack === "1") {
       config.enabled = false;
       queue = [];
       return;
@@ -227,12 +229,12 @@ export function init(options) {
   on(window, "hashchange", route);
   on(document, "click", (e) => {
     if (!config.enabled || !(e.target instanceof Element)) return;
-    if (e.target.closest('input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable],[data-tracelite-ignore],[hidden],[aria-hidden="true"]')) return;
-    const el = e.target.closest('button,a,[role="button"],[role="link"],input[type="button"],input[type="submit"],input[type="reset"],[data-tracelite-id]');
+    if (e.target.closest('input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],[hidden],[aria-hidden="true"]')) return;
+    const el = e.target.closest('button,a,[role="button"],[role="link"],input[type="button"],input[type="submit"],input[type="reset"],[data-sailfin-id],[data-tracelite-id]');
     if (
       !el ||
       el.closest(
-        'input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable],[data-tracelite-ignore]',
+        'input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore]',
       )
     )
       return;

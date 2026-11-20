@@ -8,12 +8,12 @@ document.querySelector("#connect").addEventListener("submit", async (event) => {
   try {
     await new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = new URL("/sdk/tracelite.browser.min.js", server).href;
+      script.src = new URL("/sdk/sailfin.browser.min.js", server).href;
       script.onload = resolve;
       script.onerror = reject;
       document.head.append(script);
     });
-    trace = window.TraceLite.init({
+    trace = window.Sailfin.init({
       projectId,
       endpoint: new URL("/api/v1/collect/browser", server).href,
     });
@@ -44,7 +44,7 @@ document
   );
 document.querySelector("#error").addEventListener("click", () => {
   setTimeout(() => {
-    throw new Error("Deliberate TraceLite verification error");
+    throw new Error("Deliberate Sailfin verification error");
   }, 0);
 });
 document.querySelector("#stop").addEventListener("click", () => {

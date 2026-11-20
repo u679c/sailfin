@@ -21,7 +21,7 @@ export async function api<T = Row[]>(
       message = (await res.json()).error || message;
     } catch {}
     if (res.status === 401 && !path.includes("/auth/"))
-      window.dispatchEvent(new Event("tracelite:unauthorized"));
+      window.dispatchEvent(new Event("sailfin:unauthorized"));
     throw new Error(message);
   }
   const data = await res.json();
@@ -43,7 +43,7 @@ export async function backup() {
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement("a");
   a.href = url;
-  a.download = "tracelite-backup.db";
+  a.download = "sailfin-backup.db";
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

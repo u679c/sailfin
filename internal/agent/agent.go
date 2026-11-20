@@ -16,11 +16,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sailfin/internal/parser"
+	"sailfin/internal/protocol"
 	"strings"
 	"syscall"
 	"time"
-	"tracelite/internal/parser"
-	"tracelite/internal/protocol"
 )
 
 type Options struct {
@@ -76,7 +76,7 @@ func open(o Options, localID string) (*Agent, error) {
 	}
 	if localID != "" {
 		// The URL is a request namespace for the in-process transport.
-		o.Server = "http://tracelite.internal"
+		o.Server = "http://sailfin.internal"
 	} else if err := validateServer(o); err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func validateServer(o Options) error {
 		return errors.New("invalid Core URL")
 	}
 	if u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || o.AllowHTTP)) {
-		return errors.New("remote Core requires HTTPS (explicit TRACELITE_ALLOW_HTTP only for isolated development)")
+		return errors.New("remote Core requires HTTPS (explicit SAILFIN_ALLOW_HTTP only for isolated development)")
 	}
 	return nil
 }
@@ -205,7 +205,7 @@ func (a *Agent) request(ctx context.Context, method, path string, body, out any)
 func (a *Agent) register(ctx context.Context) error {
 	if a.state.Token == "" {
 		if a.opt.EnrollToken == "" {
-			return errors.New("first start requires TRACELITE_ENROLL_TOKEN")
+			return errors.New("first start requires SAILFIN_ENROLL_TOKEN")
 		}
 		var reply struct {
 			AgentID   string `json:"agentId"`
@@ -241,13 +241,13 @@ func (a *Agent) Run(ctx context.Context) error {
 			defer a.opt.RelayState(false)
 		}
 	}
-	slog.Info("TraceLite probe started", "agentId", a.state.AgentID)
+	slog.Info("Sailfin probe started", "agentId", a.state.AgentID)
 	return a.collect(ctx)
 }
 
 func (a *Agent) registerWithRetry(ctx context.Context) error {
 	if a.opt.EnrollToken == "" && a.state.Token == "" {
-		return errors.New("first start requires TRACELITE_ENROLL_TOKEN")
+		return errors.New("first start requires SAILFIN_ENROLL_TOKEN")
 	}
 	if len(a.sites) != 0 && a.state.ProjectID != "" {
 		return errors.New("site collection requires a host enrollment and its own state directory")

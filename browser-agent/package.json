@@ -1,5 +1,5 @@
 {
-  "name": "@tracelite/browser-agent",
+  "name": "@sailfin/browser-agent",
   "private": true,
   "version": "0.1.0",
   "type": "module",

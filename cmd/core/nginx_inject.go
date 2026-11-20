@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"tracelite/internal/agent"
-	"tracelite/internal/protocol"
+	"sailfin/internal/agent"
+	"sailfin/internal/protocol"
 )
 
 func nginxInject(ctx context.Context, args []string) error {
@@ -27,7 +27,7 @@ func nginxInject(ctx context.Context, args []string) error {
 	listen := flags.String("listen", "", "listen argument to distinguish multiple matching servers")
 	location := flags.String("location", "/", "HTML-producing location arguments")
 	origin := flags.String("origin", "", "existing public HTTP(S) origin")
-	id := flags.String("site-id", "", "stable TraceLite site ID")
+	id := flags.String("site-id", "", "stable Sailfin site ID")
 	name := flags.String("site-name", "", "site display name")
 	sitesPath := flags.String("sites-file", "var/sites.json", "site configuration read by Core")
 	relay := flags.String("relay-addr", "127.0.0.1:8091", "local probe address")
@@ -87,8 +87,8 @@ func nginxInject(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("Nginx: %s, server %s, location %s\n", target.path, *server, *location)
-	fmt.Printf("SDK: %s/__tracelite/boot.js → probe %s\n", *origin, address)
-	fmt.Printf("TraceLite site: %s → %s\n", *id, siteConfig.path)
+	fmt.Printf("SDK: %s/__sailfin/boot.js → probe %s\n", *origin, address)
+	fmt.Printf("Sailfin site: %s → %s\n", *id, siteConfig.path)
 	if !*apply {
 		fmt.Println("Preview only. Use --apply to write the files, validate and reload Nginx.")
 		return nil
@@ -286,7 +286,7 @@ func (f *deploymentFile) apply() error {
 		return fmt.Errorf("%s changed while preparing the deployment; retry", f.path)
 	}
 	if f.exists {
-		backup, err := os.CreateTemp(filepath.Dir(f.path), ".tracelite-backup-*")
+		backup, err := os.CreateTemp(filepath.Dir(f.path), ".sailfin-backup-*")
 		if err != nil {
 			return err
 		}
@@ -315,7 +315,7 @@ func (f *deploymentFile) restore() error {
 }
 
 func (f *deploymentFile) replace(body []byte) error {
-	file, err := os.CreateTemp(filepath.Dir(f.path), ".tracelite-write-*")
+	file, err := os.CreateTemp(filepath.Dir(f.path), ".sailfin-write-*")
 	if err != nil {
 		return err
 	}

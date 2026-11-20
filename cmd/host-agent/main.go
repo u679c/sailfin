@@ -5,9 +5,10 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sailfin/internal/agent"
+	"sailfin/internal/branding"
 	"strings"
 	"syscall"
-	"tracelite/internal/agent"
 )
 
 func split(v string) []string {
@@ -20,16 +21,17 @@ func split(v string) []string {
 	return out
 }
 func main() {
-	server := os.Getenv("TRACELITE_SERVER")
+	branding.Environment()
+	server := os.Getenv("SAILFIN_SERVER")
 	if server == "" {
 		server = "http://127.0.0.1:8080"
 	}
-	sites, err := agent.LoadSites(os.Getenv("TRACELITE_SITES_FILE"))
+	sites, err := agent.LoadSites(os.Getenv("SAILFIN_SITES_FILE"))
 	if err != nil {
 		slog.Error("Cannot load site configuration", "error", err)
 		os.Exit(1)
 	}
-	a, e := agent.Open(agent.Options{Server: server, Sites: sites, RelayAddress: os.Getenv("TRACELITE_RELAY_ADDR"), StateDir: os.Getenv("TRACELITE_AGENT_STATE"), EnrollToken: os.Getenv("TRACELITE_ENROLL_TOKEN"), LogRoots: split(os.Getenv("TRACELITE_LOG_ROOTS")), DockerSocket: os.Getenv("TRACELITE_DOCKER_SOCKET"), DockerAllowed: split(os.Getenv("TRACELITE_DOCKER_ALLOWED")), AllowHTTP: os.Getenv("TRACELITE_ALLOW_HTTP") == "1"})
+	a, e := agent.Open(agent.Options{Server: server, Sites: sites, RelayAddress: os.Getenv("SAILFIN_RELAY_ADDR"), StateDir: os.Getenv("SAILFIN_AGENT_STATE"), EnrollToken: os.Getenv("SAILFIN_ENROLL_TOKEN"), LogRoots: split(os.Getenv("SAILFIN_LOG_ROOTS")), DockerSocket: os.Getenv("SAILFIN_DOCKER_SOCKET"), DockerAllowed: split(os.Getenv("SAILFIN_DOCKER_ALLOWED")), AllowHTTP: os.Getenv("SAILFIN_ALLOW_HTTP") == "1"})
 	if e != nil {
 		slog.Error("Agent initialization failed", "error", e)
 		os.Exit(1)

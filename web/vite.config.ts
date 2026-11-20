@@ -3,15 +3,18 @@ import react from "@vitejs/plugin-react";
 import { ServerResponse } from "node:http";
 export default defineConfig(({ mode }) => {
   const e = loadEnv(mode, process.cwd(), "");
+  for (const [key, value] of Object.entries(e)) {
+    if (key.startsWith("TRACELITE_")) e["SAILFIN_" + key.slice("TRACELITE_".length)] ??= value;
+  }
   return {
     plugins: [react()],
     server: {
-      host: e.TRACELITE_WEB_HOST || "127.0.0.1",
-      port: Number(e.TRACELITE_WEB_PORT || 5173),
+      host: e.SAILFIN_WEB_HOST || "127.0.0.1",
+      port: Number(e.SAILFIN_WEB_PORT || 5173),
       strictPort: true,
       proxy: {
         "/api": {
-          target: e.TRACELITE_CORE_URL || "http://127.0.0.1:8080",
+          target: e.SAILFIN_CORE_URL || "http://127.0.0.1:8080",
           changeOrigin: true,
           configure(proxy) {
             proxy.on("error", (_error, _request, response) => {
@@ -34,7 +37,7 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
-        "/sdk": e.TRACELITE_CORE_URL || "http://127.0.0.1:8080",
+        "/sdk": e.SAILFIN_CORE_URL || "http://127.0.0.1:8080",
       },
     },
     build: { outDir: "dist" },

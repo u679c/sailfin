@@ -18,8 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"tracelite/internal/agent"
-	"tracelite/internal/core"
+	"sailfin/internal/agent"
+	"sailfin/internal/branding"
+	"sailfin/internal/core"
 )
 
 type nginxAuto struct {
@@ -77,10 +78,10 @@ func newNginxAuto(dataDir, relay string) (*nginxAuto, error) {
 // A per-installation key authenticates the Host metadata set by our Nginx block.
 // The browser can't choose this header or learn the key from the SDK.
 func (c *nginxAuto) browserSite(r *http.Request) (agent.Site, bool) {
-	if !c.active.Load() || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-TraceLite-Auto")), []byte(c.key)) != 1 {
+	if !c.active.Load() || subtle.ConstantTimeCompare([]byte(branding.Header(r, "Auto")), []byte(c.key)) != 1 {
 		return agent.Site{}, false
 	}
-	origin := r.Header.Get("X-TraceLite-Origin")
+	origin := branding.Header(r, "Origin")
 	u, err := url.Parse(origin)
 	if err != nil || u.Hostname() == "" || len(u.Host) > 120 || u.User != nil ||
 		(u.Scheme != "http" && u.Scheme != "https") || origin != u.Scheme+"://"+u.Host {
@@ -309,7 +310,7 @@ func (c *nginxAuto) persistKey() error {
 }
 
 func (c *nginxAuto) persistAuthInclude() error {
-	body := []byte(fmt.Sprintf("proxy_set_header X-TraceLite-Auto \"%s\";\n", c.key))
+	body := []byte(fmt.Sprintf("proxy_set_header X-Sailfin-Auto \"%s\";\n", c.key))
 	file, err := readDeploymentFile(c.authPath, true)
 	if err != nil {
 		return err

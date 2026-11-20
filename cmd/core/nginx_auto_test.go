@@ -20,7 +20,7 @@ server {
 }
 `
 	const relay = "127.0.0.1:8091"
-	const auth = "/var/local/trace lite/.nginx-relay-auth.conf"
+	const auth = "/var/local/sailfin/.nginx-relay-auth.conf"
 	after, reports, err := planAutomaticInjection(before, "/tmp/site.conf", relay, auth)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ server {
 		"proxy_set_header Host ${host};",
 		"proxy_set_header Accept-Encoding \"\";",
 		"include \"" + auth + "\";",
-		"/__tracelite/boot.js",
+		"/__sailfin/boot.js",
 	} {
 		if !strings.Contains(after, directive) {
 			t.Errorf("updated configuration lacks %q", directive)
@@ -49,8 +49,8 @@ server {
 }
 
 func TestNginxMasterArgsPreservesPathsWithSpaces(t *testing.T) {
-	args, err := nginxMasterArgs("/opt/homebrew/bin/nginx -c /Users/admin/code/Trace Lite/nginx.conf")
-	if err != nil || len(args) != 4 || args[2] != "-c" || args[3] != "/Users/admin/code/Trace Lite/nginx.conf" {
+	args, err := nginxMasterArgs("/opt/homebrew/bin/nginx -c /Users/admin/code/Sailfin/nginx.conf")
+	if err != nil || len(args) != 4 || args[2] != "-c" || args[3] != "/Users/admin/code/Sailfin/nginx.conf" {
 		t.Fatalf("unexpected command args: %q, %v", args, err)
 	}
 	if _, err := nginxMasterArgs("nginx -g load_module /tmp/module.so;"); err == nil {

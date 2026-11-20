@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"tracelite/internal/protocol"
+	"sailfin/internal/protocol"
 )
 
 type Site struct {

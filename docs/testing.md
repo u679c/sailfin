@@ -7,7 +7,7 @@
 | 项目 | 结果 |
 |---|---|
 | make setup | 成功安装 Go/npm 依赖，生成 go.sum 和 package-lock.json |
-| make test（GOCACHE 使用 /private/tmp/tracelite-go-cache） | 通过；Docker 实机用例因未配置 Socket 跳过 |
+| make test（GOCACHE 使用 /private/tmp/sailfin-go-cache） | 通过；Docker 实机用例因未配置 Socket 跳过 |
 | make check | TypeScript 无产物检查与开发脚本语法检查通过 |
 | gofmt / Prettier | 新增 Go、TS/JS、CSS 文件已格式化 |
 | npm 依赖安装审计 | 升级 Vite/React 插件及兼容 TypeScript 后，最近安装报告 0 个已知漏洞 |

@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"tracelite/internal/agent"
-	"tracelite/internal/protocol"
+	"sailfin/internal/agent"
+	"sailfin/internal/protocol"
 )
 
 type managedNginx struct {
@@ -134,7 +134,7 @@ func (c *managedNginx) start(ctx context.Context) (<-chan error, error) {
 	if err != nil {
 		return nil, errors.New("automatic configuration requires nginx in PATH")
 	}
-	dir, err := os.MkdirTemp("", "tracelite-nginx-")
+	dir, err := os.MkdirTemp("", "sailfin-nginx-")
 	if err != nil {
 		return nil, err
 	}
@@ -200,11 +200,11 @@ http {
         listen %[1]s;
         server_name localhost;
 
-        location ^~ /__tracelite/ {
+        location ^~ /__sailfin/ {
             client_max_body_size 64k;
             client_body_buffer_size 64k;
             proxy_pass http://%[2]s;
-            proxy_set_header X-TraceLite-Site %[3]s;
+            proxy_set_header X-Sailfin-Site %[3]s;
             proxy_set_header Authorization "";
             proxy_set_header Cookie "";
             proxy_read_timeout 10s;
@@ -214,7 +214,7 @@ http {
             proxy_pass http://%[4]s;
             proxy_set_header Host $http_host;
             proxy_set_header Accept-Encoding "";
-            sub_filter '</head>' '<script type="module" src="/__tracelite/boot.js"></script></head>';
+            sub_filter '</head>' '<script type="module" src="/__sailfin/boot.js"></script></head>';
             sub_filter_once on;
         }
     }

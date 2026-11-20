@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sailfin/internal/branding"
 	"strings"
 	"unicode"
 )
@@ -180,7 +181,7 @@ func editNginxSite(text, serverName, listen, location, id, relay string) (string
 			html = append(html, loc)
 		}
 		for _, arg := range loc.args[1:] {
-			if arg == "/__tracelite" || strings.HasPrefix(arg, "/__tracelite/") {
+			if arg == "/__sailfin" || strings.HasPrefix(arg, "/__sailfin/") || arg == strings.TrimSuffix(branding.LegacyRelayPrefix, "/") || strings.HasPrefix(arg, branding.LegacyRelayPrefix) {
 				relayFound = true
 			}
 		}
@@ -189,13 +190,13 @@ func editNginxSite(text, serverName, listen, location, id, relay string) (string
 		return "", false, fmt.Errorf("expected one location %s in server %s, found %d", location, serverName, len(html))
 	}
 	page := html[0]
-	if relayFound || nginxHasArg(page.children, "sub_filter", traceLiteHTML) {
+	if relayFound || nginxHasArg(page.children, "sub_filter", sailfinHTML) {
 		relayBlock := nginxRelayBlock(id, relay)
 		if strings.Contains(text[server.start:server.end], relayBlock) &&
-			nginxHasArg(page.children, "sub_filter", traceLiteHTML) {
+			nginxHasArg(page.children, "sub_filter", sailfinHTML) {
 			return text, false, nil
 		}
-		return "", false, fmt.Errorf("existing TraceLite route or injection conflicts with this configuration")
+		return "", false, fmt.Errorf("existing Sailfin route or injection conflicts with this configuration")
 	}
 	if len(nginxDirective(page.children, "include")) != 0 {
 		return "", false, fmt.Errorf("target location contains include directives; use an explicit location to apply this command")
@@ -207,8 +208,8 @@ func editNginxSite(text, serverName, listen, location, id, relay string) (string
 		return "", false, fmt.Errorf("target server or location has custom sub_filter settings; review before adding injection")
 	}
 
-	pageBlock := "\n        # TraceLite: inject the browser SDK into HTML.\n" +
-		"        sub_filter '</head>' '" + traceLiteHTML + "';\n"
+	pageBlock := "\n        # Sailfin: inject the browser SDK into HTML.\n" +
+		"        sub_filter '</head>' '" + sailfinHTML + "';\n"
 	headers := nginxDirective(page.children, "proxy_set_header")
 	// Adding a header to a location that inherits headers would drop all inherited
 	// headers. Keep that inheritance unless the headers are declared in this scope.
@@ -231,16 +232,16 @@ func editNginxSite(text, serverName, listen, location, id, relay string) (string
 	return updated, true, nil
 }
 
-const traceLiteHTML = `<script type="module" src="/__tracelite/boot.js"></script></head>`
+const sailfinHTML = `<script type="module" src="/__sailfin/boot.js"></script></head>`
 
 func nginxRelayBlock(id, relay string) string {
 	return fmt.Sprintf(`
-    # TraceLite: serve the SDK and relay same-origin events.
-    location ^~ /__tracelite/ {
+    # Sailfin: serve the SDK and relay same-origin events.
+    location ^~ /__sailfin/ {
         access_log off;
         client_max_body_size 64k;
         proxy_pass http://%s;
-        proxy_set_header X-TraceLite-Site %s;
+        proxy_set_header X-Sailfin-Site %s;
         proxy_set_header Authorization "";
         proxy_set_header Cookie "";
         proxy_read_timeout 10s;

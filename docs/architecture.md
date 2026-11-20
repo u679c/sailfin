@@ -48,5 +48,5 @@ Browser SDK 在用户同意后由网站调用 `init`，Core 项目还需开启�
 
 ## 本机开发与独立运行
 
-`make dev` 会编译并运行 Go 开发进程，但不执行 `make build` 或发布流程。用户主动 `make build` 才生成二进制、Web 和 SDK 静态产物；Core 可通过 TRACELITE_WEB_DIR 服务静态前端。此构建入口不是安装器或正式发布流水线。
+`make dev` 会编译并运行 Go 开发进程，但不执行 `make build` 或发布流程。用户主动 `make build` 才生成二进制、Web 和 SDK 静态产物；Core 可通过 SAILFIN_WEB_DIR 服务静态前端。此构建入口不是安装器或正式发布流水线。
 所有开发默认值都是可覆盖的便利配置，代码不依赖某台固定主机或特定容器名称。

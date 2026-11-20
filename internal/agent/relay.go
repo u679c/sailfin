@@ -13,11 +13,12 @@ import (
 	"strings"
 	"time"
 
-	browsersdk "tracelite/browser-agent"
-	"tracelite/internal/protocol"
+	browsersdk "sailfin/browser-agent"
+	"sailfin/internal/branding"
+	"sailfin/internal/protocol"
 )
 
-const relayPrefix = "/__tracelite/"
+const relayPrefix = "/__sailfin/"
 
 func (a *Agent) startRelay() (*http.Server, error) {
 	if a.opt.AutoBrowserSite != nil {
@@ -67,19 +68,24 @@ func (a *Agent) relayHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		site, ok := a.sites[r.Header.Get("X-TraceLite-Site")]
-		if r.Header.Get("X-TraceLite-Auto") != "" && a.opt.AutoBrowserSite != nil {
+		site, ok := a.sites[branding.Header(r, "Site")]
+		if branding.Header(r, "Auto") != "" && a.opt.AutoBrowserSite != nil {
 			site, ok = a.opt.AutoBrowserSite(r)
 		}
 		if !ok || site.BrowserOrigin == "" {
 			http.NotFound(w, r)
 			return
 		}
-		switch r.Method + " " + r.URL.Path {
+		prefix := relayPrefix
+		if strings.HasPrefix(r.URL.Path, branding.LegacyRelayPrefix) {
+			prefix = branding.LegacyRelayPrefix
+		}
+		path := relayPrefix + strings.TrimPrefix(r.URL.Path, prefix)
+		switch r.Method + " " + path {
 		case "GET " + relayPrefix + "boot.js":
-			a.serveBoot(w, site)
+			a.serveBoot(w, site, prefix)
 		case "GET " + relayPrefix + "index.js", "GET " + relayPrefix + "policy.js":
-			raw, err := browsersdk.Files.ReadFile("src/" + strings.TrimPrefix(r.URL.Path, relayPrefix))
+			raw, err := browsersdk.Files.ReadFile("src/" + strings.TrimPrefix(r.URL.Path, prefix))
 			if err != nil {
 				http.Error(w, "SDK unavailable", http.StatusInternalServerError)
 				return
@@ -103,18 +109,21 @@ func (a *Agent) relayHandler() http.Handler {
 	})
 }
 
-func (a *Agent) serveBoot(w http.ResponseWriter, site Site) {
+func (a *Agent) serveBoot(w http.ResponseWriter, site Site, prefix string) {
 	options, _ := json.Marshal(map[string]string{
-		"projectId": site.ID, "endpoint": relayPrefix + "events",
-		"configEndpoint": relayPrefix + "config",
+		"projectId": site.ID, "endpoint": prefix + "events",
+		"configEndpoint": prefix + "config",
 	})
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	_, _ = fmt.Fprintf(w, `import { init } from "./index.js";
 let sdk;
 function start() { if (!sdk) sdk = init(%s); }
-if (!%t || window.TRACELITE_CONSENT === true) start();
+if (!%t || window.SAILFIN_CONSENT === true || window.TRACELITE_CONSENT === true) start();
+window.addEventListener("sailfin:consent", start);
 window.addEventListener("tracelite:consent", start);
-window.addEventListener("tracelite:revoke", () => { sdk?.stop(); sdk = undefined; });
+function revoke() { sdk?.stop(); sdk = undefined; }
+window.addEventListener("sailfin:revoke", revoke);
+window.addEventListener("tracelite:revoke", revoke);
 `, options, site.RequireConsent)
 }
 

@@ -287,7 +287,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
     <div className="login">
       <div className="login-brand">
         <Activity size={28} />
-        <span>TraceLite</span>
+        <span>帆鳍</span>
       </div>
       <form
         onSubmit={async (e) => {
@@ -408,8 +408,8 @@ function App() {
       })
       .catch(() => setAuthenticated(false));
     const expired = () => setAuthenticated(false);
-    window.addEventListener("tracelite:unauthorized", expired);
-    return () => window.removeEventListener("tracelite:unauthorized", expired);
+    window.addEventListener("sailfin:unauthorized", expired);
+    return () => window.removeEventListener("sailfin:unauthorized", expired);
   }, []);
   const query = useMemo(() => {
     const end = range === "custom" ? new Date(customTo).getTime() : NaN;
@@ -448,7 +448,7 @@ function App() {
     <div className="shell site-shell">
       <header className="topbar">
         <a className="brand" href={href("sites", { projectId: "" })} onClick={followLink}>
-          <Activity size={23} /><span>TraceLite</span>
+          <Activity size={23} /><span>帆鳍</span>
         </a>
         <nav className="primary-nav" aria-label="主导航">
           {[

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"tracelite/internal/protocol"
+	"sailfin/internal/protocol"
 )
 
 const LocalProbeID = "local-probe"

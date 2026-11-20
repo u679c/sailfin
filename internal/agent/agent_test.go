@@ -8,11 +8,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sailfin/internal/core"
+	"sailfin/internal/protocol"
 	"strings"
 	"testing"
 	"time"
-	"tracelite/internal/core"
-	"tracelite/internal/protocol"
 )
 
 func TestFileOffsetsRotationAndAuthorization(t *testing.T) {
@@ -102,9 +102,9 @@ func TestDockerOperationsAreReadOnly(t *testing.T) {
 	}
 }
 func TestLocalDocker(t *testing.T) {
-	socket := os.Getenv("TRACELITE_DOCKER_SOCKET")
+	socket := os.Getenv("SAILFIN_DOCKER_SOCKET")
 	if socket == "" {
-		t.Skip("set TRACELITE_DOCKER_SOCKET for actual local Docker read-only verification")
+		t.Skip("set SAILFIN_DOCKER_SOCKET for actual local Docker read-only verification")
 	}
 	d := NewDocker(socket, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

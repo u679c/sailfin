@@ -1,4 +1,4 @@
-# TraceLite — 通用轻量级 Web 埋点与 Agent 管理平台
+# Sailfin — 通用轻量级 Web 埋点与 Agent 管理平台
 
 **产品需求文档（PRD）+ 技术设计文档（TDD）+ Codex 开发任务书**
 
@@ -12,7 +12,7 @@
 
 ## 1.1 产品定位
 
-TraceLite 是一套轻量级、通用、可独立部署的 Web 埋点及行为分析平台。
+Sailfin 是一套轻量级、通用、可独立部署的 Web 埋点及行为分析平台。
 
 通过统一管理中心与分布式 Agent，实现网站访问统计、设备分析、用户行为采集、匿名会话轨迹、Agent 生命周期管理与安全监控。
 
@@ -112,7 +112,7 @@ Core 部署在中心服务器，Agent 部署在其他授权主机，通过 HTTPS
 
 系统由四个主要部分组成：
 
-### TraceLite Core
+### Sailfin Core
 
 负责：
 
@@ -130,7 +130,7 @@ Core 部署在中心服务器，Agent 部署在其他授权主机，通过 HTTPS
 - 安全审计
 - 管理前端静态文件服务
 
-### TraceLite Host Agent
+### Sailfin Host Agent
 
 负责：
 
@@ -145,7 +145,7 @@ Core 部署在中心服务器，Agent 部署在其他授权主机，通过 HTTPS
 - 数据批量上报
 - 采集配置同步
 
-### TraceLite Browser Agent
+### Sailfin Browser Agent
 
 负责：
 
@@ -160,7 +160,7 @@ Core 部署在中心服务器，Agent 部署在其他授权主机，通过 HTTPS
 
 Browser Agent 是浏览器 JavaScript SDK，不作为独立服务进程。
 
-### TraceLite Management UI
+### Sailfin Management UI
 
 负责：
 
@@ -182,7 +182,7 @@ Browser Agent 是浏览器 JavaScript SDK，不作为独立服务进程。
                        | HTTPS
                        v
               +------------------+
-              | TraceLite Core   |
+              | Sailfin Core   |
               |                  |
               | Management UI    |
               | REST API         |
@@ -281,7 +281,7 @@ Host Agent 通过宿主机 Docker 日志接口或挂载目录读取目标容器�
 推荐产物：
 
 ```text
-tracelite.browser.min.js
+sailfin.browser.min.js
 ```
 
 支持两种接入：
@@ -419,7 +419,7 @@ PV 和 HTTP 请求数必须区分统计口径。非 HTML 请求不能直接算�
 示例：
 
 ```bash
-sudo ./tracelite-agent-linux-amd64.bin \
+sudo ./sailfin-agent-linux-amd64.bin \
   install \
   --server https://trace.example.com \
   --enroll-token <ONE_TIME_TOKEN>
@@ -861,8 +861,8 @@ Host Agent 应只提供有限的受控操作：
 - 列出可见容器
 - 读取必要元数据
 - 检查日志来源
-- 创建 TraceLite 自有 Sidecar
-- 停止或删除 TraceLite 自有 Sidecar
+- 创建 Sailfin 自有 Sidecar
+- 停止或删除 Sailfin 自有 Sidecar
 
 高风险操作必须经确认。
 
@@ -920,7 +920,7 @@ Docker 访问应部署在信任边界内，必要时使用受限代理或分离�
 ## 9.3 导航结构
 
 ```text
-TraceLite
+Sailfin
 │
 ├── 工作台
 │   └── 数据总览
@@ -1021,8 +1021,8 @@ TraceLite
 建议：
 
 ```text
-tracelite-linux-amd64.bin
-tracelite-agent-linux-amd64.bin
+sailfin-linux-amd64.bin
+sailfin-agent-linux-amd64.bin
 SHA256SUMS
 ```
 
@@ -1035,8 +1035,8 @@ SHA256SUMS
 期望命令：
 
 ```bash
-chmod +x tracelite-linux-amd64.bin
-sudo ./tracelite-linux-amd64.bin install
+chmod +x sailfin-linux-amd64.bin
+sudo ./sailfin-linux-amd64.bin install
 ```
 
 安装过程：
@@ -1057,16 +1057,16 @@ sudo ./tracelite-linux-amd64.bin install
 推荐目录：
 
 ```text
-/opt/tracelite/
+/opt/sailfin/
   bin/
   web/
   config/
 
-/var/lib/tracelite/
-  tracelite.db
+/var/lib/sailfin/
+  sailfin.db
   backups/
 
-/var/log/tracelite/
+/var/log/sailfin/
 ```
 
 首次初始化必须采用仅一次有效的引导流程，不能长期开放匿名创建管理员接口。
@@ -1074,11 +1074,11 @@ sudo ./tracelite-linux-amd64.bin install
 ## 10.3 生命周期命令
 
 ```bash
-./tracelite-linux-amd64.bin install
-./tracelite-linux-amd64.bin upgrade
-./tracelite-linux-amd64.bin uninstall
-./tracelite-linux-amd64.bin status
-./tracelite-linux-amd64.bin version
+./sailfin-linux-amd64.bin install
+./sailfin-linux-amd64.bin upgrade
+./sailfin-linux-amd64.bin uninstall
+./sailfin-linux-amd64.bin status
+./sailfin-linux-amd64.bin version
 ```
 
 升级要求：
@@ -1104,10 +1104,10 @@ sudo ./tracelite-linux-amd64.bin install
 建议采用如下目录：
 
 ```text
-tracelite/
+sailfin/
 ├── cmd/
-│   ├── tracelite/
-│   └── tracelite-agent/
+│   ├── sailfin/
+│   └── sailfin-agent/
 │
 ├── internal/
 │   ├── api/
@@ -1300,7 +1300,7 @@ Codex 必须按阶段推进，每阶段完成后进行构建、测试和验收�
 - 不改变业务容器镜像
 - 不因部署失败破坏现有业务
 - 未授权用户不能执行操作
-- 支持撤销 TraceLite 创建的资源
+- 支持撤销 Sailfin 创建的资源
 
 ## Phase 7：产品化交付
 
@@ -1399,7 +1399,7 @@ Codex 必须按阶段推进，每阶段完成后进行构建、测试和验收�
 
 你是一名资深 Go 后端工程师、React 前端工程师与 DevOps 工程师。
 
-请基于以上需求，在当前工作目录中实际创建完整 TraceLite 项目。
+请基于以上需求，在当前工作目录中实际创建完整 Sailfin 项目。
 
 ## 执行原则
 
@@ -1472,4 +1472,4 @@ P2：
 
 最终必须说明实际构建和测试结果，区分已验证功能、未验证功能与后续规划。
 
-**最终目标：交付一个真正能够独立部署、安装 Agent、采集真实数据、查看分析结果并进行可视化管理的 TraceLite V1 产品，而不是概念演示。**
+**最终目标：交付一个真正能够独立部署、安装 Agent、采集真实数据、查看分析结果并进行可视化管理的 Sailfin V1 产品，而不是概念演示。**

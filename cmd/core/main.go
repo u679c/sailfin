@@ -13,13 +13,15 @@ import (
 	"syscall"
 	"time"
 
-	"tracelite/internal/agent"
-	"tracelite/internal/core"
+	"sailfin/internal/agent"
+	"sailfin/internal/branding"
+	"sailfin/internal/core"
 )
 
 func main() {
+	branding.Environment()
 	if err := command(os.Args[1:]); err != nil {
-		slog.Error("TraceLite stopped", "error", err)
+		slog.Error("Sailfin stopped", "error", err)
 		os.Exit(1)
 	}
 }
@@ -52,7 +54,7 @@ func run(options serveOptions) error {
 	}
 	dbPath := options.db
 	if dbPath == "" {
-		dbPath = filepath.Join("var", "tracelite.db")
+		dbPath = branding.DefaultDBPath()
 	}
 	addr := options.addr
 	if addr == "" {
@@ -64,8 +66,8 @@ func run(options serveOptions) error {
 	}
 	s, err := core.Open(core.Config{
 		Address: addr, DBPath: dbPath, PublicURL: options.publicURL,
-		WebDir: options.webDir, AdminName: os.Getenv("TRACELITE_ADMIN_NAME"),
-		AdminPassword: os.Getenv("TRACELITE_ADMIN_PASSWORD"), OfflineSeconds: options.offline,
+		WebDir: options.webDir, AdminName: os.Getenv("SAILFIN_ADMIN_NAME"),
+		AdminPassword: os.Getenv("SAILFIN_ADMIN_PASSWORD"), OfflineSeconds: options.offline,
 		LocalOnly: true, Nginx: auto,
 	})
 	if err != nil {
@@ -123,7 +125,7 @@ func run(options serveOptions) error {
 			_ = srv.Close()
 		}
 	}()
-	slog.Info("TraceLite Core listening", "address", addr)
+	slog.Info("Sailfin Core listening", "address", addr)
 	err = srv.ListenAndServe()
 	stop()
 	<-httpDone

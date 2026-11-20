@@ -1,4 +1,4 @@
-# TraceLite
+# 帆鳍（Sailfin）
 <!-- impeccable:product-schema 1 -->
 ## Platform
 web

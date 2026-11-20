@@ -10,5 +10,9 @@ bin/
 # Local Nginx deployment state and configuration backups
 .nginx-relay-key
 .nginx-relay-auth.conf
+.sailfin-backup-*
+.sailfin-write-*
+
+# Backups created by installations before the Sailfin rename
 .tracelite-backup-*
 .tracelite-write-*

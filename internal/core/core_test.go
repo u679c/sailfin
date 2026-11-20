@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sailfin/internal/protocol"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
-	"tracelite/internal/protocol"
 )
 
 const testPassword = "test-only-password-12345"
@@ -33,7 +33,7 @@ func newHarness(t *testing.T) *harness {
 	h := &harness{s: s, t: t}
 	rr := h.call("POST", "/auth/login", map[string]any{"name": "admin", "password": testPassword}, "", 200)
 	for _, c := range rr.Result().Cookies() {
-		if c.Name == "tracelite_session" {
+		if c.Name == "sailfin_session" {
 			h.cookie = c
 		}
 	}

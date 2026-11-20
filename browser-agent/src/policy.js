@@ -21,7 +21,7 @@ export function pagePath(value) {
   const route = url.hash.replace(/^#!?/, "");
   return (url.pathname + (route.startsWith("/") ? "#" + route.split(/[?#]/)[0] : "")).slice(0, 200);
 }
-const privateElements = "input,textarea,select,[contenteditable],[data-tracelite-ignore],script,style,[hidden],[aria-hidden='true']";
+const privateElements = "input,textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],script,style,[hidden],[aria-hidden='true']";
 export function clickProperties(el) {
   const clean = (value) => (value || "").replace(/\s+/g, " ").trim().slice(0, 200);
   function text(node) {
@@ -60,7 +60,7 @@ export function clickProperties(el) {
   }
   const selector = selectorParts.join(" > ");
   const region = el.closest("header,nav,main,aside,footer,section,form,[role='dialog'],[role='region']");
-  const explicitID = clean(el.getAttribute("data-tracelite-id"));
+  const explicitID = clean(el.getAttribute("data-sailfin-id") || el.getAttribute("data-tracelite-id"));
   // Structural identity does not change when a button's label changes.
   const source = pagePath(el.ownerDocument.location.href) + "|" + parts.join(" > ");
   let hash = 2166136261;

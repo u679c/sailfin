@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"tracelite/internal/protocol"
+	"sailfin/internal/protocol"
 )
 
 func (s *Server) collectedSites(w http.ResponseWriter, r *http.Request) error {

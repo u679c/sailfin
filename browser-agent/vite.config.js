@@ -3,10 +3,10 @@ export default defineConfig({
   build: {
     lib: {
       entry: "src/index.js",
-      name: "TraceLite",
+      name: "Sailfin",
       formats: ["iife", "es"],
       fileName: (f) =>
-        f === "iife" ? "tracelite.browser.min.js" : "tracelite.browser.js",
+        f === "iife" ? "sailfin.browser.min.js" : "sailfin.browser.js",
     },
     minify: "esbuild",
     sourcemap: true,

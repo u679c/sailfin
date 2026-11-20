@@ -1,5 +1,5 @@
 {
-  "name": "tracelite",
+  "name": "sailfin",
   "private": true,
   "workspaces": [
     "web",

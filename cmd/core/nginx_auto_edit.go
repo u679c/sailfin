@@ -5,7 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"tracelite/internal/core"
+	"sailfin/internal/branding"
+	"sailfin/internal/core"
 )
 
 type nginxInsertion struct {
@@ -73,12 +74,15 @@ func autoServerChanges(text string, server nginxNode, address, authPath string) 
 	if strings.Contains(serverText, relay) {
 		return nil, "已接入"
 	}
-	if strings.Contains(serverText, "/__tracelite/") {
-		return nil, "已有 TraceLite 或同路径规则"
+	if strings.Contains(serverText, branding.LegacyHTML) {
+		return nil, "已接入"
+	}
+	if strings.Contains(serverText, "/__sailfin/") || strings.Contains(serverText, branding.LegacyRelayPrefix) {
+		return nil, "已有帆鳍或同路径规则"
 	}
 	for _, loc := range nginxDirective(server.children, "location") {
 		for _, arg := range loc.args[1:] {
-			if arg == "/__tracelite" || strings.HasPrefix(arg, "/__tracelite/") {
+			if arg == "/__sailfin" || strings.HasPrefix(arg, "/__sailfin/") {
 				return nil, "已有同名采集路由"
 			}
 		}
@@ -115,8 +119,8 @@ func autoServerChanges(text string, server nginxNode, address, authPath string) 
 		if !isProxy && !isStatic {
 			continue
 		}
-		snippet := "\n        # TraceLite auto injection\n" +
-			"        sub_filter '</head>' '" + traceLiteHTML + "';\n"
+		snippet := "\n        # Sailfin auto injection\n" +
+			"        sub_filter '</head>' '" + sailfinHTML + "';\n"
 		if isProxy {
 			headers := nginxDirective(loc.children, "proxy_set_header")
 			if len(headers) != 0 {
@@ -140,7 +144,7 @@ func autoServerChanges(text string, server nginxNode, address, authPath string) 
 	if len(inserts) == 0 && len(nginxDirective(server.children, "location")) == 0 &&
 		len(nginxDirective(server.children, "root")) != 0 {
 		inserts = append(inserts, nginxInsertion{server.close,
-			"\n    sub_filter '</head>' '" + traceLiteHTML + "';\n" + relay})
+			"\n    sub_filter '</head>' '" + sailfinHTML + "';\n" + relay})
 		return inserts, ""
 	}
 	if len(inserts) == 0 {
@@ -151,14 +155,14 @@ func autoServerChanges(text string, server nginxNode, address, authPath string) 
 
 func nginxAutoRelay(relay, authPath string) string {
 	return fmt.Sprintf(`
-    # TraceLite automatic collection
-    location ^~ /__tracelite/ {
+    # Sailfin automatic collection
+    location ^~ /__sailfin/ {
         access_log off;
         client_max_body_size 64k;
         proxy_pass http://%s;
-        proxy_set_header X-TraceLite-Site "";
+        proxy_set_header X-Sailfin-Site "";
         include "%s";
-        proxy_set_header X-TraceLite-Origin "$scheme://$http_host";
+        proxy_set_header X-Sailfin-Origin "$scheme://$http_host";
         proxy_set_header Authorization "";
         proxy_set_header Cookie "";
         proxy_read_timeout 10s;

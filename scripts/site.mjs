@@ -35,7 +35,7 @@ const server = createServer(async (req, res) => {
     res.end("Cannot read test site files");
   }
 });
-const port = Number(process.env.TRACELITE_SITE_PORT || 5174);
+const port = Number(process.env.SAILFIN_SITE_PORT || 5174);
 server.listen(port, "127.0.0.1", () =>
   console.log(
     `Local verification site: http://localhost:${port} (no data is sent until you opt in)`,

@@ -1,4 +1,4 @@
-module tracelite
+module sailfin
 
 go 1.22
 
