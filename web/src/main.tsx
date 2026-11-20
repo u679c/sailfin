@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
   Globe,
   Search,
+  Settings,
+  ShieldCheck,
   LogOut,
   RefreshCw,
   ArrowRight,
@@ -25,7 +27,7 @@ const sections = [
   { id: "sessions", name: "访问轨迹" },
   { id: "events", name: "事件记录" },
   { id: "devices", name: "设备" },
-  { id: "collection", name: "采集管理" },
+  { id: "collection", name: "探针管理" },
   { id: "security", name: "安全审计" },
   { id: "system", name: "系统设置" },
 ];
@@ -383,7 +385,6 @@ function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null),
     [revision, setRevision] = useState(0),
     [error, setError] = useState("");
-  const [showConnect, setShowConnect] = useState(false);
   const { current, params, href, navigate } = useDashboardLocation();
   const section = current.id === "sites" ? "overview" : current.id;
   const project = params.get("projectId") ?? "";
@@ -438,10 +439,12 @@ function App() {
   }
   const siteView = siteSections.some((item) => item.id === section);
   const settingsView = section === "system" || section === "security";
+  const probeView = section === "collection";
+  const probePane = params.get("view") === "probes" ? "probes" : "sites";
   const selectedSite = projects.data?.find((item) => item.id === project);
   const primarySection = settingsView ? "system" : section === "collection" ? "collection" : "sites";
   return (
-    <div className={`shell ${siteView ? "site-shell" : ""}`}>
+    <div className="shell site-shell">
       <header className="topbar">
         <a className="brand" href={href("sites", { projectId: "" })} onClick={followLink}>
           <Activity size={23} /><span>TraceLite</span>
@@ -449,7 +452,7 @@ function App() {
         <nav className="primary-nav" aria-label="主导航">
           {[
             { id: "sites", name: "站点" },
-            { id: "collection", name: "采集管理" },
+            { id: "collection", name: "探针管理" },
             { id: "system", name: "系统设置" },
           ].map((item) => (
             <a key={item.id} href={href(item.id, item.id === "sites" ? { projectId: "" } : {})}
@@ -470,24 +473,34 @@ function App() {
           }}><LogOut size={16} />退出</button>
         </div>
       </header>
-      <main className={siteView ? "site-main" : undefined}>
-        <div className={`workspace ${siteView ? "site-workspace" : ""}`}>
+      <main className="site-main" aria-label={siteView ? selectedSite?.name || "全部站点" : current.name}>
+        <div className="workspace site-workspace">
           {siteView && <SiteAssets state={projects} selected={project}
             siteHref={(id) => href(section, { projectId: id })} onNavigate={followLink} />}
+          {probeView && <aside className="site-assets module-menu" aria-label="探针导航">
+            <nav>
+              {[{ id: "sites", name: "站点接入", icon: Globe }, { id: "probes", name: "探针管理", icon: Activity }].map((item) => (
+                <a key={item.id} className={`asset-item ${probePane === item.id ? "selected" : ""}`}
+                  href={href("collection", { view: item.id })} onClick={followLink}
+                  aria-current={probePane === item.id ? "page" : undefined}>
+                  <item.icon size={16} aria-hidden="true" /><span>{item.name}</span>
+                </a>
+              ))}
+            </nav>
+          </aside>}
+          {settingsView && <aside className="site-assets module-menu" aria-label="设置导航">
+            <nav>
+              {[{ id: "system", name: "运行设置", icon: Settings }, { id: "security", name: "安全审计", icon: ShieldCheck }].map((item) => (
+                <a key={item.id} className={`asset-item ${section === item.id ? "selected" : ""}`}
+                  href={href(item.id)} onClick={followLink}
+                  aria-current={section === item.id ? "page" : undefined}>
+                  <item.icon size={16} aria-hidden="true" /><span>{item.name}</span>
+                </a>
+              ))}
+            </nav>
+          </aside>}
           <div className="detail-workspace">
-          <div className={siteView ? "site-sticky-header" : undefined}>
-          <div className="page-title">
-            <div>
-              <h1>{siteView ? selectedSite?.name || (project ? "站点数据" : "全部站点") : settingsView ? "系统设置" : current.name}</h1>
-              {siteView && selectedSite && <div className="site-meta">最近上报：{when(selectedSite.last_event)}</div>}
-            </div>
-            {siteView && (
-              <button className={showConnect ? "" : "primary"} aria-expanded={showConnect}
-                onClick={() => setShowConnect((value) => !value)}>
-                {showConnect ? "收起接入" : "接入站点"}
-              </button>
-            )}
-          </div>
+          {siteView && <div className="site-sticky-header">
           {siteView && (
               <nav className="tabs" aria-label="站点导航">
                 {siteSections.map((item) => (
@@ -497,9 +510,8 @@ function App() {
                 ))}
               </nav>
           )}
-          </div>
-          <div className={siteView ? `detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) ? "list-workspace" : ""}` : undefined}>
-          {siteView && showConnect && <NginxCollection />}
+          </div>}
+          <div className={`detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) || (probeView && probePane === "probes") ? "list-workspace" : ""}`}>
           {siteView && (
               <div className="filterbar">
                 <div className="filters">
@@ -511,16 +523,9 @@ function App() {
                     <label>开始<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
                     <label>结束<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
                   </>}
+                  {selectedSite && <span className="site-meta">最近上报：{when(selectedSite.last_event)}</span>}
                 </div>
               </div>
-          )}
-          {settingsView && (
-            <nav className="tabs" aria-label="设置导航">
-              {[{ id: "system", name: "运行设置" }, { id: "security", name: "安全审计" }].map((item) => (
-                <a key={item.id} href={href(item.id)} onClick={followLink} className={section === item.id ? "active" : ""}
-                  aria-current={section === item.id ? "page" : undefined}>{item.name}</a>
-              ))}
-            </nav>
           )}
           <ErrorBox message={error} />
           {section === "overview" && <Overview query={query} revision={revision} />}
@@ -535,7 +540,7 @@ function App() {
           {section === "events" && <Events key="events" query={query} revision={revision} />}
           {section === "clicks" && <Clicks query={query} revision={revision} />}
           {section === "sessions" && <Sessions query={query} revision={revision} />}
-          {section === "collection" && <><NginxCollection /><LocalProbe revision={revision} /></>}
+          {probeView && (probePane === "sites" ? <NginxCollection /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
           {section === "system" && <System revision={revision} />}
           </div>
@@ -1054,37 +1059,27 @@ function LocalProbe({ revision }: { revision: number }) {
   }
 
   return (
-    <section className="panel">
-      <div className="panel-title">
-        <h2>本机采集服务</h2>
-        {probe && (
-          <span role="status">{labels[probe.status] ?? probe.status}</span>
-        )}
-      </div>
+    <section className="panel list-panel">
       <AsyncPanel state={state}>
-        {probe && (
-          <>
-            <dl className="facts">
-              <dt>主机</dt>
-              <dd>{probe.hostname || "—"}</dd>
-              <dt>平台</dt>
-              <dd>
-                {[probe.os, probe.arch].filter(Boolean).join(" / ") || "—"}
-              </dd>
-              <dt>配置站点数</dt>
-              <dd>{parse<Row>(probe.metrics, {}).configuredSites ?? "—"}</dd>
-              <dt>最后心跳</dt>
-              <dd>{when(probe.last_seen)}</dd>
-            </dl>
-            <ErrorBox message={error || probe.error} />
-            <button
-              disabled={busy || probe.status === "Failed"}
-              onClick={() => void toggle(!probe.enabled)}
-            >
-              {busy ? "处理中…" : probe.enabled ? "暂停全部采集" : "恢复全部采集"}
+        <ErrorBox message={error || probe?.error || ""} />
+        <Table rows={probe ? [probe] : []} columns={[
+          { key: "name", label: "探针", render: (row) => row.name || "本机探针" },
+          { key: "hostname", label: "主机", render: (row) => row.hostname || "—" },
+          { key: "status", label: "健康状态", render: (row) => (
+            <span className={`probe-health ${row.status === "Online" ? "healthy" : "unhealthy"}`}>
+              <span aria-hidden="true" />{row.status === "Online" ? "正常" : labels[row.status] || "未就绪"}
+            </span>
+          ) },
+          { key: "platform", label: "平台", render: (row) => [row.os, row.arch].filter(Boolean).join(" / ") || "—" },
+          { key: "version", label: "版本", render: (row) => row.version || "—" },
+          { key: "sites", label: "配置站点数", render: (row) => parse<Row>(row.metrics, {}).configuredSites ?? "—" },
+          { key: "last_seen", label: "最后心跳", render: (row) => when(row.last_seen) },
+          { key: "actions", label: "操作", render: (row) => (
+            <button disabled={busy || row.status === "Failed"} onClick={() => void toggle(!row.enabled)}>
+              {busy ? "处理中…" : row.enabled ? "暂停全部采集" : "恢复全部采集"}
             </button>
-          </>
-        )}
+          ) },
+        ]} />
       </AsyncPanel>
     </section>
   );
@@ -1103,8 +1098,14 @@ type NginxScan = {
 
 function NginxCollection() {
   const [plan, setPlan] = useState<NginxScan | null>(null);
-  const [pending, setPending] = useState<"scan" | "apply" | null>(null);
+  const [pending, setPending] = useState<"scan" | "apply" | null>("scan");
   const [error, setError] = useState("");
+  const initialScan = useRef(false);
+  useEffect(() => {
+    if (initialScan.current) return;
+    initialScan.current = true;
+    void scan();
+  }, []);
   const statusLabel: Record<NginxScan["sites"][number]["status"], string> = {
     ready: "可接入",
     configured: "已配置",
@@ -1145,9 +1146,8 @@ function NginxCollection() {
   }
 
   return (
-    <section className="panel" aria-labelledby="nginx-collection-title">
+    <section className="panel" aria-label="站点接入">
       <div className="panel-title">
-        <h2 id="nginx-collection-title">站点接入</h2>
         <button
           className="primary"
           disabled={pending !== null}
@@ -1155,9 +1155,7 @@ function NginxCollection() {
         >
           {pending === "scan"
             ? "扫描中…"
-            : plan
-              ? "重新扫描"
-              : "扫描站点"}
+            : "重新扫描"}
         </button>
       </div>
       <ErrorBox message={error} />

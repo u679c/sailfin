@@ -59,7 +59,7 @@ func (s *Server) ReportProbeFailure(err error) {
 }
 
 func (s *Server) probeStatus(w http.ResponseWriter, r *http.Request) error {
-	rows, err := s.rows(r.Context(), `SELECT enabled, hostname, os, arch, version, last_seen, metrics, error,
+	rows, err := s.rows(r.Context(), `SELECT id, name, enabled, hostname, os, arch, version, last_seen, metrics, error,
 		CASE WHEN enabled=0 THEN 'Disabled'
 		     WHEN last_seen=0 AND error!='' THEN 'Failed'
 		     WHEN last_seen=0 THEN 'Starting'
