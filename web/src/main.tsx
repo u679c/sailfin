@@ -14,6 +14,7 @@ import {
   Download,
 } from "lucide-react";
 import { api, backup, setCSRF, parse, when, number, Row } from "./api";
+import { Select } from "./components/Select";
 import "./style.css";
 const PAGE_SIZE = 20;
 function listTotal(rows: Row[] | null | undefined) {
@@ -252,11 +253,9 @@ function Pager({ page, setPage, total, pageSize, setPageSize }: {
           : <span key={item} className="pager-ellipsis">…</span>)}
         <button disabled={page >= pages} onClick={() => go(page + 1)} aria-label="下一页"><ChevronRight size={16} /></button>
       </div>
-      <select aria-label="每页条数" value={pageSize} onChange={(event) => {
-        setPageSize(Number(event.target.value)); setPage(1);
-      }}>
-        {[20, 50, 100].map((size) => <option key={size} value={size}>{size} 条/页</option>)}
-      </select>
+      <Select ariaLabel="每页条数" value={String(pageSize)}
+        options={[20, 50, 100].map((size) => ({ value: String(size), label: `${size} 条/页` }))}
+        onChange={(value) => { setPageSize(Number(value)); setPage(1); }} />
       <label className="pager-jump">跳至<input aria-label="跳转页码" inputMode="numeric" value={jump}
         onChange={(event) => setJump(event.target.value.replace(/[^0-9]/g, ""))}
         onBlur={commitJump} onKeyDown={(event) => { if (event.key === "Enter") commitJump(); }} />页</label>
@@ -394,6 +393,8 @@ function App() {
     : "24";
   const customFrom = params.get("from") ?? "";
   const customTo = params.get("to") ?? "";
+  const selectedEventType = params.get("eventType") ?? "";
+  const eventType = Object.hasOwn(eventLabels, selectedEventType) ? selectedEventType : "";
   const projects = useData(
     () => (authenticated ? api("/sites") : Promise.resolve([])),
     [authenticated, revision],
@@ -515,13 +516,18 @@ function App() {
           {siteView && (
               <div className="filterbar">
                 <div className="filters">
-                  <label>时间<select value={range} onChange={(e) => navigate(href(section, { range: e.target.value === "24" ? "" : e.target.value }), true)}>
-                    <option value="24">最近 24 小时</option><option value="168">最近 7 天</option>
-                    <option value="720">最近 30 天</option><option value="custom">自定义</option>
-                  </select></label>
+                  <Select label="时间" ariaLabel="时间范围" value={range}
+                    options={[
+                      { value: "24", label: "最近 24 小时" }, { value: "168", label: "最近 7 天" },
+                      { value: "720", label: "最近 30 天" }, { value: "custom", label: "自定义" },
+                    ]}
+                    onChange={(value) => navigate(href(section, { range: value === "24" ? "" : value }), true)} />
+                  {section === "events" && <Select label="事件类型" ariaLabel="事件类型" value={eventType}
+                    options={[{ value: "", label: "全部事件" }, ...Object.entries(eventLabels).map(([value, label]) => ({ value, label }))]}
+                    onChange={(value) => navigate(href(section, { eventType: value }), true)} />}
                   {range === "custom" && <>
-                    <label>开始<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
-                    <label>结束<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
+                    <label>开始：<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
+                    <label>结束：<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
                   </>}
                   {selectedSite && <span className="site-meta">最近上报：{when(selectedSite.last_event)}</span>}
                 </div>
@@ -537,7 +543,7 @@ function App() {
             { key: "device", label: "设备类型" }, { key: "browser", label: "浏览器" }, { key: "os", label: "操作系统" },
             { key: "requests", label: "HTTP 请求" }, { key: "pv", label: "浏览量" }, { key: "uv", label: "匿名访客" }, { key: "events", label: "事件总数" },
           ]} />}
-          {section === "events" && <Events key="events" query={query} revision={revision} />}
+          {section === "events" && <Events key="events" query={query} revision={revision} eventType={eventType} />}
           {section === "clicks" && <Clicks query={query} revision={revision} />}
           {section === "sessions" && <Sessions query={query} revision={revision} />}
           {probeView && (probePane === "sites" ? <NginxCollection /> : <LocalProbe revision={revision} />)}
@@ -751,8 +757,8 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
   );
 }
 function Events({ query, revision, eventType = "" }: { query: string; revision: number; eventType?: string }) {
-  const [type, setType] = useState(eventType),
-    [page, setPage] = useState(1),
+  const type = eventType;
+  const [page, setPage] = useState(1),
     [detail, setDetail] = useState<Row | null>(null);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   useEffect(() => { setPage(1); setDetail(null); }, [query, type]);
@@ -767,29 +773,6 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
   );
   return (
     <div className="list-view">
-      {!eventType && <div className="toolbar">
-        <label>
-          事件类型
-          <select value={type} onChange={(e) => setType(e.target.value)}>
-            {[
-              "",
-              "http_request",
-              "page_view",
-              "route_change",
-              "click",
-              "session_start",
-              "page_hidden",
-              "js_error",
-              "unhandled_rejection",
-              "performance_event",
-            ].map((t) => (
-              <option key={t} value={t}>
-                {eventLabels[t] || "全部事件"}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>}
       <section className="panel list-panel">
         <AsyncPanel state={state}>
           <Table manual
