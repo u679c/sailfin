@@ -402,7 +402,18 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) erro
 	case "devices":
 		return s.query(w, r, `SELECT device,browser,os,count(*) AS events,count(CASE WHEN type='http_request' THEN 1 END) AS requests,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv,count(DISTINCT CASE WHEN visitor_id!='' THEN project_id||':'||visitor_id END) AS uv FROM events WHERE `+q+` GROUP BY device,browser,os ORDER BY events DESC LIMIT 100`, a...)
 	default:
-		return s.query(w, r, `SELECT path,count(*) AS events,count(CASE WHEN type='http_request' THEN 1 END) AS requests,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv FROM events WHERE `+q+` GROUP BY path ORDER BY events DESC LIMIT 100`, a...)
+		// Use a separate column name so SQLite cannot resolve GROUP BY to the
+		// original pathname and accidentally merge all hash-router pages.
+		return s.query(w, r, `WITH page_events AS (
+			SELECT type,CASE WHEN source_type='browser'
+				THEN COALESCE(NULLIF(json_extract(properties,'$.pagePath'),''),path)
+				ELSE path END AS page_path
+			FROM events WHERE `+q+`
+		)
+		SELECT page_path AS path,count(*) AS events,
+			count(CASE WHEN type='http_request' THEN 1 END) AS requests,
+			count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv
+		FROM page_events GROUP BY page_path ORDER BY events DESC,page_path LIMIT 100`, a...)
 	}
 }
 func (s *Server) security(w http.ResponseWriter, r *http.Request) error {
