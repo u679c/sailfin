@@ -286,8 +286,8 @@ function Login({ onLogin }: { onLogin: () => void }) {
   return (
     <div className="login">
       <div className="login-brand">
-        <Activity size={28} />
-        <span>帆鳍</span>
+        <img className="brand-logo" src="/assets/sailfin-logo.svg" alt="" />
+        <span className="brand-name"><span>帆鳍</span><small>Sailfin</small></span>
       </div>
       <form
         onSubmit={async (e) => {
@@ -448,7 +448,7 @@ function App() {
     <div className="shell site-shell">
       <header className="topbar">
         <a className="brand" href={href("sites", { projectId: "" })} onClick={followLink}>
-          <Activity size={23} /><span>帆鳍</span>
+          <img className="brand-logo" src="/assets/sailfin-logo.svg" alt="" /><span className="brand-name"><span>帆鳍</span><small>Sailfin</small></span>
         </a>
         <nav className="primary-nav" aria-label="主导航">
           {[

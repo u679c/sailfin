@@ -172,15 +172,15 @@ a {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 48px;
+  gap: 24px;
   min-height: 60px;
-  padding: 0 32px;
+  padding: 0 20px;
   background: #17222e;
   color: #fff;
 }
 .brand {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   flex-shrink: 0;
   color: #fff;
@@ -188,7 +188,11 @@ a {
   font-size: 20px;
   font-weight: 650;
 }
-.brand svg { color: #9abfff; }
+.brand-logo { display: block; width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
+.brand .brand-logo { filter: brightness(0) invert(1); }
+.brand-name { display: flex; flex-direction: column; gap: 3px; line-height: 1.1; }
+.brand-name > span { align-self: flex-end; display: flex; justify-content: flex-end; width: 0; white-space: nowrap; }
+.brand-name small { color: inherit; font-size: 10px; font-weight: 400; letter-spacing: 0.06em; }
 .primary-nav {
   display: flex;
   align-self: stretch;
@@ -854,13 +858,15 @@ footer span {
 }
 .login-brand {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   color: #22496f;
   font-size: 28px;
   font-weight: 650;
   margin-bottom: 28px;
 }
+.login-brand .brand-logo { width: 56px; height: 56px; }
+.login-brand .brand-name small { font-size: 13px; }
 .login form {
   background: white;
   padding: 40px;
@@ -889,7 +895,7 @@ footer span {
   scrollbar-color: #b7c6d9 transparent;
 }
 @media (max-width: 1100px) {
-  .topbar { gap: 24px; padding: 0 24px; }
+  .topbar { gap: 20px; padding: 0 20px; }
   .workspace { padding: 24px; }
   .workspace.site-workspace { grid-template-columns: 224px minmax(0, 1fr); }
   .detail-scroll { padding: 22px 24px 24px; }
