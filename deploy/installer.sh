@@ -86,12 +86,12 @@ else
 fi
 
 if ! command -v nginx >/dev/null 2>&1; then
-    rejected '找不到 Nginx，请自行安装并将其加入 PATH。'
+    warning '宿主机未找到 nginx。可在 sites.json 中指定宿主机上的访问日志路径。'
 elif nginx_build=$(nginx -V 2>&1); then
     nginx_build=${nginx_build//\'/}
     case " $nginx_build " in
         *' --with-http_sub_module '*) passed 'Nginx 可用，已包含 http_sub_module' ;;
-        *) rejected 'Nginx 缺少 http_sub_module，请安装包含该模块的版本。' ;;
+        *) warning 'Nginx 缺少 http_sub_module。可手动配置访问日志；自动注入需要该模块。' ;;
     esac
 
     if processes=$(ps -Aww -o uid=,pid=,command= 2>/dev/null); then
@@ -105,7 +105,7 @@ elif nginx_build=$(nginx -V 2>&1); then
         warning '暂时无法查看 Nginx 进程，自动接入前请检查进程读取权限。'
     fi
 else
-    rejected '无法执行 nginx -V，请检查 Nginx 安装。'
+    warning '无法读取宿主机 Nginx 信息。可在 sites.json 中指定访问日志路径。'
 fi
 
 if parent_path=$(dirname -- "$0") && parent=$(cd -- "$parent_path" && pwd -P); then

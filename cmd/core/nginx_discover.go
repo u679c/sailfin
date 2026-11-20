@@ -27,7 +27,7 @@ var nginxServiceFlags = regexp.MustCompile(`^(\s*(daemon|master_process)\s+(on|o
 func runningNginx(ctx context.Context) (string, []nginxInstance, []string, error) {
 	binary, err := exec.LookPath("nginx")
 	if err != nil {
-		return "", nil, nil, fmt.Errorf("找不到 nginx 命令")
+		return "", nil, nil, fmt.Errorf("宿主机未找到 nginx 命令。可在 sites.json 中配置访问日志路径，并授权对应目录")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

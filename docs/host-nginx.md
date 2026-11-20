@@ -86,6 +86,29 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 
 `sites.json` 中的 `accessLog` 指向该文件，Agent 运行用户需要有文件读取和目录遍历权限。一个路径只用于一个站点。如果 Nginx 运行在容器里，写入宿主机已授权且可读的挂载目录即可。Agent 记录读取偏移，日志中的请求计入 HTTP 请求量和设备统计。只使用此方式时，省略 `browserOrigin` 和 `requireConsent`，无需配置转发端口。
 
+### 手动指定容器日志路径
+
+在 1Panel 的站点配置中查看 `access_log`，把容器内路径按挂载关系换成宿主机路径。例如容器里的 `/www` 对应宿主机的 `/data/1panel/1panel/www` 时，容器路径 `/www/sites/example.com/log/access.log` 对应下面的 `accessLog`。用实际的日志路径替换示例，在 Sailfin 安装目录创建 `sites.json`。
+
+```json
+[
+  {
+    "id": "example-com",
+    "name": "示例站点",
+    "accessLog": "/data/1panel/1panel/www/sites/example.com/log/access.log"
+  }
+]
+```
+
+在安装目录启动 Sailfin，授权实际日志所在的目录。如果服务已运行，先执行 `./aqua stop`。
+
+```sh
+./aqua start --sites-file "$PWD/sites.json" \
+  --log-roots /data/1panel/1panel/www/sites/example.com/log
+```
+
+多个站点的授权目录可用逗号分隔。首批有效日志入库后，站点会出现在管理端。此方式采集 HTTP 请求和设备统计。点击和停留事件由浏览器 SDK 上报。
+
 ## 方式二：Nginx 注入 JS 并转发
 
 把 [Nginx 示例](../examples/nginx/site.conf) 中的相关指令合并到**宿主机 Nginx** 的站点配置。示例入口是 `http://localhost:9080`，站点上游是 `http://127.0.0.1:8888`。用 Nginx 入口访问网站，`browserOrigin` 填入口的实际协议、主机和端口，末尾不带斜杠。

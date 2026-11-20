@@ -20,8 +20,9 @@ npm ci
 下载与操作系统和架构匹配的 Sailfin 安装文件。安装前自行准备以下依赖。
 
 - Docker CLI 和已启动的 Docker 服务。安装检查验证当前 context 使用本机 Unix socket，并且支持 Linux 容器。 [Docker 官方下载](https://docs.docker.com/get-docker/)
-- 宿主机 Nginx，命令需在 `PATH` 中，构建参数需包含 `--with-http_sub_module`。站点接入时另需启动目标 Nginx 实例并准备配置写入和重载权限。 [Nginx 安装说明](https://nginx.org/en/docs/install.html) · [模块文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html)
 - 与发布包兼容的系统运行库，以及 Bash、`tar`、`gzip`、`ps` 等系统工具。安装文件所在目录需要可写。
+
+宿主机自动注入需要 `PATH` 中可用的 `nginx`、`http_sub_module` 以及配置写入和重载权限。使用 1Panel OpenResty 或其他容器化 Web 服务时，可手动指定挂载到宿主机的日志文件路径。 [Nginx 模块文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html) · [手动日志接入](host-nginx.md#手动指定容器日志路径)
 
 将下例中的 MD5 替换为下载文件名中的实际值。安装前可用 `sha256sum "$installer"`（macOS 使用 `shasum -a 256 "$installer"`）计算摘要，并与发布说明中的 SHA-256 核对。
 
@@ -31,7 +32,7 @@ chmod +x "$installer" &&
   "./$installer"
 ```
 
-安装文件逐项显示预检结果。终端用绿色 `[v]` 表示通过、红色 `[x]` 表示失败、橙色 `[·]` 表示警告。任一必检项失败时，检查完成后显示「系统校验未通过」并以非零状态退出。未发现同一用户运行的 Nginx 主进程会提示警告，站点自动接入前需处理。
+安装文件逐项显示预检结果。终端用绿色 `[v]` 表示通过、红色 `[x]` 表示失败、橙色 `[·]` 表示警告。任一必检项失败时，检查完成后显示「系统校验未通过」并以非零状态退出。未找到宿主机 Nginx、缺少注入模块或未发现同一用户运行的 Nginx 主进程时，预检显示警告并继续检查。
 
 安装过程显示三个阶段：系统校验、解压安装文件、验证安装文件。解压时逐个列出文件，完成后打印 `aqua` 启动命令。可运行 `"./$installer" --check` 单独执行系统校验。已有目标目录时校验失败。
 

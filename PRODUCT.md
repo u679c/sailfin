@@ -10,7 +10,7 @@ Go Core 内置宿主机探针和 Browser SDK，React + TypeScript 管理端，SQ
 通过随 Core 自动启动的本机探针采集 Nginx 访问日志或注入的浏览器事件。界面按站点展示页面、点击聚合、设备、事件和匿名会话。站点在首批有效数据入库后出现，首页 title 可作为显示名称。业务无需编写点击埋点；对外站点默认仍需提供同意信号。
 ## Capabilities and Constraints
 管理功能连接真实 API；不允许演示数据冒充采集结果。配置地址和数据路径可变。当前 serve 仅使用内置本机探针；项目管理和远程 Agent 注册属于保留的兼容代码，不是当前界面功能。
-当前支持生成单文件自解压安装包。用户自行安装 Docker 和 Nginx。安装目录中的 `aqua` 启停本次安装的 Core 容器和宿主机探针。systemd 和自动发布流水线单独推进。
+当前支持生成单文件自解压安装包。用户自行安装 Docker，宿主机 Nginx 用于自动注入。容器化 Web 服务可手动配置宿主机日志路径。安装目录中的 `aqua` 启停本次安装的 Core 容器和宿主机探针。systemd 和自动发布流水线单独推进。
 ## Product Principles
 数据来源清晰；最小化敏感数据；有界采集；凭据隔离；状态和错误可见。
 ## Current Workflow
