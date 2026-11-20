@@ -5,7 +5,9 @@
 ## 已实现（当前本机模式）
 
 - Go Core、内置本机探针、Browser SDK、React 管理端的 Monorepo；Core 启动时自动运行本机探针。
-- Makefile 提供 setup/dev/test/check/build/site/docker-test。独立 Agent 源码入口为 cmd/host-agent，保留在兼容范围。
+- Makefile 提供 setup/dev/test/check/build/package/site/docker-test。独立 Agent 源码入口为 cmd/host-agent，保留在兼容范围。
+- `./scripts/package.sh 0.1.0` 生成单个 `Sailfin-installer-<md5>.bin` 并打印 SHA-256。安装包逐项检查系统、Docker 和 Nginx，然后解压内嵌镜像及宿主机探针。 [部署文档](deployment.md)
+- 在安装目录执行 `./aqua start|stop|restart|status`，管理当前安装的 Core 容器和宿主机探针。
 - make dev 编排 Core 和 Web，Go/SQL/SDK JS 变化后重启 Core，Web 使用 Vite Fast Refresh；SDK 由 Go embed 提供源码。
 - SQLite WAL、启动时初始化 schema、持久化、按保留期清理与一致性在线备份。
 - 随机管理员凭据、Argon2id、Cookie 会话、CSRF、修改密码与管理审计。
@@ -30,6 +32,7 @@
 
 - 用户主动运行 make dev 后的交互与视觉检查；没有打开浏览器或进行界面验收。
 - make build 的完整产物验证：遵守用户偏好，未自动运行生产构建。
+- 安装包构建、系统预检、`aqua` 进程管理及 macOS/Linux 目标机验收。
 - Docker 只读发现与授权日志读取的实机验收。
 - React/Vue/原生站点的真实浏览器兼容性矩阵，SDK 生命周期已有内存 DOM 测试，真实浏览器仍需验收。
 - Linux 2GB 目标机性能、RSS、磁盘压力、长时间运行、SQLite Busy、异常退出恢复专项。
@@ -38,7 +41,7 @@
 
 这些尚未实现，不能当成正式 V1 全部完成：
 
-- 安装器、跨架构产物、systemd、升级回滚、卸载和正式发布脚本：明确延期。
+- 跨架构自动发布、systemd、自动升级回滚及卸载。
 - Docker Sidecar 创建/停止/清理、远程受控部署：当前用 Host Collector，不执行容器生命周期操作。
 - 多用户细粒度 RBAC、项目异步清理任务、远程卸载/升级。
 - UA 品牌和 Android 平板更细分类、原始 UA 可选保留、独立设备型号统计及设备趋势。
@@ -47,4 +50,4 @@
 - Docker 单次返回超过 256 KiB 时当前报告错误并暂停该轮读取，尚未实现大积压流分页；不静默截掉积压。
 - SSE 实时状态、强制立即健康探测，当前依赖 30 秒心跳和手动刷新。
 
-正式打包的闸门保持关闭，直到主要功能与安全/持久化、Docker 和目标环境验收通过。后续规划不作为当前交付能力；构建、测试和界面验证按 AGENTS.md 执行。
+正式发布前仍需完成主要功能、安全、持久化、Docker 和目标环境验收。构建、测试和界面验证按 AGENTS.md 执行。

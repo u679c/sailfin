@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,13 +28,21 @@ func main() {
 }
 
 func command(args []string) error {
+	containerMode := false
 	if len(args) > 0 {
 		switch args[0] {
+		case "aqua":
+			return aquaCommand(args[1:])
+		case "aqua-serve":
+			return aquaServe(args[1:])
 		case "nginx-inject":
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 			return nginxInject(ctx, args[1:])
 		case "serve":
+			args = args[1:]
+		case "container-serve":
+			containerMode = true
 			args = args[1:]
 		}
 	}
@@ -44,10 +53,23 @@ func command(args []string) error {
 	if err != nil {
 		return err
 	}
-	return run(options)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	key := ""
+	if containerMode {
+		raw, err := os.ReadFile(containerKeyPath)
+		if err != nil {
+			return err
+		}
+		if !validHostKey(string(raw)) {
+			return errors.New("invalid Sailfin host probe key")
+		}
+		key = string(raw)
+	}
+	return run(ctx, options, key)
 }
 
-func run(options serveOptions) error {
+func run(ctx context.Context, options serveOptions, hostKey string) error {
 	managed, err := configureManagedNginx(options.nginx)
 	if err != nil {
 		return err
@@ -60,25 +82,47 @@ func run(options serveOptions) error {
 	if addr == "" {
 		addr = "127.0.0.1:8080"
 	}
-	auto, err := newNginxAuto(filepath.Dir(dbPath), options.relayAddr)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
+	}
+	defer listener.Close()
+
+	var auto *nginxAuto
+	var bridge *hostBridge
+	var nginx core.NginxIntegration
+	if hostKey == "" {
+		auto, err = newNginxAuto(filepath.Dir(dbPath), options.relayAddr)
+		if err != nil {
+			return err
+		}
+		nginx = auto
+	} else {
+		bridge = newHostBridge()
+		nginx = bridge
 	}
 	s, err := core.Open(core.Config{
 		Address: addr, DBPath: dbPath, PublicURL: options.publicURL,
 		WebDir: options.webDir, AdminName: os.Getenv("SAILFIN_ADMIN_NAME"),
 		AdminPassword: os.Getenv("SAILFIN_ADMIN_PASSWORD"), OfflineSeconds: options.offline,
-		LocalOnly: true, Nginx: auto,
+		LocalOnly: true, Nginx: nginx,
 	})
 	if err != nil {
 		return err
 	}
 	defer s.Close()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := context.WithCancel(ctx)
 	defer stop()
+	handler := s.Handler()
+	if bridge != nil {
+		mux := http.NewServeMux()
+		mux.Handle(hostBridgePath+"/", http.StripPrefix(hostBridgePath, bridge.handler(hostKey, s.ProbeHandler())))
+		mux.Handle("/", handler)
+		handler = mux
+	}
 	srv := &http.Server{
-		Addr: addr, Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second,
+		Addr: addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout: 20 * time.Second, WriteTimeout: 30 * time.Second,
 		IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384,
 	}
@@ -100,12 +144,19 @@ func run(options serveOptions) error {
 			}
 		}
 	}()
-	go s.Maintain(ctx.Done())
+	maintenanceDone := make(chan struct{})
+	go func() {
+		defer close(maintenanceDone)
+		s.Maintain(ctx.Done())
+	}()
 	var probeErr error
 	probeDone := make(chan struct{})
 	go func() {
 		defer close(probeDone)
-		probeErr = runProbe(ctx, s, filepath.Dir(dbPath), options, managed, auto)
+		if auto == nil {
+			return
+		}
+		probeErr = runProbe(ctx, s.ProbeHandler(), filepath.Dir(dbPath), options, managed, auto, auto.ready.Store)
 		if probeErr != nil {
 			s.ReportProbeFailure(probeErr)
 			slog.Error("Local probe stopped", "error", probeErr)
@@ -126,11 +177,12 @@ func run(options serveOptions) error {
 		}
 	}()
 	slog.Info("Sailfin Core listening", "address", addr)
-	err = srv.ListenAndServe()
+	err = srv.Serve(listener)
 	stop()
 	<-httpDone
 	<-probeDone
 	<-nginxDone
+	<-maintenanceDone
 	if nginxErr != nil {
 		return nginxErr
 	}
@@ -143,7 +195,7 @@ func run(options serveOptions) error {
 	return err
 }
 
-func runProbe(ctx context.Context, s *core.Server, dataDir string, options serveOptions, managed *managedNginx, auto *nginxAuto) error {
+func runProbe(ctx context.Context, handler http.Handler, dataDir string, options serveOptions, managed *managedNginx, auto *nginxAuto, relayState func(bool)) error {
 	configPath := options.sitesFile
 	if configPath == "" {
 		defaultPath := filepath.Join(dataDir, "sites.json")
@@ -177,8 +229,8 @@ func runProbe(ctx context.Context, s *core.Server, dataDir string, options serve
 	}
 	probe, err := agent.OpenLocal(agent.Options{
 		StateDir: stateDir, Sites: sites, LogRoots: roots,
-		RelayAddress: relay, AutoBrowserSite: auto.browserSite, RelayState: auto.ready.Store,
-	}, core.LocalProbeID, s.ProbeHandler())
+		RelayAddress: relay, AutoBrowserSite: auto.browserSite, RelayState: relayState,
+	}, core.LocalProbeID, handler)
 	if err != nil {
 		return err
 	}

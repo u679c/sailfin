@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+install_dir=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
+if [ "$(pwd -P)" != "$install_dir" ]; then
+    printf '请进入安装目录后执行 ./aqua：%s\n' "$install_dir" >&2
+    exit 1
+fi
+cd "$install_dir"
+umask 077
+
+exec ./bin/sailfin-core aqua "$@"

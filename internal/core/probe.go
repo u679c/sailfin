@@ -17,8 +17,7 @@ func (s *Server) initProbe() error {
 	return err
 }
 
-// ProbeHandler is handed directly to the embedded probe. It is never mounted
-// on the public HTTP server.
+// ProbeHandler is used by the embedded probe and the authenticated host bridge.
 func (s *Server) ProbeHandler() http.Handler {
 	if !s.cfg.LocalOnly {
 		return http.NotFoundHandler()

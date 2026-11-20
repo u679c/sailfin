@@ -2,7 +2,7 @@
 
 Go + SQLite + React 的单机 Web 采集与分析平台。所有管理视图调用真实 API；初始数据库没有示例项目或统计数据。
 
-当前阶段不提供安装器、systemd、跨架构发布或升级回滚。完整范围和待验证项见 [交付状态](docs/status.md)，原需求保存在 [原始 PRD](docs/original-requirements.md)。
+本机发布包的生成、部署与数据保留流程见 [单机打包与部署](docs/deployment.md)。完整范围和待验证项见 [交付状态](docs/status.md)，原需求保存在 [原始 PRD](docs/original-requirements.md)。
 
 ## 开始开发
 
@@ -53,11 +53,12 @@ cp .env.example .env
 
 当前 `serve` 使用本机内置探针，不需要创建项目或注册远程 Agent。旧版项目与远程 Agent 接口保留在兼容模式，见 [API](docs/api.md)。
 
-## TODO：单机安装与发布
+## 单机打包与部署
 
-- [ ] 为 macOS 和 Linux 生成 `sailfin-<md5>.bin`。检查 Docker 已安装且可连接，缺失时报错。在安装文件所在目录解压项目文件，创建并启动 Sailfin 专用容器。
-- [ ] 单机安装时自动部署同机探针。在安装目录生成鱼系列统一管理命令 `./aqua start|stop|restart|status`，管理当前目录所属项目的管理节点与探针，重启时保留数据库和配置。各项目保留独立产品名，共用 aqua 命令名。
-- [ ] 打包部署时准备 Nginx 配置与重载权限，站点接入仍在 Web 后台启用。
+在目标系统和架构对应的构建机上执行 `npm ci` 和 `./scripts/package.sh 0.1.0`。脚本在 `dist/` 对应的版本目录生成单个 `Sailfin-installer-<md5>.bin`，其中内嵌 Docker 镜像和宿主机探针。Docker 和 Nginx 由用户自行安装。安装器逐项检查依赖并显示解包进度。进入安装目录执行 `./aqua start`，Core 和管理端在 Sailfin 专用 Docker 容器中运行，探针在宿主机运行。用 `./aqua status`、`./aqua stop` 和 `./aqua restart` 管理本次安装。 [部署步骤](docs/deployment.md)
+
+### 部署后续工作
+
 - [ ] 分布式部署留待后续，届时探针可以部署在与管理节点不同的设备。
 
 ## 测试、检查与主动构建
@@ -68,7 +69,7 @@ make check   # TypeScript 无产物检查 + 编排脚本语法检查
 make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态文件
 ```
 
-`make build` 是实际实现的本机生产程序构建命令，不是正式发布打包。输出 `bin/sailfin-core` 和 `web/dist`。macOS 使用外部链接兼容当前系统与 Go 1.22；Linux 使用默认链接。CGO 构建需要本机 C 工具链，跨架构发布后续处理。
+`make build` 输出 `bin/sailfin-core` 和 `web/dist`，`make package VERSION=0.1.0` 调用同一打包脚本生成自解压安装文件。macOS 使用外部链接兼容当前系统与 Go 1.22；Linux 使用默认链接。CGO 构建需要本机 C 工具链。
 
 用户自行构建后，可以不运行 Node 服务：
 
@@ -79,7 +80,7 @@ make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态�
 ## 数据与安全
 
 - 密码 Argon2id；管理员会话 HttpOnly/SameSite/CSRF；HTTPS Origin 启用 Secure。
-- Core 和本机探针在同一进程通信，管理 API 可暂停或恢复本机采集。
+- 管理 API 可暂停或恢复本机采集。开发模式下探针和 Core 同进程通信，安装模式下宿主机探针使用安装密钥连接容器。
 - 浏览器通过站点同源 Nginx 路由上报，本机中继检查 Origin、批次大小和并发，Core 校验事件、去重并执行写入配额；不向浏览器发放管理员或探针凭据。公开采集入口仍需部署层防滥用策略。
 - 日志目录通过主机配置显式授权。浏览器事件入口由同机 Nginx 转发至探针的回环端口。
 - SQLite WAL 自动迁移；每小时数据保留清理；分页与查询范围上限。

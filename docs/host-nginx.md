@@ -1,6 +1,6 @@
 # 在 macOS 或 Linux 接入 Nginx
 
-Sailfin 采用单机部署。Core 启动时自动初始化并运行本机探针。在「探针管理 → 探针管理」可以查看运行状态、心跳、已配置站点数，或者暂停和恢复采集。站点列表在 Core 收到首批有效数据后更新。
+Sailfin 采用单机部署。开发时 Core 启动内置探针。安装版由安装目录中的 `./aqua start` 启动 Core 容器和宿主机探针，两种模式均在宿主机接入 Nginx。在「探针管理 → 探针管理」可以查看运行状态、心跳、已配置站点数，或者暂停和恢复采集。站点列表在 Core 收到首批有效数据后更新。
 
 ## 从 Web 批量启用现有站点
 
@@ -31,7 +31,7 @@ Sailfin 采用单机部署。Core 启动时自动初始化并运行本机探针�
 - 需要 Nginx 的 `http_sub_module`，上游要返回可注入的 HTML。对已显式配置代理请求头的目标 location，命令可禁用上游压缩；对继承代理请求头的 location，请确认上游不压缩 HTML。站点 CSP 也要允许加载和连接同源采集路径。
 - 默认仍等待业务站点的同意事件。只有回环 Origin 能使用 `--local-test` 跳过这一步。
 
-随后用相同的站点文件启动或重启 Core，各项参数直接跟在启动命令后：
+安装版在安装目录执行 `./aqua start --sites-file "$PWD/var/sites.json"`。如已启动，先执行 `./aqua stop` 再带上新参数启动。直接运行开发构建的 Core 时，可以使用：
 
 ```sh
 ./bin/sailfin-core serve \
