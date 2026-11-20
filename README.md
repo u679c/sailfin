@@ -15,7 +15,7 @@ make dev
 
 默认管理界面：[http://localhost:5173](http://localhost:5173)，Core：[http://127.0.0.1:8080/api/v1/health](http://127.0.0.1:8080/api/v1/health)。Core 首次启动自动创建数据库、迁移与随机管理员密码。
 
-查看 **`var/bootstrap-admin.txt`** 获取登录凭据。文件权限 0600，不是公开默认密码。不要提交、分享此文件。登录后可在“系统状态”修改密码。可在首次启动前设置 `SAILFIN_ADMIN_NAME` / `SAILFIN_ADMIN_PASSWORD`（至少 12 字符）。已有数据库不会被这些变量重置。
+查看 **`var/bootstrap-admin.txt`** 获取登录凭据。文件权限 0600，不是公开默认密码。不要提交、分享此文件。登录后可在“系统设置 → 运行设置”修改密码。可在首次启动前设置 `SAILFIN_ADMIN_NAME` / `SAILFIN_ADMIN_PASSWORD`（至少 12 字符）。已有数据库不会被这些变量重置。
 
 `make dev` 同时启动：
 
@@ -43,16 +43,20 @@ cp .env.example .env
 
 ## 接入站点
 
-在 macOS 或 Linux 宿主机启动 Core 时会自动启动本机探针。在「系统状态 → 本机探针」可以查看心跳、配置站点数及暂停或恢复采集。探针支持读取授权的 Nginx 日志，以及接收 Nginx 注入的浏览器事件。两种来源使用同一站点 ID 时归入同一站点。
+在 macOS 或 Linux 宿主机启动 Core 时会自动启动本机探针。在「探针管理 → 探针管理」可以查看心跳、配置站点数及暂停或恢复采集。探针支持读取授权的 Nginx 日志，以及接收 Nginx 注入的浏览器事件。两种来源使用同一站点 ID 时归入同一站点。
 
 后台收到首批有效数据后自动显示站点。首次使用时站点列表为空属于正常情况。完整配置见 [本机探针与 Nginx 接入](docs/host-nginx.md)。
 
-本地开发时启动 `make dev`，登录后打开 **系统状态 → Nginx 采集 → 启用 Nginx 采集**。先预览本机正在运行的 Nginx 站点，再确认统一接入。接入后仍使用原网址，无需逐个填写站点或环境变量。现有手动命令保留给特殊配置。[本机 Nginx 接入说明](docs/host-nginx.md)
+本地开发时启动 `make dev`，登录后打开 **探针管理 → 站点接入**，页面自动扫描本机正在运行的 Nginx 站点。查看预览后点击「确认接入」；需要更新结果时点击「重新扫描」。接入后仍使用原网址，无需逐个填写站点或环境变量。现有手动命令保留给特殊配置。[本机 Nginx 接入说明](docs/host-nginx.md)
+
+管理界面统一使用顶部导航和左右分栏：站点左侧搜索、选择站点，右侧查看概览、页面、点击行为、访问轨迹、事件记录和设备；探针管理左侧为站点接入和探针管理；系统设置左侧为运行设置和安全审计。右侧数据列表默认每页 20 条，左侧站点列表不分页。
+
+当前 `serve` 使用本机内置探针，不需要创建项目或注册远程 Agent。旧版项目与远程 Agent 接口保留在兼容模式，见 [API](docs/api.md)。
 
 ## TODO：单机安装与发布
 
 - [ ] 为 macOS 和 Linux 生成 `sailfin-<md5>.bin`。检查 Docker 已安装且可连接，缺失时报错。在安装文件所在目录解压项目文件，创建并启动 Sailfin 专用容器。
-- [ ] 单机安装时自动部署同机探针。生成 `./u679c start|stop|restart|status`，统一管理管理节点与探针，重启时保留数据库和配置。
+- [ ] 单机安装时自动部署同机探针。在安装目录生成鱼系列统一管理命令 `./aqua start|stop|restart|status`，管理当前目录所属项目的管理节点与探针，重启时保留数据库和配置。各项目保留独立产品名，共用 aqua 命令名。
 - [ ] 打包部署时准备 Nginx 配置与重载权限，站点接入仍在 Web 后台启用。
 - [ ] 分布式部署留待后续，届时探针可以部署在与管理节点不同的设备。
 
@@ -61,7 +65,7 @@ cp .env.example .env
 ```sh
 make test    # Go + SQLite 集成测试，JS SDK 策略测试
 make check   # TypeScript 无产物检查 + 编排脚本语法检查
-make build   # 生成包含探针和 SDK 的 Core 二进制及 Web 静态文件
+make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态文件
 ```
 
 `make build` 是实际实现的本机生产程序构建命令，不是正式发布打包。输出 `bin/sailfin-core` 和 `web/dist`。macOS 使用外部链接兼容当前系统与 Go 1.22；Linux 使用默认链接。CGO 构建需要本机 C 工具链，跨架构发布后续处理。
@@ -76,9 +80,9 @@ make build   # 生成包含探针和 SDK 的 Core 二进制及 Web 静态文件
 
 - 密码 Argon2id；管理员会话 HttpOnly/SameSite/CSRF；HTTPS Origin 启用 Secure。
 - Core 和本机探针在同一进程通信，管理 API 可暂停或恢复本机采集。
-- Browser 写入独立于管理认证；Origin 白名单之外还有限流、配额、大小限制、事件白名单和去重。公开采集入口仍需要部署层防滥用策略。
+- 浏览器通过站点同源 Nginx 路由上报，本机中继检查 Origin、批次大小和并发，Core 校验事件、去重并执行写入配额；不向浏览器发放管理员或探针凭据。公开采集入口仍需部署层防滥用策略。
 - 日志目录通过主机配置显式授权。浏览器事件入口由同机 Nginx 转发至探针的回环端口。
 - SQLite WAL 自动迁移；每小时数据保留清理；分页与查询范围上限。
-- 系统状态页面提供一致性在线数据库备份，不直接复制活跃 SQLite 主文件。
+- 「系统设置 → 运行设置」提供一致性在线数据库备份，不直接复制活跃 SQLite 主文件。
 
 更多：[API](docs/api.md) · [架构与顺序](docs/architecture.md) · [安全与恢复](docs/security.md) · [验收报告](docs/testing.md) · [交付状态](docs/status.md)。
