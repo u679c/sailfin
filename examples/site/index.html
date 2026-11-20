@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TraceLite 本机采集验证站点</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>验证真实浏览器采集</h1>
+      <p>
+        配置项目和 Core
+        地址，主动启用后再操作页面。这些操作会作为真实本机事件进入你的项目。
+      </p>
+      <form id="connect">
+        <label>项目 ID<input id="project" required autocomplete="off" /></label
+        ><label
+          >Core 地址<input
+            id="server"
+            type="url"
+            value="http://localhost:5173"
+            required /></label
+        ><label class="consent"
+          ><input
+            type="checkbox"
+            required
+          />我同意采集此测试页面的匿名行为</label
+        ><button type="submit">启用采集</button>
+      </form>
+      <p id="status" role="status">尚未启用</p>
+      <hr />
+      <nav>
+        <button data-path="/home" data-tracelite-id="nav-home">首页</button
+        ><button data-path="/pricing" data-tracelite-id="nav-pricing">
+          方案页</button
+        ><button data-path="/contact" data-tracelite-id="nav-contact">
+          联系页
+        </button>
+      </nav>
+      <h2 id="route">/</h2>
+      <button id="action" data-tracelite-id="test-action">
+        记录一次真实点击</button
+      ><button id="error" data-tracelite-id="test-error">触发测试错误</button
+      ><button id="stop" data-tracelite-id="stop-collection">停止采集</button
+      ><label
+        >隐私检查输入框（值不采集）<input
+          type="password"
+          autocomplete="off"
+          placeholder="这里的内容不会采集"
+      /></label>
+      <p>
+        切换页面可见状态、点击导航或刷新页面，然后在 TraceLite
+        查看会话轨迹。测试错误用于主动验证 js_error，不代表网站故障。
+      </p>
+    </main>
+    <script type="module" src="/site.js"></script>
+  </body>
+</html>

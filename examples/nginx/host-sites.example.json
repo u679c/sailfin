@@ -1,0 +1,9 @@
+[
+  {
+    "id": "local-web",
+    "name": "本机网站",
+    "accessLog": "/absolute/path/to/local-web.access.log",
+    "browserOrigin": "http://localhost:9080",
+    "requireConsent": true
+  }
+]

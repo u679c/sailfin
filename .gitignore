@@ -1,0 +1,8 @@
+node_modules/
+web/dist/
+browser-agent/dist/
+var/
+bin/
+.env
+*.db*
+.DS_Store
