@@ -140,8 +140,14 @@ if ! tail -n "+$payload_line" "$0" | tar -xzvf - -C "$destination" --strip-compo
     fail '无法解压安装文件，请重新下载并核对 SHA-256。'
 fi
 printf '\n[3/3] 验证安装文件\n'
-if ! "$destination/bin/sailfin-core" serve --help >/dev/null 2>&1; then
-    fail 'Core 无法在当前系统运行，请检查系统运行库和安装文件。'
+if core_check=$("$destination/bin/sailfin-core" serve --help 2>&1); then
+    passed '宿主机程序可执行'
+else
+    core_status=$?
+    if [[ -n $core_check ]]; then
+        printf '%s\n' "$core_check" >&2
+    fi
+    fail "宿主机程序无法在当前系统运行（退出码 ${core_status}）。"
 fi
 [[ -x $destination/aqua ]] || fail '安装包缺少 aqua 管理命令。'
 [[ -s $destination/image.tar && -s $destination/image-id ]] || fail '安装包缺少 Sailfin Docker 镜像。'

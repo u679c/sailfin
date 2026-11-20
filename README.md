@@ -69,7 +69,7 @@ make check   # TypeScript 无产物检查 + 编排脚本语法检查
 make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态文件
 ```
 
-`make build` 输出 `bin/sailfin-core` 和 `web/dist`，`make package VERSION=0.1.0` 调用同一打包脚本生成自解压安装文件。macOS 使用外部链接兼容当前系统与 Go 1.22；Linux 使用默认链接。CGO 构建需要本机 C 工具链。
+`make build` 输出 `bin/sailfin-core` 和 `web/dist`，需要本机 C 工具链。`make package VERSION=0.1.0` 生成自解压安装文件，Linux 安装包的宿主机程序禁用 CGO，Docker 镜像内的 Core 保留 SQLite 支持。
 
 用户自行构建后，可以不运行 Node 服务：
 

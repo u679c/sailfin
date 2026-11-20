@@ -4,7 +4,7 @@
 
 ## 生成发布包
 
-在 macOS 或 Linux 的 amd64、arm64 构建机上准备 Go ≥1.22、Node ≥20.19、npm、C 工具链和能够构建 Linux 镜像的 Docker。在与目标机匹配的系统和 CPU 架构上构建宿主机探针。Linux 上的探针需要兼容构建环境的 libc。
+在 macOS 或 Linux 的 amd64、arm64 构建机上准备 Go ≥1.22、Node ≥20.19、npm 和能够构建 Linux 镜像的 Docker。macOS 打包还需要 C 工具链和 `codesign`。在与目标机匹配的系统和 CPU 架构上构建宿主机探针。Linux 安装包里的宿主机程序不依赖 glibc，SQLite 在镜像内运行。
 
 ```sh
 npm ci
@@ -20,7 +20,7 @@ npm ci
 下载与操作系统和架构匹配的 Sailfin 安装文件。安装前自行准备以下依赖。
 
 - Docker CLI 和已启动的 Docker 服务。安装检查验证当前 context 使用本机 Unix socket，并且支持 Linux 容器。 [Docker 官方下载](https://docs.docker.com/get-docker/)
-- 与发布包兼容的系统运行库，以及 Bash、`tar`、`gzip`、`ps` 等系统工具。安装文件所在目录需要可写。
+- Bash、`tar`、`gzip`、`ps` 等系统工具，以及可写的安装文件所在目录。
 
 宿主机自动注入需要 `PATH` 中可用的 `nginx`、`http_sub_module` 以及配置写入和重载权限。使用 1Panel OpenResty 或其他容器化 Web 服务时，可手动指定挂载到宿主机的日志文件路径。 [Nginx 模块文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html) · [手动日志接入](host-nginx.md#手动指定容器日志路径)
 
