@@ -318,42 +318,60 @@ func filter(r *http.Request) (string, []any, error) {
 func pagination(r *http.Request) (int, int) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 || limit > 200 {
-		limit = 50
+		limit = 20
 	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
 	}
-	if page > 10000 {
-		page = 10000
+	// Bound arithmetic without imposing an artificial last page on large lists.
+	if maxPage := int(^uint(0)>>1) / limit; page > maxPage {
+		page = maxPage
 	}
 	return limit, (page - 1) * limit
+}
+
+// pagedQuery keeps the array response and reports whether another page exists.
+func (s *Server) pagedQuery(w http.ResponseWriter, r *http.Request, query string, args ...any) error {
+	limit, offset := pagination(r)
+	var total int
+	countQuery := "SELECT count(*) FROM (" + strings.TrimSuffix(strings.TrimSpace(query), "LIMIT ? OFFSET ?") + ")"
+	if err := s.DB.QueryRowContext(r.Context(), countQuery, args...).Scan(&total); err != nil {
+		return err
+	}
+	rows, err := s.rows(r.Context(), query, append(args, limit+1, offset)...)
+	if err != nil {
+		return err
+	}
+	more := len(rows) > limit
+	if more {
+		rows = rows[:limit]
+	}
+	w.Header().Set("X-Has-More", strconv.FormatBool(more))
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
+	jsonOut(w, 200, rows)
+	return nil
 }
 func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	q, a, e := filter(r)
 	if e != nil {
 		return e
 	}
-	limit, offset := pagination(r)
-	a = append(a, limit, offset)
-	return s.query(w, r, "SELECT * FROM events WHERE "+q+" ORDER BY timestamp DESC,id LIMIT ? OFFSET ?", a...)
+	return s.pagedQuery(w, r, "SELECT * FROM events WHERE "+q+" ORDER BY timestamp DESC,id LIMIT ? OFFSET ?", a...)
 }
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) error {
 	q, a, e := filter(r)
 	if e != nil {
 		return e
 	}
-	limit, offset := pagination(r)
-	a = append(a, limit, offset)
-	return s.query(w, r, `SELECT project_id,session_id,min(timestamp) AS started_at,max(timestamp) AS last_activity,max(device) AS device,max(browser) AS browser,max(os) AS os,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pages,count(CASE WHEN type='click' THEN 1 END) AS interactions,COALESCE(sum(CASE WHEN type='page_hidden' THEN json_extract(properties,'$.durationMs') ELSE 0 END),0) AS duration_ms FROM events WHERE session_id!='' AND `+q+` GROUP BY project_id,session_id ORDER BY last_activity DESC LIMIT ? OFFSET ?`, a...)
+	return s.pagedQuery(w, r, `SELECT project_id,session_id,min(timestamp) AS started_at,max(timestamp) AS last_activity,max(device) AS device,max(browser) AS browser,max(os) AS os,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pages,count(CASE WHEN type='click' THEN 1 END) AS interactions,COALESCE(sum(CASE WHEN type='page_hidden' THEN json_extract(properties,'$.durationMs') ELSE 0 END),0) AS duration_ms FROM events WHERE session_id!='' AND `+q+` GROUP BY project_id,session_id ORDER BY last_activity DESC,project_id,session_id LIMIT ? OFFSET ?`, a...)
 }
 func (s *Server) sessionDetail(w http.ResponseWriter, r *http.Request) error {
 	p := r.URL.Query().Get("projectId")
 	if p == "" {
 		return fail(400, "projectId is required for session isolation")
 	}
-	limit, offset := pagination(r)
-	return s.query(w, r, "SELECT * FROM events WHERE project_id=? AND session_id=? ORDER BY timestamp,id LIMIT ? OFFSET ?", p, r.PathValue("id"), limit, offset)
+	return s.pagedQuery(w, r, "SELECT * FROM events WHERE project_id=? AND session_id=? ORDER BY timestamp,id LIMIT ? OFFSET ?", p, r.PathValue("id"))
 }
 func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) error {
 	q, a, e := filter(r)
@@ -362,9 +380,7 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) erro
 	}
 	switch kind {
 	case "clicks":
-		limit, offset := pagination(r)
-		a = append(a, limit, offset)
-		return s.query(w, r, `WITH clicked AS (
+		return s.pagedQuery(w, r, `WITH clicked AS (
 			SELECT project_id,visitor_id,timestamp,id,
 				COALESCE(NULLIF(json_extract(properties,'$.pagePath'),''),path) AS page,
 				CASE
@@ -400,11 +416,11 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) erro
 	case "trends":
 		return s.query(w, r, `SELECT strftime('%Y-%m-%d %H:00',timestamp/1000,'unixepoch') AS time,count(*) AS events,count(CASE WHEN type='http_request' THEN 1 END) AS requests,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv,count(DISTINCT CASE WHEN visitor_id!='' THEN project_id||':'||visitor_id END) AS uv,count(CASE WHEN type='http_request' AND json_extract(properties,'$.status')>=400 THEN 1 END) AS errors FROM events WHERE `+q+` GROUP BY time ORDER BY time LIMIT 9000`, a...)
 	case "devices":
-		return s.query(w, r, `SELECT device,browser,os,count(*) AS events,count(CASE WHEN type='http_request' THEN 1 END) AS requests,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv,count(DISTINCT CASE WHEN visitor_id!='' THEN project_id||':'||visitor_id END) AS uv FROM events WHERE `+q+` GROUP BY device,browser,os ORDER BY events DESC LIMIT 100`, a...)
+		return s.pagedQuery(w, r, `SELECT device,browser,os,count(*) AS events,count(CASE WHEN type='http_request' THEN 1 END) AS requests,count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv,count(DISTINCT CASE WHEN visitor_id!='' THEN project_id||':'||visitor_id END) AS uv FROM events WHERE `+q+` GROUP BY device,browser,os ORDER BY events DESC,device,browser,os LIMIT ? OFFSET ?`, a...)
 	default:
 		// Use a separate column name so SQLite cannot resolve GROUP BY to the
 		// original pathname and accidentally merge all hash-router pages.
-		return s.query(w, r, `WITH page_events AS (
+		return s.pagedQuery(w, r, `WITH page_events AS (
 			SELECT type,CASE WHEN source_type='browser'
 				THEN COALESCE(NULLIF(json_extract(properties,'$.pagePath'),''),path)
 				ELSE path END AS page_path
@@ -413,7 +429,7 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) erro
 		SELECT page_path AS path,count(*) AS events,
 			count(CASE WHEN type='http_request' THEN 1 END) AS requests,
 			count(CASE WHEN type IN ('page_view','route_change') THEN 1 END) AS pv
-		FROM page_events GROUP BY page_path ORDER BY events DESC,page_path LIMIT 100`, a...)
+		FROM page_events GROUP BY page_path ORDER BY events DESC,page_path LIMIT ? OFFSET ?`, a...)
 	}
 }
 func (s *Server) security(w http.ResponseWriter, r *http.Request) error {

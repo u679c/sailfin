@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 import { api, backup, setCSRF, parse, when, number, Row } from "./api";
 import "./style.css";
+const PAGE_SIZE = 20;
+function listTotal(rows: Row[] | null | undefined) {
+  return (rows as (Row[] & { total?: number }) | null | undefined)?.total ?? rows?.length ?? 0;
+}
 const sections = [
   { id: "sites", name: "站点" },
   { id: "overview", name: "概览" },
@@ -153,6 +157,7 @@ function Table({
   columns,
   rows,
   onRow,
+  manual = false,
 }: {
   columns: {
     key: string;
@@ -161,9 +166,16 @@ function Table({
   }[];
   rows: Row[];
   onRow?: (r: Row) => void;
+  manual?: boolean;
 }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  useEffect(() => setPage(1), [rows]);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)));
+  const visible = manual ? rows : rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   if (!rows.length) return <Empty>暂无数据</Empty>;
   return (
+    <>
     <div className="table-wrap">
       <table>
         <thead>
@@ -174,7 +186,7 @@ function Table({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
+          {visible.map((r, i) => (
             <tr key={r.id || `${r.project_id}:${r.session_id || i}`}>
               {columns.map((c, j) => (
                 <td key={c.key}>
@@ -195,36 +207,57 @@ function Table({
         </tbody>
       </table>
     </div>
+    {!manual && <Pager page={currentPage} setPage={setPage} total={rows.length}
+      pageSize={pageSize} setPageSize={setPageSize} />}
+    </>
   );
 }
-function Pager({
-  page,
-  setPage,
-  count,
-}: {
+function Pager({ page, setPage, total, pageSize, setPageSize }: {
   page: number;
   setPage: (n: number) => void;
-  count: number;
+  total: number;
+  pageSize: number;
+  setPageSize: (n: number) => void;
 }) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const [jump, setJump] = useState("");
+  useEffect(() => setJump(""), [page, pageSize, total]);
+  useEffect(() => { if (page > pages) setPage(pages); }, [page, pages, setPage]);
+  const start = Math.max(1, Math.min(page - 2, pages - 4));
+  const end = Math.min(pages, start + 4);
+  const items: (number | string)[] = [];
+  if (start > 1) items.push(1);
+  if (start > 2) items.push("before");
+  for (let value = start; value <= end; value++) items.push(value);
+  if (end < pages - 1) items.push("after");
+  if (end < pages) items.push(pages);
+  function go(value: number) {
+    setPage(Math.min(pages, Math.max(1, value)));
+  }
+  function commitJump() {
+    if (/^\d+$/.test(jump)) go(Number(jump));
+    setJump("");
+  }
   return (
-    <div className="pager">
-      <span>
-        第 {page} 页 · 本页 {count} 条
-      </span>
-      <button
-        disabled={page === 1}
-        onClick={() => setPage(page - 1)}
-        aria-label="上一页"
-      >
-        <ChevronLeft size={16} />
-      </button>
-      <button
-        disabled={count < 50}
-        onClick={() => setPage(page + 1)}
-        aria-label="下一页"
-      >
-        <ChevronRight size={16} />
-      </button>
+    <div className="pager" aria-label="分页">
+      <span className="pager-total">共 {number(total)} 条</span>
+      <div className="pager-pages">
+        <button disabled={page <= 1} onClick={() => go(page - 1)} aria-label="上一页"><ChevronLeft size={16} /></button>
+        {items.map((item) => typeof item === "number"
+          ? <button key={item} className={item === page ? "current" : ""}
+              aria-label={`第 ${item} 页`} aria-current={item === page ? "page" : undefined}
+              onClick={() => go(item)}>{item}</button>
+          : <span key={item} className="pager-ellipsis">…</span>)}
+        <button disabled={page >= pages} onClick={() => go(page + 1)} aria-label="下一页"><ChevronRight size={16} /></button>
+      </div>
+      <select aria-label="每页条数" value={pageSize} onChange={(event) => {
+        setPageSize(Number(event.target.value)); setPage(1);
+      }}>
+        {[20, 50, 100].map((size) => <option key={size} value={size}>{size} 条/页</option>)}
+      </select>
+      <label className="pager-jump">跳至<input aria-label="跳转页码" inputMode="numeric" value={jump}
+        onChange={(event) => setJump(event.target.value.replace(/[^0-9]/g, ""))}
+        onBlur={commitJump} onKeyDown={(event) => { if (event.key === "Enter") commitJump(); }} />页</label>
     </div>
   );
 }
@@ -465,7 +498,7 @@ function App() {
               </nav>
           )}
           </div>
-          <div className={siteView ? "detail-scroll" : undefined}>
+          <div className={siteView ? `detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) ? "list-workspace" : ""}` : undefined}>
           {siteView && showConnect && <NginxCollection />}
           {siteView && (
               <div className="filterbar">
@@ -514,12 +547,11 @@ function App() {
 }
 function Overview({ query, revision }: { query: string; revision: number }) {
   const state = useData(async () => {
-    const [overview, trends, pages] = await Promise.all([
+    const [overview, trends] = await Promise.all([
       api("/stats/overview" + query),
       api("/stats/trends" + query),
-      api("/stats/pages" + query),
     ]);
-    return { overview: overview[0], trends, pages };
+    return { overview: overview[0], trends };
   }, [query, revision]);
   const d = state.data;
   return (
@@ -572,10 +604,8 @@ function Overview({ query, revision }: { query: string; revision: number }) {
             <section className="panel">
               <div className="panel-title">
                 <h2>热门路径</h2>
-                <span>最多 100 条</span>
               </div>
-              <Table
-                rows={d.pages}
+              <DataTable bare path="/stats/pages" query={query} revision={revision}
                 columns={[
                   { key: "path", label: "页面 / 请求路径" },
                   { key: "pv", label: "PV" },
@@ -669,38 +699,39 @@ function Trend({ rows }: { rows: Row[] }) {
     </div>
   );
 }
-function DataTable({
-  path,
-  query,
-  revision,
-  columns,
-}: {
+function DataTable({ path, query, revision, columns, bare = false }: {
   path: string;
   query: string;
   revision: number;
   columns: Parameters<typeof Table>[0]["columns"];
+  bare?: boolean;
 }) {
-  const state = useData(() => api(path + query), [path, query, revision]);
-  return (
-    <section className="panel">
-      <AsyncPanel state={state}>
-        <Table rows={state.data || []} columns={columns} />
-      </AsyncPanel>
-    </section>
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  useEffect(() => setPage(1), [path, query]);
+  const state = useData(
+    () => api(path + query + `&page=${page}&limit=${pageSize}`),
+    [path, query, page, pageSize, revision],
   );
+  const content = <AsyncPanel state={state}>
+    <Table manual rows={state.data || []} columns={columns} />
+    <Pager page={page} setPage={setPage} total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize} />
+  </AsyncPanel>;
+  return bare ? content : <section className="panel list-panel">{content}</section>;
 }
 function Clicks({ query, revision }: { query: string; revision: number }) {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   useEffect(() => setPage(1), [query]);
   const state = useData(
-    () => api("/stats/clicks" + query + `&page=${page}`),
-    [query, page, revision],
+    () => api("/stats/clicks" + query + `&page=${page}&limit=${pageSize}`),
+    [query, page, pageSize, revision],
   );
   const allSites = !new URLSearchParams(query).get("projectId");
   return (
-    <section className="panel">
+    <section className="panel list-panel">
       <AsyncPanel state={state}>
-        <Table rows={state.data || []} columns={[
+        <Table manual rows={state.data || []} columns={[
           ...(allSites ? [{ key: "site_name", label: "站点" }] : []),
           { key: "path", label: "页面" },
           { key: "label", label: "元素名称", render: (row) => row.label || "未命名元素" },
@@ -709,7 +740,7 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
           { key: "visitors", label: "匿名访客", render: (row) => number(row.visitors) },
           { key: "last_click", label: "最近点击", render: (row) => when(row.last_click) },
         ]} />
-        <Pager page={page} setPage={setPage} count={state.data?.length || 0} />
+        <Pager page={page} setPage={setPage} total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize} />
       </AsyncPanel>
     </section>
   );
@@ -718,18 +749,19 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
   const [type, setType] = useState(eventType),
     [page, setPage] = useState(1),
     [detail, setDetail] = useState<Row | null>(null);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   useEffect(() => { setPage(1); setDetail(null); }, [query, type]);
   const state = useData(
     () =>
       api(
         "/events" +
           query +
-          `&page=${page}&eventType=${encodeURIComponent(type)}`,
+          `&page=${page}&limit=${pageSize}&eventType=${encodeURIComponent(type)}`,
       ),
-    [query, type, page, revision],
+    [query, type, page, pageSize, revision],
   );
   return (
-    <>
+    <div className="list-view">
       {!eventType && <div className="toolbar">
         <label>
           事件类型
@@ -753,9 +785,9 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
           </select>
         </label>
       </div>}
-      <section className="panel">
+      <section className="panel list-panel">
         <AsyncPanel state={state}>
-          <Table
+          <Table manual
             rows={state.data || []}
             onRow={setDetail}
             columns={[
@@ -778,12 +810,12 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
           <Pager
             page={page}
             setPage={setPage}
-            count={state.data?.length || 0}
+            total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize}
           />
         </AsyncPanel>
       </section>
       {detail && (
-        <section className="panel">
+        <section className="panel record-details" aria-label="事件详情">
           <div className="panel-title">
             <h2>事件详情</h2>
             <button onClick={() => setDetail(null)}>关闭详情</button>
@@ -800,35 +832,37 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
           }, null, 2)}</pre></details>
         </section>
       )}
-    </>
+    </div>
   );
 }
 function Sessions({ query, revision }: { query: string; revision: number }) {
   const [page, setPage] = useState(1),
     [selected, setSelected] = useState<Row | null>(null),
     [eventPage, setEventPage] = useState(1);
+  const [eventPageSize, setEventPageSize] = useState(PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   useEffect(() => {
     setPage(1);
     setSelected(null);
   }, [query]);
   const state = useData(
-    () => api("/sessions" + query + "&page=" + page),
-    [query, page, revision],
+    () => api("/sessions" + query + `&page=${page}&limit=${pageSize}`),
+    [query, page, pageSize, revision],
   );
   const timeline = useData(
     () =>
       selected
         ? api(
-            `/sessions/${encodeURIComponent(selected.session_id)}?projectId=${encodeURIComponent(selected.project_id)}&page=${eventPage}`,
+            `/sessions/${encodeURIComponent(selected.session_id)}?projectId=${encodeURIComponent(selected.project_id)}&page=${eventPage}&limit=${eventPageSize}`,
           )
         : Promise.resolve([]),
-    [selected, eventPage, revision],
+    [selected, eventPage, eventPageSize, revision],
   );
   return (
-    <>
-      <section className="panel">
+    <div className="list-view">
+      <section className="panel list-panel">
         <AsyncPanel state={state}>
-          <Table
+          <Table manual
             rows={state.data || []}
             onRow={(r) => {
               setSelected(r);
@@ -856,12 +890,12 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
           <Pager
             page={page}
             setPage={setPage}
-            count={state.data?.length || 0}
+            total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize}
           />
         </AsyncPanel>
       </section>
       {selected && (
-        <section className="panel">
+        <section className="panel record-details" aria-label="会话时间线">
           <div className="panel-title">
             <h2>会话时间线</h2>
             <button onClick={() => setSelected(null)}>关闭</button>
@@ -889,12 +923,12 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
             <Pager
               page={eventPage}
               setPage={setEventPage}
-              count={timeline.data?.length || 0}
+              total={listTotal(timeline.data)} pageSize={eventPageSize} setPageSize={setEventPageSize}
             />
           </AsyncPanel>
         </section>
       )}
-    </>
+    </div>
   );
 }
 function Security({ revision }: { revision: number }) {
@@ -967,8 +1001,7 @@ function Security({ revision }: { revision: number }) {
           </section>
           <section className="panel">
             <h2>管理审计</h2>
-            <Table
-              rows={d.audit}
+            <DataTable bare path="/security/audit" query="?" revision={revision}
               columns={[
                 {
                   key: "created_at",

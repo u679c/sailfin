@@ -286,6 +286,45 @@ a {
   overscroll-behavior: none;
   scrollbar-gutter: stable;
 }
+.detail-scroll.list-workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.list-workspace > .filterbar,
+.list-view > .toolbar { flex-shrink: 0; }
+.list-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+.list-panel > .table-wrap {
+  flex: 1;
+  min-height: 0;
+  overscroll-behavior: none;
+}
+.list-panel > .empty,
+.list-panel > .loading { flex: 1; justify-content: center; }
+.list-panel th { position: sticky; top: 0; z-index: 1; }
+.list-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.record-details {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(560px, 100%);
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  z-index: 5;
+}
 .site-sticky-header {
   flex-shrink: 0;
   padding: 28px 32px 0;
@@ -638,18 +677,29 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: 10px;
   padding-top: 18px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
-.pager span {
-  margin-right: auto;
-}
-.pager button {
-  padding: 7px;
+.pager-total { white-space: nowrap; }
+.pager-pages { display: flex; align-items: center; gap: 4px; }
+.pager-pages button {
+  padding: 0 7px;
   min-height: 30px;
+  min-width: 30px;
+  border-color: transparent;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
 }
+.pager-pages button:hover:not(:disabled) { background: #eef3fa; }
+.pager-pages button.current { color: #245bc1; border-color: #3267d6; background: #fff; }
+.pager-ellipsis { padding: 0 4px; color: #718096; }
+.pager select { padding: 4px 8px; min-height: 30px; }
+.pager-jump { flex-direction: row; align-items: center; gap: 7px; font-weight: 400; white-space: nowrap; }
+.pager-jump input { width: 52px; padding: 4px 6px; min-height: 30px; text-align: center; }
 .back {
   margin-bottom: 18px;
 }

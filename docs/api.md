@@ -40,10 +40,12 @@
 | GET /stats/pages | 页面分组，浏览器优先使用 pagePath（保留 Hash 路由），HTTP 请求使用原始路径 |
 | GET /stats/clicks | 按站点、页面和元素聚合点击，按点击次数降序分页 |
 
-`/stats/clicks` 使用 `projectId/from/to` 筛选和 `page/limit` 分页，返回 `project_id, site_name, path, element_key, label, region, element_id, selector, clicks, visitors, last_click`。仅统计浏览器 click 事件，页面优先使用 properties.pagePath（包含 Hash 路由），元素优先使用 elementId，其次 selector。历史事件缺少定位信息时按元素类型、名称和区域归并。名称、区域及定位信息取组内最近一次点击，匿名访客按 visitor_id 去重；不同站点和页面不合并。旧数据可能无法区分同名同类型元素。
 | GET /security/summary | 限流/拒绝计数、UTC 今日配额、管理审计 |
+| GET /security/audit | 分页管理审计 |
 | GET /system/status | 服务与数据库状态 |
 | POST /system/backup | 下载 SQLite 一致性快照 |
+
+`/stats/clicks` 使用 `projectId/from/to` 筛选和 `page/limit` 分页，返回 `project_id, site_name, path, element_key, label, region, element_id, selector, clicks, visitors, last_click`。仅统计浏览器 click 事件，页面优先使用 properties.pagePath（包含 Hash 路由），元素优先使用 elementId，其次 selector。历史事件缺少定位信息时按元素类型、名称和区域归并。名称、区域及定位信息取组内最近一次点击，匿名访客按 visitor_id 去重；不同站点和页面不合并。旧数据可能无法区分同名同类型元素。
 
 项目写入字段：`name, description, domains: string[], status: active|paused|archived, retentionDays, dailyQuota, browserEnabled, collection`。PATCH 当前按完整表单保存，不能仅传一个字段。域名列表实际为精确 Origin，含 scheme 与可选端口，不带尾斜线/路径。暂停和归档均拒绝新采集，已有数据保留至保留期。
 
@@ -68,6 +70,6 @@ Browser API：POST `/collect/browser?projectId=...`，`{events:[...]}`；GET `/c
 
 自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, region, pagePath`，其中 label 是自动读取的按钮名称。新字段直接存入现有 properties JSON，无需数据库迁移；现有事件详情 API 可原样读取。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
 
-查询支持 `projectId,agentId,eventType,from,to,page,limit`，from/to 为 Unix ms；默认最近 24 小时、最多 366 天，page 从 1 开始、limit 默认 50 最大 200。会话详情仅按项目和会话标识分页，不套用列表的时间过滤。
+查询支持 `projectId,agentId,eventType,from,to,page,limit`，from/to 为 Unix ms；默认最近 24 小时、最多 366 天，page 从 1 开始、limit 默认 20 最大 200。会话详情仅按项目和会话标识分页，不套用列表的时间过滤。事件、会话、时间线、页面/设备/点击统计和审计分页接口保留数组响应，通过 X-Total-Count 返回总条数、X-Has-More 返回是否还有下一页。趋势接口保持完整数据供图表使用，明细表在前端分页。
 
 PV 只计 browser page_view/route_change；日志 HTTP 请求不会提升 PV；UV 是项目内匿名 visitorId 去重；活跃会话是最近 30 分钟且在查询范围内观测到活动的会话。均不表示真实自然人数。
