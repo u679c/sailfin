@@ -15,7 +15,7 @@ import (
 )
 
 var browserTypes = map[string]bool{"page_view": true, "route_change": true, "click": true, "session_start": true, "page_hidden": true, "js_error": true, "unhandled_rejection": true, "performance_event": true}
-var propertyTypes = map[string]bool{"element": true, "elementId": true, "status": true, "method": true, "bytes": true, "durationMs": true, "message": true, "metric": true, "value": true, "referrer": true}
+var propertyTypes = map[string]bool{"element": true, "elementId": true, "label": true, "selector": true, "region": true, "pagePath": true, "status": true, "method": true, "bytes": true, "durationMs": true, "message": true, "metric": true, "value": true, "referrer": true}
 
 func (s *Server) browserProject(r *http.Request, p string) (map[string]any, error) {
 	rows, e := s.rows(r.Context(), "SELECT * FROM projects WHERE id=? AND status='active' AND browser_enabled=1", p)

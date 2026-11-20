@@ -96,3 +96,13 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 - 在手动启用配置前执行 `nginx -t`。根据宿主机原有方式重载 Nginx。若原页面返回错误或没有可匹配的 HTML，先检查业务上游。常规网页继续由业务服务返回。
 
 浏览器事件和 Nginx 日志分别计数。同一个页面可能同时产生 HTTP 请求和浏览器 PV。浏览器转发遇到暂时性错误时由 SDK 的有界队列重试，关页后内存队列会消失。Nginx 日志待发队列保存在 Agent 状态目录。
+
+## 自动行为采集字段
+
+注入 SDK 后，无需修改业务代码即可记录普通按钮、链接、role=button/link、自带按钮类型的 input，以及动态新增元素的点击。点击使用捕获阶段监听，在业务处理器改动文字或切换页面前获取名称和页面位置。
+
+事件继续使用现有的 page_view、route_change、click、page_hidden 类型。所有浏览器事件在 properties.pagePath 中保留页面标识；支持 /#/route 和 /#!/route，去除查询参数和普通锚点。顶层 path 仍是 pathname，兼容现有后台统计。页面隐藏或路由切换时，停留时间记到原页面，只累计前台可见时间。
+
+click 的 properties 新增 label（按钮名称）、selector（结构定位）、region（最近的语义区域），elementId 优先使用现有 data-tracelite-id，否则对页面与 DOM 结构生成自动 ID。相同结构下按钮文字变化不会改变自动 ID；DOM 层级、同类兄弟元素顺序变化仍可能改变它，不能保证跨站点改版稳定。页面归并、元素合并与后台命名后续实现，当前优先保留原始数据。
+
+SDK 按事件数与 UTF-8 字节数分批，每批请求体不超过约 48 KiB，成功后继续发送剩余队列。429、5xx 和网络失败留待下一轮重试。离页采用 fetch keepalive 尽力发送，受浏览器生命周期和总字节额度约束，不保证所有积压事件送达。

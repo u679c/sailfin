@@ -61,7 +61,9 @@ Browser API：POST `/collect/browser?projectId=...`，`{events:[...]}`；GET `/c
 
 事件字段：`eventId, projectId, sessionId, visitorId, eventType, timestamp(Unix ms), path, properties, ua?`。Browser UA 使用 HTTP Header 覆盖，Host UA 来自访问日志。服务端维护 received_at/source_type/agent_id，不接受客户端声明。
 
-事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB，禁止嵌套属性、查询参数与任意字段。eventId 按项目去重。接受最多 31 天前至未来 5 分钟事件；统计只纳入查询范围。
+事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB，禁止嵌套属性、路径中的查询参数与任意字段。eventId 按项目去重。接受最多 31 天前至未来 5 分钟事件；统计只纳入查询范围。
+
+自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, region, pagePath`，其中 label 是自动读取的按钮名称。新字段直接存入现有 properties JSON，无需数据库迁移；现有事件详情 API 可原样读取。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
 
 查询支持 `projectId,agentId,eventType,from,to,page,limit`，from/to 为 Unix ms；默认最近 24 小时、最多 366 天，page 从 1 开始、limit 默认 50 最大 200。会话详情仅按项目和会话标识分页，不套用列表的时间过滤。
 

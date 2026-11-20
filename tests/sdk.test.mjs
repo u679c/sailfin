@@ -102,6 +102,7 @@ test("SDK waits for opt-in config, captures SPA events and fully stops", async (
     assert.deepEqual(click.properties, {
       element: "button",
       elementId: "safe-id",
+      pagePath: "/next",
     });
     assert.equal(new Set(events.map((e) => e.sessionId)).size, 1);
     sdk.stop();
