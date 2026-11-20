@@ -14,7 +14,7 @@ func dashboardFiles(dir string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
 			switch strings.TrimSuffix(r.URL.Path, "/") {
-			case "/sites", "/overview", "/devices", "/sessions", "/events", "/security", "/system":
+			case "/sites", "/overview", "/pages", "/clicks", "/devices", "/sessions", "/events", "/collection", "/security", "/system":
 				http.ServeFile(w, r, index)
 				return
 			}

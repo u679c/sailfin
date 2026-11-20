@@ -15,7 +15,7 @@ import (
 )
 
 var browserTypes = map[string]bool{"page_view": true, "route_change": true, "click": true, "session_start": true, "page_hidden": true, "js_error": true, "unhandled_rejection": true, "performance_event": true}
-var propertyTypes = map[string]bool{"element": true, "elementId": true, "label": true, "selector": true, "region": true, "pagePath": true, "status": true, "method": true, "bytes": true, "durationMs": true, "message": true, "metric": true, "value": true, "referrer": true}
+var propertyTypes = map[string]bool{"element": true, "elementId": true, "label": true, "selector": true, "region": true, "pagePath": true, "pageTitle": true, "status": true, "method": true, "bytes": true, "durationMs": true, "message": true, "metric": true, "value": true, "referrer": true}
 
 func (s *Server) browserProject(r *http.Request, p string) (map[string]any, error) {
 	rows, e := s.rows(r.Context(), "SELECT * FROM projects WHERE id=? AND status='active' AND browser_enabled=1", p)
@@ -207,7 +207,32 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 				return fail(429, "site capacity reached")
 			}
 		}
-		if _, e = tx.Exec("INSERT INTO projects(id,name,description,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO NOTHING", p, siteName, "", Now()); e != nil {
+		// Only the entry HTML title names the site; inner-page and hash-router
+		// titles must not rename it as visitors move around the application.
+		title := ""
+		if source == "browser" {
+			for _, ev := range events {
+				if ev.Path != "/" && ev.Path != "/index.html" && ev.Path != "/index.htm" {
+					continue
+				}
+				pagePath, _ := ev.Properties["pagePath"].(string)
+				pageTitle, _ := ev.Properties["pageTitle"].(string)
+				if strings.Contains(pagePath, "#") || strings.TrimSpace(pageTitle) == "" {
+					continue
+				}
+				title = strings.Join(strings.Fields(pageTitle), " ")
+				// Site names have a 120-byte limit. Truncate at a rune boundary.
+				runes := []rune(title)
+				for len(string(runes)) > 120 {
+					runes = runes[:len(runes)-1]
+				}
+				title = string(runes)
+			}
+		}
+		if title != "" {
+			siteName = title
+		}
+		if _, e = tx.Exec("INSERT INTO projects(id,name,description,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=CASE WHEN ?<>'' THEN ? ELSE projects.name END", p, siteName, "", Now(), title, title); e != nil {
 			return e
 		}
 	}

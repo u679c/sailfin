@@ -21,7 +21,11 @@ export function init(options) {
     session = "",
     lastActivity = 0,
     lastFlush = 0;
-  const currentPage = () => ({ path: safePath(location.href), pagePath: pagePath(location.href) });
+  const currentPage = () => ({
+    path: safePath(location.href),
+    pagePath: pagePath(location.href),
+    pageTitle: (document.title || "").replace(/\s+/g, " ").trim(),
+  });
   let activePage = currentPage();
   const listeners = [];
   const project = options.projectId;
@@ -84,8 +88,15 @@ export function init(options) {
       type !== "session_start" &&
       shouldCollect("session_start", path, config)
     )
-      push("session_start", { pagePath: page.pagePath }, page);
-    push(type, safeProps({ ...properties, pagePath: page.pagePath }), page);
+      push("session_start", safeProps({
+        pagePath: page.pagePath,
+        ...(page.pageTitle ? { pageTitle: page.pageTitle } : {}),
+      }), page);
+    push(type, safeProps({
+      ...properties,
+      pagePath: page.pagePath,
+      ...(page.pageTitle ? { pageTitle: page.pageTitle } : {}),
+    }), page);
   }
   function push(type, properties, page) {
     if (queue.length >= 200) queue.shift();

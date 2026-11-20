@@ -76,7 +76,7 @@ export function clickProperties(el) {
 export function safeProps(properties = {}) {
   const out = {};
   for (const [k, v] of Object.entries(properties)) {
-    if (!["element", "elementId", "label", "selector", "region", "pagePath", "durationMs", "metric", "value"].includes(k))
+    if (!["element", "elementId", "label", "selector", "region", "pagePath", "pageTitle", "durationMs", "metric", "value"].includes(k))
       continue;
     if (typeof v === "string") {
       // Core limits strings in UTF-8 bytes; Chinese labels must fit that limit too.

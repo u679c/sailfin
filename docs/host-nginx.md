@@ -105,4 +105,6 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 
 click 的 properties 新增 label（按钮名称）、selector（结构定位）、region（最近的语义区域），elementId 优先使用现有 data-tracelite-id，否则对页面与 DOM 结构生成自动 ID。相同结构下按钮文字变化不会改变自动 ID；DOM 层级、同类兄弟元素顺序变化仍可能改变它，不能保证跨站点改版稳定。页面归并、元素合并与后台命名后续实现，当前优先保留原始数据。
 
+浏览器事件同时上报 properties.pageTitle。收到无 Hash 路由的首页（/、/index.html、/index.htm）事件时，站点名称自动更新为 HTML title，最长 120 UTF-8 字节。内页标题不改站点名称；标题为空或仅有访问日志时沿用原名称。已有站点也在收到新首页事件后更新，无需迁移数据库。
+
 SDK 按事件数与 UTF-8 字节数分批，每批请求体不超过约 48 KiB，成功后继续发送剩余队列。429、5xx 和网络失败留待下一轮重试。离页采用 fetch keepalive 尽力发送，受浏览器生命周期和总字节额度约束，不保证所有积压事件送达。

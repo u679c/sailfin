@@ -2,13 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
-  LayoutDashboard,
-  FolderKanban,
-  Monitor,
-  Route,
-  ListFilter,
-  ShieldCheck,
-  Settings,
   LogOut,
   RefreshCw,
   ArrowRight,
@@ -19,14 +12,34 @@ import {
 import { api, backup, setCSRF, parse, when, number, Row } from "./api";
 import "./style.css";
 const sections = [
-  { id: "sites", name: "站点", icon: FolderKanban },
-  { id: "overview", name: "数据总览", icon: LayoutDashboard },
-  { id: "devices", name: "设备分析", icon: Monitor },
-  { id: "sessions", name: "会话轨迹", icon: Route },
-  { id: "events", name: "事件查询", icon: ListFilter },
-  { id: "security", name: "安全中心", icon: ShieldCheck },
-  { id: "system", name: "系统状态", icon: Settings },
+  { id: "sites", name: "站点" },
+  { id: "overview", name: "概览" },
+  { id: "pages", name: "页面" },
+  { id: "clicks", name: "点击行为" },
+  { id: "sessions", name: "访问轨迹" },
+  { id: "events", name: "事件记录" },
+  { id: "devices", name: "设备" },
+  { id: "collection", name: "采集管理" },
+  { id: "security", name: "安全审计" },
+  { id: "system", name: "系统设置" },
 ];
+const siteSections = sections.filter((s) =>
+  ["overview", "pages", "clicks", "sessions", "events", "devices"].includes(s.id),
+);
+const eventLabels: Record<string, string> = {
+  http_request: "HTTP 请求", page_view: "页面浏览", route_change: "页面切换",
+  click: "点击", session_start: "会话开始", page_hidden: "页面停留",
+  js_error: "脚本错误", unhandled_rejection: "异步错误", performance_event: "性能记录",
+};
+function eventLabel(row: Row) {
+  const props = parse<Row>(row.properties, {});
+  return row.type === "click" && props.label
+    ? `点击「${props.label}」`
+    : eventLabels[row.type] || row.type;
+}
+function eventPath(row: Row) {
+  return parse<Row>(row.properties, {}).pagePath || row.path;
+}
 function readLocation() {
   return {
     pathname: window.location.pathname,
@@ -130,7 +143,7 @@ function Badge({ value }: { value: string }) {
     <span
       className={`badge ${value === "Online" || value === "active" ? "good" : value === "Warning" || value === "paused" ? "warn" : "neutral"}`}
     >
-      {value}
+      {({ browser: "浏览器", host: "访问日志", Online: "在线", active: "启用", paused: "暂停" } as Record<string, string>)[value] || value}
     </span>
   );
 }
@@ -259,8 +272,8 @@ function Login({ onLogin }: { onLogin: () => void }) {
           }
         }}
       >
-        <h1>登录工作台</h1>
-        <p className="muted">查看采集状态，理解真实访问。</p>
+        <h1>登录</h1>
+
         <label>
           用户名
           <input
@@ -286,7 +299,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
           <ArrowRight size={16} />
         </button>
         <p className="hint">
-          首次启动的管理员凭据保存在 Core 数据目录的 bootstrap-admin.txt 中。
+          首次登录凭据：数据目录 bootstrap-admin.txt
         </p>
       </form>
     </div>
@@ -296,6 +309,7 @@ function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null),
     [revision, setRevision] = useState(0),
     [error, setError] = useState("");
+  const [showConnect, setShowConnect] = useState(false);
   const { current, params, href, navigate } = useDashboardLocation();
   const section = current.id;
   const project = params.get("projectId") ?? "";
@@ -348,199 +362,126 @@ function App() {
     navigate(link.pathname + link.search);
     setError("");
   }
+  const siteView = siteSections.some((item) => item.id === section);
+  const settingsView = section === "system" || section === "security";
+  const selectedSite = projects.data?.find((item) => item.id === project);
+  const primarySection = settingsView ? "system" : section === "collection" ? "collection" : "sites";
   return (
     <div className="shell">
-      <aside>
-        <a className="brand" href={href("sites")} onClick={followLink}>
-          <Activity />
-          <span>
-            TraceLite<small>采集与分析工作台</small>
-          </span>
+      <header className="topbar">
+        <a className="brand" href={href("sites", { projectId: "" })} onClick={followLink}>
+          <Activity size={23} /><span>TraceLite</span>
         </a>
-        <nav aria-label="主导航">
-          {sections.map((s) => (
-            <a
-              key={s.id}
-              href={href(s.id)}
-              className={s.id === section ? "selected" : ""}
-              aria-current={s.id === section ? "page" : undefined}
-              onClick={followLink}
-            >
-              <s.icon size={18} />
-              {s.name}
+        <nav className="primary-nav" aria-label="主导航">
+          {[
+            { id: "sites", name: "站点" },
+            { id: "collection", name: "采集管理" },
+            { id: "system", name: "系统设置" },
+          ].map((item) => (
+            <a key={item.id} href={href(item.id, item.id === "sites" ? { projectId: "" } : {})}
+              className={primarySection === item.id ? "selected" : ""}
+              aria-current={primarySection === item.id ? "page" : undefined} onClick={followLink}>
+              {item.name}
             </a>
           ))}
         </nav>
-        <div className="sidebar-footer">
-          <span className="status-dot" /> 本地开发环境
-          <small>Core · Host · Browser</small>
+        <div className="header-actions">
+          <button onClick={refresh} aria-label="刷新数据" title="刷新"><RefreshCw size={16} /></button>
+          <button onClick={async () => {
+            try {
+              await api("/auth/logout", { method: "POST" });
+              setAuthenticated(false);
+              setCSRF("");
+            } catch (e) { setError((e as Error).message); }
+          }}><LogOut size={16} />退出</button>
         </div>
-      </aside>
+      </header>
       <main>
-        <header>
-          <div className="filters">
-            <label>
-              站点
-              <select
-                value={project}
-                onChange={(e) =>
-                  navigate(href(section, { projectId: e.target.value }), true)
-                }
-              >
-                <option value="">全部站点</option>
-                {projects.data?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              时间范围
-              <select
-                value={range}
-                onChange={(e) =>
-                  navigate(
-                    href(section, {
-                      range: e.target.value === "24" ? "" : e.target.value,
-                    }),
-                    true,
-                  )
-                }
-              >
-                <option value="24">最近 24 小时</option>
-                <option value="168">最近 7 天</option>
-                <option value="720">最近 30 天</option>
-                <option value="custom">自定义</option>
-              </select>
-            </label>
-            {range === "custom" && (
-              <>
-                <label>
-                  开始
-                  <input
-                    type="datetime-local"
-                    value={customFrom}
-                    onChange={(e) =>
-                      navigate(href(section, { from: e.target.value }), true)
-                    }
-                  />
-                </label>
-                <label>
-                  结束
-                  <input
-                    type="datetime-local"
-                    value={customTo}
-                    onChange={(e) =>
-                      navigate(href(section, { to: e.target.value }), true)
-                    }
-                  />
-                </label>
-              </>
+        <div className="workspace">
+          {siteView && (
+            <a className="back-link" href={href("sites", { projectId: "" })} onClick={followLink}>
+              <ChevronLeft size={14} />站点
+            </a>
+          )}
+          <div className="page-title">
+            <h1>{siteView ? selectedSite?.name || (project ? "站点数据" : "全部站点") : settingsView ? "系统设置" : current.name}</h1>
+            {section === "sites" && (
+              <button className={showConnect ? "" : "primary"} aria-expanded={showConnect}
+                onClick={() => setShowConnect((value) => !value)}>
+                {showConnect ? "收起接入" : "接入站点"}
+              </button>
             )}
           </div>
-          <div className="header-actions">
-            <button onClick={refresh} aria-label="刷新数据">
-              <RefreshCw size={16} />
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  await api("/auth/logout", { method: "POST" });
-                  setAuthenticated(false);
-                  setCSRF("");
-                } catch (e) {
-                  setError((e as Error).message);
-                }
-              }}
-            >
-              <LogOut size={16} />
-              退出
-            </button>
-          </div>
-        </header>
-        <div className="workspace">
-          <div className="page-title">
-            <div>
-              <h1>{current.name}</h1>
-              <p>
-                {
-                  (
-                    {
-                      overview: "从真实采集数据了解网站与 Agent 的运行情况。",
-                      sites: "已采集到数据的站点。",
-                      devices:
-                        "基于请求 UA 的设备分类，无法识别的字段保留为 Unknown。",
-                      sessions: "按时间串联 Browser Agent 实际观测到的行为。",
-                      events:
-                        "查询浏览器事件与服务端请求，保留各自的数据来源。",
-                      security: "查看采集限制、认证异常与管理操作。",
-                      system: "查看持久化状态与本地服务配置。",
-                    } as Record<string, string>
-                  )[section]
-                }
-              </p>
-            </div>
-            <span className="environment">LOCAL / DEV</span>
-          </div>
-          <ErrorBox
-            message={error || (section === "sites" ? "" : projects.error)}
-          />
-          {section === "sites" && (
+          {siteView && (
+            <>
+              <nav className="tabs" aria-label="站点导航">
+                {siteSections.map((item) => (
+                  <a key={item.id} href={href(item.id)} onClick={followLink}
+                    className={section === item.id ? "active" : ""}
+                    aria-current={section === item.id ? "page" : undefined}>{item.name}</a>
+                ))}
+              </nav>
+              <div className="filterbar">
+                <div className="filters">
+                  <label>站点<select value={project} onChange={(e) => navigate(href(section, { projectId: e.target.value }), true)}>
+                    <option value="">全部站点</option>
+                    {projects.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select></label>
+                  <label>时间<select value={range} onChange={(e) => navigate(href(section, { range: e.target.value === "24" ? "" : e.target.value }), true)}>
+                    <option value="24">最近 24 小时</option><option value="168">最近 7 天</option>
+                    <option value="720">最近 30 天</option><option value="custom">自定义</option>
+                  </select></label>
+                  {range === "custom" && <>
+                    <label>开始<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
+                    <label>结束<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
+                  </>}
+                </div>
+              </div>
+            </>
+          )}
+          {settingsView && (
+            <nav className="tabs" aria-label="设置导航">
+              {[{ id: "system", name: "运行设置" }, { id: "security", name: "安全审计" }].map((item) => (
+                <a key={item.id} href={href(item.id)} onClick={followLink} className={section === item.id ? "active" : ""}
+                  aria-current={section === item.id ? "page" : undefined}>{item.name}</a>
+              ))}
+            </nav>
+          )}
+          <ErrorBox message={error || (section === "sites" || !siteView ? "" : projects.error)} />
+          {section === "sites" && <>
+            {showConnect && <NginxCollection />}
             <section className="panel">
               <AsyncPanel state={projects}>
-                <Table
-                  rows={projects.data || []}
-                  onRow={(row) =>
-                    navigate(href("overview", { projectId: row.id }))
-                  }
+                {projects.data?.length ? <Table rows={projects.data}
+                  onRow={(row) => navigate(href("overview", { projectId: row.id }))}
                   columns={[
                     { key: "name", label: "站点名称" },
-                    {
-                      key: "created_at",
-                      label: "首次接入",
-                      render: (row) => when(row.created_at),
-                    },
-                    {
-                      key: "last_event",
-                      label: "最近收到数据",
-                      render: (row) =>
-                        row.last_event ? when(row.last_event) : "—",
-                    },
-                  ]}
-                />
+                    { key: "last_event", label: "数据状态", render: (row) => <span className={`badge ${row.last_event ? "good" : "neutral"}`}>{row.last_event ? "已收到数据" : "暂无数据"}</span> },
+                    { key: "created_at", label: "首次接入", render: (row) => when(row.created_at) },
+                    { key: "received", label: "最近上报", render: (row) => row.last_event ? when(row.last_event) : "—" },
+                    { key: "actions", label: "操作", render: (row) => <a href={href("overview", { projectId: row.id })} onClick={followLink}>查看数据</a> },
+                  ]} /> : <div className="empty"><p>暂无站点</p>
+                    {!showConnect && <button className="primary" onClick={() => setShowConnect(true)}>接入站点</button>}
+                  </div>}
               </AsyncPanel>
             </section>
-          )}
-          {section === "overview" && (
-            <Overview query={query} revision={revision} />
-          )}
-          {section === "devices" && (
-            <DataTable
-              path="/stats/devices"
-              query={query}
-              revision={revision}
-              columns={[
-                { key: "device", label: "设备类型" },
-                { key: "browser", label: "浏览器" },
-                { key: "os", label: "操作系统" },
-                { key: "requests", label: "HTTP 请求" },
-                { key: "pv", label: "浏览器 PV" },
-                { key: "uv", label: "匿名 UV" },
-                { key: "events", label: "事件总数" },
-              ]}
-            />
-          )}
-          {section === "events" && <Events query={query} revision={revision} />}
-          {section === "sessions" && (
-            <Sessions query={query} revision={revision} />
-          )}
+          </>}
+          {section === "overview" && <Overview query={query} revision={revision} />}
+          {section === "pages" && <DataTable path="/stats/pages" query={query} revision={revision} columns={[
+            { key: "path", label: "页面 / 请求路径" }, { key: "pv", label: "浏览量" },
+            { key: "requests", label: "HTTP 请求" },
+          ]} />}
+          {section === "devices" && <DataTable path="/stats/devices" query={query} revision={revision} columns={[
+            { key: "device", label: "设备类型" }, { key: "browser", label: "浏览器" }, { key: "os", label: "操作系统" },
+            { key: "requests", label: "HTTP 请求" }, { key: "pv", label: "浏览量" }, { key: "uv", label: "匿名访客" }, { key: "events", label: "事件总数" },
+          ]} />}
+          {section === "events" && <Events key="events" query={query} revision={revision} />}
+          {section === "clicks" && <Events key="clicks" query={query} revision={revision} eventType="click" />}
+          {section === "sessions" && <Sessions query={query} revision={revision} />}
+          {section === "collection" && <><NginxCollection /><LocalProbe revision={revision} /></>}
           {section === "security" && <Security revision={revision} />}
           {section === "system" && <System revision={revision} />}
         </div>
-        <footer>
-          TraceLite <span>HTTP 请求 ≠ 页面浏览 · 匿名 UV ≠ 自然人数</span>
-        </footer>
       </main>
     </div>
   );
@@ -562,43 +503,38 @@ function Overview({ query, revision }: { query: string; revision: number }) {
           <div className="metrics">
             {[
               {
-                label: "浏览器 PV",
+                label: "浏览量",
                 v: d.overview.pv,
-                note: "page_view + route_change",
               },
               {
-                label: "匿名 UV",
+                label: "匿名访客",
                 v: d.overview.uv,
-                note: "按站点内匿名访客标识去重",
               },
               {
                 label: "HTTP 请求",
                 v: d.overview.requests,
-                note: "Host Agent 访问日志",
               },
               {
-                label: "事件总数",
+                label: "事件总数（含请求）",
                 v: d.overview.events,
-                note: "包含请求与浏览器行为",
               },
             ].map((m) => (
               <div className="metric" key={m.label}>
                 <span>{m.label}</span>
                 <strong>{number(m.v)}</strong>
-                <small>{m.note}</small>
               </div>
             ))}
           </div>
           <div className="panel">
             <div className="panel-title">
               <h2>采集趋势</h2>
-              <span className="muted">按 UTC 小时聚合</span>
+              <span className="muted">UTC · 每小时</span>
             </div>
             {d.trends.length ? (
               <>
                 <Trend rows={d.trends} />
                 <div className="legend">
-                  <span>浏览器 PV</span>
+                  <span>浏览量</span>
                   <span>HTTP 请求</span>
                 </div>
               </>
@@ -623,21 +559,20 @@ function Overview({ query, revision }: { query: string; revision: number }) {
             </section>
             <section className="panel">
               <div className="panel-title">
-                <h2>实时概况</h2>
+                <h2>访问概况</h2>
               </div>
               <dl className="facts">
                 <dt>活跃会话</dt>
                 <dd>{number(d.overview.active_sessions)}</dd>
                 <dt>JavaScript 错误</dt>
                 <dd>{number(d.overview.js_errors)}</dd>
-                <dt>平均可观测停留</dt>
+                <dt>前台平均停留</dt>
                 <dd>
                   {(Number(d.overview.avg_duration_ms) / 1000).toFixed(1)} 秒
                 </dd>
               </dl>
               <p className="hint">
-                停留时间仅来自页面可见期间的 Browser Agent 观测，单次最多 30
-                分钟。
+                单段停留最多计 30 分钟。
               </p>
             </section>
           </div>
@@ -728,11 +663,11 @@ function DataTable({
     </section>
   );
 }
-function Events({ query, revision }: { query: string; revision: number }) {
-  const [type, setType] = useState(""),
+function Events({ query, revision, eventType = "" }: { query: string; revision: number; eventType?: string }) {
+  const [type, setType] = useState(eventType),
     [page, setPage] = useState(1),
     [detail, setDetail] = useState<Row | null>(null);
-  useEffect(() => setPage(1), [query, type]);
+  useEffect(() => { setPage(1); setDetail(null); }, [query, type]);
   const state = useData(
     () =>
       api(
@@ -744,7 +679,7 @@ function Events({ query, revision }: { query: string; revision: number }) {
   );
   return (
     <>
-      <div className="toolbar">
+      {!eventType && <div className="toolbar">
         <label>
           事件类型
           <select value={type} onChange={(e) => setType(e.target.value)}>
@@ -761,26 +696,30 @@ function Events({ query, revision }: { query: string; revision: number }) {
               "performance_event",
             ].map((t) => (
               <option key={t} value={t}>
-                {t || "全部事件"}
+                {eventLabels[t] || "全部事件"}
               </option>
             ))}
           </select>
         </label>
-      </div>
+      </div>}
       <section className="panel">
         <AsyncPanel state={state}>
           <Table
             rows={state.data || []}
             onRow={setDetail}
             columns={[
-              { key: "type", label: "事件类型" },
+              { key: "type", label: "行为", render: eventLabel },
               {
                 key: "timestamp",
                 label: "发生时间",
                 render: (r) => when(r.timestamp),
               },
-              { key: "path", label: "路径" },
-              { key: "source_type", label: "来源" },
+              { key: "path", label: "页面", render: eventPath },
+              ...(eventType === "click" ? [{
+                key: "region", label: "区域",
+                render: (row: Row) => parse<Row>(row.properties, {}).region || "—",
+              }] : []),
+              { key: "source_type", label: "来源", render: (row) => row.source_type === "browser" ? "浏览器" : row.source_type === "host" ? "访问日志" : row.source_type },
               { key: "device", label: "设备" },
               { key: "browser", label: "浏览器" },
             ]}
@@ -798,17 +737,16 @@ function Events({ query, revision }: { query: string; revision: number }) {
             <h2>事件详情</h2>
             <button onClick={() => setDetail(null)}>关闭详情</button>
           </div>
-          <pre>
-            {JSON.stringify(
-              {
-                ...detail,
-                properties: parse(detail.properties, {}),
-                device_info: parse(detail.device_info, {}),
-              },
-              null,
-              2,
-            )}
-          </pre>
+          <dl className="facts">
+            <dt>行为</dt><dd>{eventLabel(detail)}</dd>
+            <dt>时间</dt><dd>{when(detail.timestamp)}</dd>
+            <dt>页面</dt><dd>{eventPath(detail)}</dd>
+            <dt>所在区域</dt><dd>{parse<Row>(detail.properties, {}).region || "—"}</dd>
+            <dt>设备</dt><dd>{[detail.device, detail.browser, detail.os].filter(Boolean).join(" / ") || "—"}</dd>
+          </dl>
+          <details><summary>原始数据</summary><pre>{JSON.stringify({
+            ...detail, properties: parse(detail.properties, {}), device_info: parse(detail.device_info, {}),
+          }, null, 2)}</pre></details>
         </section>
       )}
     </>
@@ -858,7 +796,7 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
               { key: "interactions", label: "点击数" },
               {
                 key: "duration_ms",
-                label: "可观测停留",
+                label: "前台停留",
                 render: (r) =>
                   `${(Number(r.duration_ms) / 1000).toFixed(1)} 秒`,
               },
@@ -884,10 +822,10 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
                 <li key={e.id}>
                   <time>{when(e.timestamp)}</time>
                   <div>
-                    <strong>{e.type}</strong>
-                    <span>{e.path}</span>
+                    <strong>{eventLabel(e)}</strong>
+                    <span>{eventPath(e)}</span>
                     <details>
-                      <summary>事件元数据</summary>
+                      <summary>详细属性</summary>
                       <pre>
                         {JSON.stringify(parse(e.properties, {}), null, 2)}
                       </pre>
@@ -916,7 +854,7 @@ function Security({ revision }: { revision: number }) {
       {d && (
         <>
           <section className="panel">
-            <h2>容量与 Agent 异常</h2>
+            <h2>运行异常</h2>
             <p
               className={
                 d.diskFreeBytes >= 0 && d.diskFreeBytes < 268435456
@@ -925,13 +863,13 @@ function Security({ revision }: { revision: number }) {
               }
             >
               {d.diskFreeBytes >= 0
-                ? `数据目录所在磁盘可用 ${(d.diskFreeBytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+                ? `磁盘可用 ${(d.diskFreeBytes / 1024 / 1024 / 1024).toFixed(2)} GB`
                 : "无法读取磁盘可用空间"}
             </p>
             <Table
               rows={d.agents || []}
               columns={[
-                { key: "name", label: "Agent" },
+                { key: "name", label: "采集服务" },
                 {
                   key: "last_seen",
                   label: "最后心跳",
@@ -962,7 +900,7 @@ function Security({ revision }: { revision: number }) {
                 ]}
               />
             ) : (
-              <Empty>尚未记录认证失败、限流或拒绝事件。</Empty>
+              <Empty>暂无异常记录</Empty>
             )}
           </section>
           <section className="panel">
@@ -970,7 +908,7 @@ function Security({ revision }: { revision: number }) {
             <Table
               rows={d.quotas}
               columns={[
-                { key: "name", label: "项目" },
+                { key: "name", label: "站点" },
                 { key: "used", label: "已写入" },
                 { key: "daily_quota", label: "每日上限" },
               ]}
@@ -1034,7 +972,7 @@ function LocalProbe({ revision }: { revision: number }) {
   return (
     <section className="panel">
       <div className="panel-title">
-        <h2>本机探针</h2>
+        <h2>本机采集服务</h2>
         {probe && (
           <span role="status">{labels[probe.status] ?? probe.status}</span>
         )}
@@ -1049,7 +987,7 @@ function LocalProbe({ revision }: { revision: number }) {
               <dd>
                 {[probe.os, probe.arch].filter(Boolean).join(" / ") || "—"}
               </dd>
-              <dt>文件配置站点</dt>
+              <dt>配置站点数</dt>
               <dd>{parse<Row>(probe.metrics, {}).configuredSites ?? "—"}</dd>
               <dt>最后心跳</dt>
               <dd>{when(probe.last_seen)}</dd>
@@ -1059,7 +997,7 @@ function LocalProbe({ revision }: { revision: number }) {
               disabled={busy || probe.status === "Failed"}
               onClick={() => void toggle(!probe.enabled)}
             >
-              {probe.enabled ? "暂停采集" : "恢复采集"}
+              {busy ? "处理中…" : probe.enabled ? "暂停全部采集" : "恢复全部采集"}
             </button>
           </>
         )}
@@ -1125,7 +1063,7 @@ function NginxCollection() {
   return (
     <section className="panel" aria-labelledby="nginx-collection-title">
       <div className="panel-title">
-        <h2 id="nginx-collection-title">Nginx 采集</h2>
+        <h2 id="nginx-collection-title">站点接入</h2>
         <button
           className="primary"
           disabled={pending !== null}
@@ -1135,7 +1073,7 @@ function NginxCollection() {
             ? "扫描中…"
             : plan
               ? "重新扫描"
-              : "启用 Nginx 采集"}
+              : "扫描站点"}
         </button>
       </div>
       <ErrorBox message={error} />
@@ -1143,13 +1081,12 @@ function NginxCollection() {
         <>
           {plan.ready > 0 && (
             <p>
-              将为 {plan.ready}{" "}
-              个站点配置浏览器采集。确认后会备份配置，校验通过才重载 Nginx。
+              接入 {plan.ready} 个站点，将备份配置并重载 Nginx。
             </p>
           )}
           {plan.sites.some((site) => site.status === "applied") && (
             <p role="status">
-              配置已校验并请求重载。继续访问原网站，收到数据后站点会自动出现。
+              已请求重载，收到数据后显示在站点列表。
             </p>
           )}
           <Table
@@ -1175,7 +1112,7 @@ function NginxCollection() {
                 disabled={pending !== null}
                 onClick={() => void apply()}
               >
-                {pending === "apply" ? "应用中…" : "确认启用"}
+                {pending === "apply" ? "应用中…" : "确认接入"}
               </button>
               <button disabled={pending !== null} onClick={() => setPlan(null)}>
                 取消
@@ -1195,12 +1132,10 @@ function System({ revision }: { revision: number }) {
   const d = state.data;
   return (
     <>
-      <LocalProbe revision={revision} />
-      <NginxCollection />
       <AsyncPanel state={state}>
         {d && (
           <section className="panel">
-            <h2>Core 与数据库</h2>
+            <h2>运行信息</h2>
             <dl className="facts">
               <dt>版本</dt>
               <dd>{d.version}</dd>
@@ -1219,9 +1154,9 @@ function System({ revision }: { revision: number }) {
               <dt>统计时区</dt>
               <dd>{d.timezone}</dd>
             </dl>
-            <h2>在线数据库备份</h2>
+            <h2>数据备份</h2>
             <p className="muted">
-              使用 SQLite 一致性快照生成备份，包含账户与采集数据，请妥善保存。
+              备份包含账户与采集数据，请妥善保存。
             </p>
             <ErrorBox message={error} />
             <button
@@ -1239,7 +1174,7 @@ function System({ revision }: { revision: number }) {
               }}
             >
               <Download size={16} />
-              {busy ? "生成备份中…" : "下载数据库备份"}
+              {busy ? "生成备份中…" : "下载备份"}
             </button>
             <PasswordSettings />
           </section>
