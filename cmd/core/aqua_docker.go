@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/csv"
@@ -14,12 +15,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"sailfin/internal/branding"
 	"sailfin/internal/core"
+	"sailfin/internal/update"
 )
 
 const containerKeyPath = "/run/sailfin-probe-key"
@@ -107,6 +110,34 @@ func runDocker(ctx context.Context, options serveOptions, ready func()) (runErr 
 		"--mount", dockerMount(keyPath, containerKeyPath, true),
 		"--env", "SAILFIN_ADMIN_NAME", "--env", "SAILFIN_ADMIN_PASSWORD",
 	}
+	var webUpdateKey ed25519.PublicKey
+	if path := os.Getenv(updateKeyEnv); path != "" {
+		installRoot, err := filepath.EvalSymlinks("/data/sailfin")
+		if err != nil || installRoot != root {
+			return errors.New("网页更新要求 Sailfin 安装在 /data/sailfin")
+		}
+		if within(filepath.Join(root, aquaDir), dataDir) {
+			return errors.New("网页更新要求 .aqua 位于容器的数据挂载之外")
+		}
+		resolvedKey, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return fmt.Errorf("读取网页更新公钥：%w", err)
+		}
+		resolvedKey, err = filepath.Abs(resolvedKey)
+		if err != nil {
+			return err
+		}
+		if within(resolvedKey, dataDir) {
+			return errors.New("网页更新公钥必须位于容器的数据挂载之外")
+		}
+		webUpdateKey, err = update.PublicKey(resolvedKey)
+		if err != nil {
+			return fmt.Errorf("读取网页更新公钥：%w", err)
+		}
+		args = append(args,
+			"--env", "SAILFIN_WEB_UPDATE_KEY="+base64.StdEncoding.EncodeToString(webUpdateKey),
+			"--env", "SAILFIN_WEB_UPDATE_PLATFORM="+runtime.GOOS+"/"+runtime.GOARCH)
+	}
 	if options.webDir != "" {
 		customWeb, err := filepath.Abs(options.webDir)
 		if err != nil {
@@ -168,7 +199,7 @@ func runDocker(ctx context.Context, options serveOptions, ready func()) (runErr 
 	if err != nil {
 		return err
 	}
-	return serveDockerProbe(ctx, client, coreURL, key, dataDir, options, containerDone, ready)
+	return serveDockerProbe(ctx, client, coreURL, key, dataDir, options, containerDone, ready, webUpdateKey)
 }
 
 func loadPackagedImage(ctx context.Context, docker localDockerHost) (string, error) {
@@ -207,9 +238,12 @@ func loadPackagedImage(ctx context.Context, docker localDockerHost) (string, err
 	return ref, nil
 }
 
-func serveDockerProbe(ctx context.Context, client *http.Client, coreURL, key, dataDir string, options serveOptions, containerDone <-chan error, ready func()) error {
+func serveDockerProbe(ctx context.Context, client *http.Client, coreURL, key, dataDir string, options serveOptions, containerDone <-chan error, ready func(), webUpdateKey ed25519.PublicKey) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	if len(webUpdateKey) != 0 {
+		go watchWebUpdates(ctx, dataDir, webUpdateKey)
+	}
 	auto, err := newNginxAuto(dataDir, options.relayAddr)
 	if err != nil {
 		return err

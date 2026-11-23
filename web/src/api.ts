@@ -8,7 +8,7 @@ export async function api<T = Row[]>(
   options: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const res = await fetch(`/api/v1${path}`, {
     ...options,

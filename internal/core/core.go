@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -26,6 +27,7 @@ import (
 	"golang.org/x/crypto/argon2"
 	"sailfin/internal/branding"
 	"sailfin/internal/protocol"
+	"sailfin/internal/update"
 )
 
 //go:embed schema.sql
@@ -36,6 +38,8 @@ type Config struct {
 	OfflineSeconds                                                              int
 	LocalOnly                                                                   bool
 	Nginx                                                                       NginxIntegration
+	WebUpdateKey                                                                ed25519.PublicKey
+	WebUpdatePlatform                                                           string
 }
 type bucket struct {
 	Start time.Time
@@ -47,6 +51,7 @@ type Server struct {
 	mux      *http.ServeMux
 	mu       sync.Mutex
 	siteMu   sync.Mutex
+	updateMu sync.Mutex
 	siteLogs []string
 	nginxSDK nginxSDKPlan
 	limits   map[string]bucket
@@ -218,8 +223,15 @@ func (s *Server) Handler() http.Handler {
 			s.reject(w, r, fail(429, "rate limit exceeded"))
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 262144)
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		limitBytes, timeout := int64(262144), 15*time.Second
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/system/update/install" && len(s.cfg.WebUpdateKey) != 0 {
+			limitBytes, timeout = update.MaxPackage+(64<<10), 10*time.Minute
+			controller := http.NewResponseController(w)
+			_ = controller.SetReadDeadline(time.Now().Add(timeout))
+			_ = controller.SetWriteDeadline(time.Now().Add(timeout))
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limitBytes)
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		s.mux.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -366,6 +378,8 @@ func (s *Server) routes() {
 	s.route("POST /api/v1/auth/login", false, s.login)
 	s.route("POST /api/v1/auth/password", true, s.changePassword)
 	s.route("POST /api/v1/system/update/verify-password", true, s.verifyUpdatePassword)
+	s.route("POST /api/v1/system/update/install", true, s.uploadUpdate)
+	s.route("GET /api/v1/system/update/status/{id}", true, s.webUpdateStatus)
 	s.route("GET /api/v1/auth/me", true, func(w http.ResponseWriter, r *http.Request) error {
 		c, _ := r.Cookie("sailfin_session")
 		return s.query(w, r, "SELECT u.name,u.role,a.csrf FROM auth_sessions a JOIN users u ON u.id=a.user_id WHERE a.token=?", hash(c.Value))
@@ -439,6 +453,9 @@ func (s *Server) routes() {
 	s.route("PATCH /api/v1/system/timezone", true, s.setSystemTimezone)
 	s.route("POST /api/v1/system/backup", true, s.backup)
 	s.route("GET /api/v1/system/update/history", true, func(w http.ResponseWriter, r *http.Request) error {
+		if err := s.importWebUpdates(r.Context()); err != nil {
+			return err
+		}
 		return s.pagedQuery(w, r, `SELECT id, created_at, action FROM audit_logs
 			WHERE action IN ('system.update.started', 'system.update.succeeded', 'system.update.failed', 'system.update.rolled_back')
 			ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
@@ -799,7 +816,15 @@ func (s *Server) verifyUpdatePassword(w http.ResponseWriter, r *http.Request) er
 	if err := decode(r, &b); err != nil {
 		return err
 	}
-	if b.Password == "" || len(b.Password) > 256 {
+	if err := s.checkUpdatePassword(r, b.Password); err != nil {
+		return err
+	}
+	jsonOut(w, 200, map[string]bool{"ok": true})
+	return nil
+}
+
+func (s *Server) checkUpdatePassword(r *http.Request, password string) error {
+	if password == "" || len(password) > 256 {
 		return fail(400, "请输入有效的管理员密码")
 	}
 	c, _ := r.Cookie("sailfin_session")
@@ -810,11 +835,10 @@ func (s *Server) verifyUpdatePassword(w http.ResponseWriter, r *http.Request) er
 	if !s.rate("update-password:"+id, 10) {
 		return fail(429, "验证次数过多，请稍后重试")
 	}
-	if !passwordOK(b.Password, encoded) {
+	if !passwordOK(password, encoded) {
 		s.count("authentication_failed")
 		return fail(403, "管理员密码不正确")
 	}
-	jsonOut(w, 200, map[string]bool{"ok": true})
 	return nil
 }
 

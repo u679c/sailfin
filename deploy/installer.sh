@@ -5,6 +5,7 @@ package='@PACKAGE@'
 platform='@PLATFORM@'
 payload_line='@PAYLOAD_LINE@'
 package_kind='@PACKAGE_KIND@'
+# sailfin-signature: @PACKAGE_SIGNATURE@
 # sailfin-release-notes: @RELEASE_NOTES@
 destination=/data/sailfin
 

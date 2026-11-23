@@ -87,4 +87,17 @@ chmod +x ./Sailfin-update-实际MD5.bin
 
 更新包会导入新镜像、备份旧程序、停止 Sailfin 并替换程序和镜像，最后执行 `/data/sailfin/aqua restart`。数据库、站点配置和探针状态沿用原路径。旧版程序和镜像保存在 `.aqua/previous-release-*`。若新版本启动失败，检查 `.aqua/sailfin.log`，并根据数据库兼容情况决定是否恢复升级前的快照。恢复旧快照会丢失之后写入的数据。 [数据库恢复](security.md#在线备份和恢复)
 
-管理端可预览更新包，命令行负责执行更新。
+### 从管理端更新
+
+首次启用网页更新时，在发布机生成 Ed25519 密钥。私钥留在发布机，只把公钥放到 Sailfin 宿主机上。
+
+```sh
+umask 077
+openssl genpkey -algorithm ED25519 -out sailfin-update-private.pem
+openssl pkey -in sailfin-update-private.pem -pubout -out sailfin-update-public.pem
+SAILFIN_UPDATE_SIGNING_KEY=/path/to/sailfin-update-private.pem ./aqua build update 0.2.1
+```
+
+首次将支持网页更新的版本装到宿主机，启动时在原有参数之外设置 `SAILFIN_UPDATE_PUBLIC_KEY=/path/to/sailfin-update-public.pem`。如果已经运行，先停止，再带齐原配置和公钥变量执行 `aqua start`。公钥文件应在宿主机可读，放在容器挂载之外。反向代理要允许此上传接口接收更新包，请求体上限至少能容纳实际包大小和表单开销，Sailfin 支持最多 256 MiB 的包。OpenResty 可以为 `/api/v1/system/update/install` 设置 `client_max_body_size 257m`。
+
+在「系统信息 → 软件更新」选择签名后的 `.bin`，验证管理员密码并点击「确认安装」。宿主机重新验证签名，执行更新包的 `--check` 和 `--apply`。管理页面会在重启后查询更新结果。未启用公钥或未签名的包可沿用命令行更新流程。

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"log/slog"
@@ -40,6 +41,15 @@ func command(args []string) error {
 				return errors.New("aqua-replace requires a staging directory")
 			}
 			return replaceAquaRelease(args[1])
+		case "aqua-apply-web-update":
+			if len(args) != 3 {
+				return errors.New("missing web update directory or public key")
+			}
+			key, err := base64.StdEncoding.DecodeString(args[2])
+			if err != nil {
+				return err
+			}
+			return applyWebUpdate(args[1], key)
 		case "nginx-inject":
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
@@ -109,11 +119,19 @@ func run(ctx context.Context, options serveOptions, hostKey string) error {
 		bridge = newHostBridge()
 		nginx = bridge
 	}
+	var webUpdateKey []byte
+	if hostKey != "" {
+		webUpdateKey, err = base64.StdEncoding.DecodeString(os.Getenv("SAILFIN_WEB_UPDATE_KEY"))
+		if err != nil {
+			return err
+		}
+	}
 	s, err := core.Open(core.Config{
 		Address: addr, DBPath: dbPath, PublicURL: options.publicURL,
 		WebDir: options.webDir, AdminName: os.Getenv("SAILFIN_ADMIN_NAME"),
 		AdminPassword: os.Getenv("SAILFIN_ADMIN_PASSWORD"), OfflineSeconds: options.offline,
 		LocalOnly: true, Nginx: nginx,
+		WebUpdateKey: webUpdateKey, WebUpdatePlatform: os.Getenv("SAILFIN_WEB_UPDATE_PLATFORM"),
 	})
 	if err != nil {
 		return err

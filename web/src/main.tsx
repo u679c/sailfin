@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
+import React, { createContext, useCallback, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -465,10 +465,10 @@ function App() {
     }
     return `?${filter}`;
   }, [project, range, customFrom, customTo, revision]);
+  const refresh = useCallback(() => setRevision((v) => v + 1), []);
   if (authenticated === null)
     return <div className="loading">正在连接 Core…</div>;
   if (!authenticated) return <Login onLogin={() => setAuthenticated(true)} />;
-  const refresh = () => setRevision((v) => v + 1);
   function followLink(event: React.MouseEvent<HTMLAnchorElement>) {
     if (
       event.defaultPrevented ||
@@ -1444,7 +1444,7 @@ function SystemInfo({ state, revision, onChange }: {
         )}
       </AsyncPanel>
       <div className="split system-update-grid">
-        <UpdatePackage />
+        <UpdatePackage enabled={Boolean(d?.webUpdateEnabled)} onChange={onChange} />
         <section className="panel list-panel">
           <h2>更新日志</h2>
           <DataTable bare path="/system/update/history" query="?" revision={revision}
@@ -1571,13 +1571,17 @@ async function readUpdatePackage(file: File) {
   const version = packageName.slice("sailfin-".length, -suffix.length);
   if (!/^\d/.test(version)) throw new Error("无法识别安装包版本。");
   const notes = /^# sailfin-release-notes: ([A-Za-z0-9+/=]+)$/m.exec(header)?.[1];
+  const signature = /^# sailfin-signature: ([a-f0-9]{128})$/m.exec(header)?.[1];
   return {
     file, platform, version,
+    signed: Boolean(signature && /[1-9a-f]/.test(signature)),
     notes: notes ? decoder.decode(Uint8Array.from(atob(notes), (character) => character.charCodeAt(0))).trim() : "",
   };
 }
 
-function UpdatePackage() {
+type WebUpdateJob = { id: string; status: "started" | "succeeded" | "failed"; message?: string };
+
+function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
   const drawer = useRef<HTMLDialogElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -1586,11 +1590,39 @@ function UpdatePackage() {
   const [busy, setBusy] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [fileError, setFileError] = useState("");
+  const [job, setJob] = useState<WebUpdateJob | null>(null);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof readUpdatePackage>> | null>(null);
 
   useEffect(() => {
     if (confirming) title.current?.focus();
   }, [confirming]);
+
+  useEffect(() => {
+    if (!job || job.status !== "started") return;
+    let active = true;
+    let timer: number;
+    const deadline = Date.now() + 15 * 60_000;
+    async function poll(id: string) {
+      try {
+        const result = await api<WebUpdateJob>(`/system/update/status/${encodeURIComponent(id)}`);
+        if (active && result.status !== "started") {
+          setJob(result);
+          onChange();
+          return;
+        }
+      } catch {
+        // Core can be unreachable while the host switches versions.
+      }
+      if (!active) return;
+      if (Date.now() >= deadline) {
+        setJob({ id, status: "failed", message: "更新结果尚未确认，请查看更新日志或宿主机日志。" });
+      } else {
+        timer = window.setTimeout(() => void poll(id), 2500);
+      }
+    }
+    timer = window.setTimeout(() => void poll(job.id), 2500);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [job, onChange]);
 
   async function selectPackage(files: FileList) {
     if (busy) return;
@@ -1621,10 +1653,27 @@ function UpdatePackage() {
         method: "POST",
         body: JSON.stringify({ password }),
       });
-      setPassword("");
       setConfirming(true);
     } catch (error) {
       setPasswordError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function install() {
+    if (!preview || !confirming || busy || !enabled) return;
+    setBusy(true);
+    setFileError("");
+    const form = new FormData();
+    form.append("password", password);
+    form.append("package", preview.file);
+    try {
+      setJob(await api<WebUpdateJob>("/system/update/install", { method: "POST", body: form }));
+      drawer.current?.close();
+      onChange();
+    } catch (error) {
+      setFileError((error as Error).message);
     } finally {
       setBusy(false);
     }
@@ -1641,6 +1690,11 @@ function UpdatePackage() {
   return (
     <section className="panel">
       <h2>软件更新</h2>
+      {job?.status === "failed" ? <ErrorBox message={job.message || "更新失败"} /> : job && (
+        <p role="status" className="notice">
+          {job.status === "started" ? "更新任务已提交，服务重启后将自动检查结果。" : "更新成功。"}
+        </p>
+      )}
       <input ref={picker} type="file" accept=".bin" hidden onChange={(event) => {
         if (event.currentTarget.files?.length) void selectPackage(event.currentTarget.files);
         event.currentTarget.value = "";
@@ -1667,7 +1721,9 @@ function UpdatePackage() {
                     <p className="notice update-package-message">
                       安装将由更新包执行，可能替换程序文件并自动重启 Sailfin。管理页面和采集服务可能暂时中断。
                     </p>
-                    <p className="muted update-package-message">当前安装尚未接入更新包执行功能。</p>
+                    {!enabled && <p className="muted update-package-message">宿主机尚未配置网页更新公钥。</p>}
+                    {!preview.signed && <p className="muted update-package-message">此更新包没有发布签名。</p>}
+                    <ErrorBox message={fileError} />
                   </>
                 ) : (
                   <>
@@ -1701,7 +1757,10 @@ function UpdatePackage() {
             <button type="button" disabled={busy} onClick={() => drawer.current?.close()}>
               取消
             </button>
-            {confirming ? <button type="button" className="primary" disabled>确认安装</button> : preview && (
+            {confirming ? (
+              <button type="button" className="primary" disabled={busy || !enabled || !preview?.signed || job?.status === "started"}
+                onClick={() => void install()}>{busy ? "正在上传…" : "确认安装"}</button>
+            ) : preview && (
               <button type="submit" form="update-password-form" className="primary" disabled={busy || !password}>
                 {busy ? "验证中…" : "确认"}
               </button>

@@ -510,7 +510,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) error {
 			size += f.Size()
 		}
 	}
-	jsonOut(w, 200, map[string]any{"version": "0.1.1-dev", "databaseBytes": size, "diskFreeBytes": diskFree(filepath.Dir(s.cfg.DBPath)), "offlineSeconds": s.cfg.OfflineSeconds, "publicUrl": s.cfg.PublicURL, "database": "SQLite WAL", "dockerMode": "authorized host collector (read only)", "timezone": timezone})
+	jsonOut(w, 200, map[string]any{"version": "0.1.1-dev", "databaseBytes": size, "diskFreeBytes": diskFree(filepath.Dir(s.cfg.DBPath)), "offlineSeconds": s.cfg.OfflineSeconds, "publicUrl": s.cfg.PublicURL, "database": "SQLite WAL", "dockerMode": "authorized host collector (read only)", "timezone": timezone, "webUpdateEnabled": len(s.cfg.WebUpdateKey) != 0})
 	return nil
 }
 

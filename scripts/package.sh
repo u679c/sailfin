@@ -111,15 +111,22 @@ install -m 755 deploy/aqua "$bundle/aqua"
 install -m 644 examples/nginx/host-sites.example.json "$bundle/examples/sites.example.json"
 
 installer_template="$PWD/deploy/installer.sh"
+sign_script="$PWD/scripts/sign-package.mjs"
+sign_key=${SAILFIN_UPDATE_SIGNING_KEY:-}
+if [[ -n $sign_key && $sign_key != /* ]]; then sign_key="$PWD/$sign_key"; fi
 mkdir "$stage/release"
 cd "$stage/release"
 
 payload_line=$(( $(wc -l < "$installer_template") + 1 ))
 sed -e "s|@PACKAGE@|$name|g" -e "s|@PLATFORM@|$os/$arch|g" \
     -e "s|@PACKAGE_KIND@|$kind|g" \
+    -e "s|@PACKAGE_SIGNATURE@|$(printf '%0128d' 0)|g" \
     -e "s|@RELEASE_NOTES@|$release_notes|g" \
     -e "s|@PAYLOAD_LINE@|$payload_line|g" "$installer_template" > installer.bin
 COPYFILE_DISABLE=1 tar -czf - -C "$stage" "$name" >> installer.bin
+if [[ $kind == update && -n $sign_key ]]; then
+    node "$sign_script" installer.bin "$sign_key"
+fi
 if command -v md5sum >/dev/null 2>&1; then
     digest=$(md5sum installer.bin)
     digest=${digest%% *}
