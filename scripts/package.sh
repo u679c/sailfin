@@ -26,11 +26,25 @@ while [[ $# -gt 0 ]]; do
     shift 2
 done
 base=''
+git_history=''
 if [[ -n $from ]]; then
     base=$(git rev-parse --verify --end-of-options "$from^{commit}")
     if ! git merge-base --is-ancestor "$base" HEAD; then
         printf 'The base commit must be an ancestor of HEAD.\n' >&2
         exit 2
+    fi
+    git_history=$(git log --format='%h %s' "$base..HEAD")
+elif [[ $kind == update ]]; then
+    repo=$(git rev-parse --show-toplevel 2>/dev/null || :)
+    if [[ $repo == "$PWD" ]]; then
+        base=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --match '[0-9]*' HEAD^ 2>/dev/null || :)
+        if [[ -n $base ]]; then
+            git_history=$(git log --format='%h %s' "$base..HEAD")
+        else
+            git_history=$(git log -n 10 --format='%h %s')
+        fi
+    else
+        printf 'Git history unavailable in this source directory.\n' >&2
     fi
 fi
 
@@ -62,15 +76,24 @@ if [[ -n ${SAILFIN_RELEASE_NOTES_FILE:-} ]]; then
     fi
     release_notes=$(cat -- "$notes_file")
 fi
-if [[ -n $base ]]; then
-    commits=$(git log --format='%h %s' "$base..HEAD")
-    if [[ -n $commits ]]; then
-        release_notes="${release_notes:+$release_notes"$'\n\n'"}$commits"
+# Keep the preview within the release-note size limit without dropping full history.
+if [[ -n $git_history ]]; then
+    notes_bytes=$(printf '%s' "$release_notes" | wc -c)
+    git_summary=$'Git 提交\n'
+    summary_bytes=$(printf '%s' "$git_summary" | wc -c)
+    separator=${release_notes:+$'\n\n'}
+    while IFS= read -r line; do
+        line_bytes=$(printf '%s\n' "$line" | wc -c)
+        if (( notes_bytes + ${#separator} + summary_bytes + line_bytes > 8192 )); then
+            printf 'Git history preview truncated. The complete selected history is in git-history.txt in the package.\n' >&2
+            break
+        fi
+        git_summary+="$line"$'\n'
+        summary_bytes=$(( summary_bytes + line_bytes ))
+    done <<< "$git_history"
+    if [[ $git_summary != $'Git 提交\n' ]]; then
+        release_notes+="$separator$git_summary"
     fi
-fi
-if [[ $(printf '%s' "$release_notes" | wc -c) -gt 8192 ]]; then
-    printf 'Combined release notes must not exceed 8192 bytes. Choose a shorter Git range.\n' >&2
-    exit 2
 fi
 release_notes=$(printf '%s' "$release_notes" | base64 | tr -d '\r\n')
 sign_script="$PWD/scripts/sign-package.mjs"
@@ -104,6 +127,9 @@ bundle="$stage/$name"
 
 # Build into an empty directory so binaries and hashed Web assets belong to this build.
 mkdir -p "$bundle/bin" "$bundle/examples"
+if [[ -n $git_history ]]; then
+    printf '%s\n' "$git_history" > "$bundle/git-history.txt"
+fi
 if [[ $kind == install && -n $public_key ]]; then
     printf '%s\n' "$public_key" > "$bundle/update-public.pem"
 fi
