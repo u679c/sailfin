@@ -1138,6 +1138,7 @@ type NginxScan = {
     siteId?: string;
     origin?: string;
     added?: boolean;
+    needsSdk?: boolean;
   }[];
 };
 
@@ -1208,7 +1209,7 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   }
 
   const selectable = (row: NginxScan["sites"][number]) =>
-    Boolean(row.siteId && row.status === "ready" && !row.added);
+    Boolean(row.siteId && row.status === "ready" && (!row.added || row.needsSdk));
 
   async function apply() {
     if (!plan || chosen.length === 0) return;
@@ -1373,7 +1374,8 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
                                 </div>
                               </div>
                               <span className={added ? "site-scan-added" : "site-scan-status"}>
-                                {added ? "已添加" : row.status === "ready" ? "可添加" : "已跳过"}
+                                {row.needsSdk ? (row.status === "applied" ? "SDK 已配置" : "可补装 SDK") :
+                                  added ? "已添加" : row.status === "ready" ? "可添加" : "已跳过"}
                               </span>
                             </li>
                           );
@@ -1383,7 +1385,9 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
                         <div className="actions site-scan-actions">
                           <button type="button" className="primary" disabled={pending !== null || !chosen.length}
                             onClick={() => void apply()}>
-                            {pending === "apply" ? "应用中…" : chosen.length ? `接入并启用 ${chosen.length} 个站点` : "接入并启用"}
+                            {pending === "apply" ? "应用中…" :
+                              plan.sites.some((row) => row.needsSdk && row.siteId && chosen.includes(row.siteId)) ? "应用所选配置" :
+                                chosen.length ? `接入并启用 ${chosen.length} 个站点` : "接入并启用"}
                           </button>
                         </div>
                       )}

@@ -134,7 +134,7 @@ func (p *openRestyNginx) Scan(ctx context.Context) (core.NginxPreview, error) {
 			continue
 		}
 		row, site := p.readSite(entry.Name(), mounts)
-		if row.Status == "ready" {
+		if row.Status == "ready" || row.Status == "configured" {
 			if seen[row.SiteID] {
 				delete(plan.sites, row.SiteID)
 				row.Status, row.Reason = "skipped", "站点在多个配置中定义"
@@ -146,11 +146,11 @@ func (p *openRestyNginx) Scan(ctx context.Context) (core.NginxPreview, error) {
 		plan.preview.Sites = append(plan.preview.Sites, row)
 	}
 	for i, row := range plan.preview.Sites {
-		if row.Status == "ready" {
-			if _, ok := plan.sites[row.SiteID]; ok {
-				plan.preview.Ready++
-			} else {
+		if row.Status == "ready" || row.Status == "configured" {
+			if _, ok := plan.sites[row.SiteID]; !ok {
 				plan.preview.Sites[i].Status, plan.preview.Sites[i].Reason = "skipped", "站点在多个配置中定义"
+			} else if row.Status == "ready" {
+				plan.preview.Ready++
 			}
 		}
 	}
@@ -354,6 +354,9 @@ func (p *openRestyNginx) Apply(ctx context.Context, id string, ids []string) (co
 	}
 	for _, file := range files {
 		if bytes.Equal(file.before, file.after) {
+			if err := file.verifyUnchanged(); err != nil {
+				return rollback(err)
+			}
 			continue
 		}
 		if err := file.apply(); err != nil {
@@ -373,7 +376,7 @@ func (p *openRestyNginx) Apply(ctx context.Context, id string, ids []string) (co
 	}
 	plan.preview.Ready = 0
 	for i, row := range plan.preview.Sites {
-		if selected[row.SiteID] && row.Status == "ready" {
+		if selected[row.SiteID] && (row.Status == "ready" || row.Status == "configured") {
 			row.Status, row.Reason = "applied", "配置校验通过，已请求重载"
 		} else if row.Status == "ready" {
 			row.Status, row.Reason = "skipped", "本次未选择，可重新扫描后接入"

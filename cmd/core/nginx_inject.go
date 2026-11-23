@@ -279,11 +279,18 @@ func readDeploymentFile(path string, allowMissing bool) (deploymentFile, error) 
 	return file, err
 }
 
-func (f *deploymentFile) apply() error {
+func (f *deploymentFile) verifyUnchanged() error {
 	current, err := os.ReadFile(f.path)
 	if f.exists && (err != nil || !bytes.Equal(current, f.before)) ||
 		!f.exists && !os.IsNotExist(err) {
 		return fmt.Errorf("%s changed while preparing the deployment; retry", f.path)
+	}
+	return nil
+}
+
+func (f *deploymentFile) apply() error {
+	if err := f.verifyUnchanged(); err != nil {
+		return err
 	}
 	if f.exists {
 		backup, err := os.CreateTemp(filepath.Dir(f.path), ".sailfin-backup-*")

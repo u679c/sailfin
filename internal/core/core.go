@@ -48,6 +48,7 @@ type Server struct {
 	mu       sync.Mutex
 	siteMu   sync.Mutex
 	siteLogs []string
+	nginxSDK nginxSDKPlan
 	limits   map[string]bucket
 	slots    chan struct{}
 }

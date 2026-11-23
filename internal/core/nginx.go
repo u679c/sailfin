@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -21,6 +23,7 @@ type NginxSiteResult struct {
 	AccessLog string `json:"accessLog,omitempty"`
 	OpenResty bool   `json:"openResty,omitempty"`
 	Added     bool   `json:"added,omitempty"`
+	NeedsSDK  bool   `json:"needsSdk,omitempty"`
 }
 
 type NginxPreview struct {
@@ -34,9 +37,15 @@ type NginxIntegration interface {
 	Apply(context.Context, string, []string) (NginxPreview, error)
 }
 
+type nginxSDKPlan struct {
+	id    string
+	sites map[string]NginxSiteResult
+}
+
 func (s *Server) scanNginx(w http.ResponseWriter, r *http.Request) error {
 	s.siteMu.Lock()
 	defer s.siteMu.Unlock()
+	s.nginxSDK = nginxSDKPlan{}
 	result, err := s.cfg.Nginx.Scan(r.Context())
 	if err != nil {
 		return fail(409, err.Error())
@@ -47,11 +56,25 @@ func (s *Server) scanNginx(w http.ResponseWriter, r *http.Request) error {
 	}
 	result.Sites = uniqueScanSites(result.Sites, added)
 	result.Ready = 0
+	sdk := nginxSDKPlan{id: result.ID, sites: make(map[string]NginxSiteResult)}
 	for i, row := range result.Sites {
 		if row.SiteID == "" || (row.Status != "ready" && row.Status != "configured") {
 			continue
 		}
 		if row.Added {
+			if row.OpenResty {
+				eligible, err := s.canAddOpenRestySDK(r.Context(), row)
+				if err != nil {
+					return err
+				}
+				if eligible {
+					sdk.sites[row.SiteID] = row
+					result.Sites[i].Status = "ready"
+					result.Sites[i].NeedsSDK = true
+					result.Ready++
+					continue
+				}
+			}
 			result.Sites[i].Status, result.Sites[i].Reason = "configured", ""
 			continue
 		}
@@ -67,6 +90,7 @@ func (s *Server) scanNginx(w http.ResponseWriter, r *http.Request) error {
 			result.Ready++
 		}
 	}
+	s.nginxSDK = sdk
 	jsonOut(w, http.StatusOK, result)
 	return nil
 }
@@ -92,9 +116,21 @@ func (s *Server) applyNginx(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	upgrades := make(map[string]NginxSiteResult)
 	for _, id := range request.SiteIDs {
 		if !protocol.ValidSiteID(id) {
 			return fail(400, "无效的站点标识")
+		}
+		if row, ok := s.nginxSDK.sites[id]; ok && s.nginxSDK.id == request.ID {
+			eligible, err := s.canAddOpenRestySDK(r.Context(), row)
+			if err != nil {
+				return err
+			}
+			if !eligible {
+				return fail(409, "站点配置已变化，请重新扫描")
+			}
+			upgrades[id] = row
+			continue
 		}
 		row := NginxSiteResult{SiteID: id}
 		err := s.DB.QueryRowContext(r.Context(), `SELECT browser_origin,access_log FROM site_registry
@@ -111,20 +147,47 @@ func (s *Server) applyNginx(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return fail(409, err.Error())
 	}
-	var applied []protocol.Site
-	source := "nginx"
-	for _, row := range result.Sites {
+	s.nginxSDK = nginxSDKPlan{}
+	tx, err := s.DB.BeginTx(r.Context(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for i, row := range result.Sites {
 		if row.Status == "applied" {
-			source = nginxSource(row)
-			applied = append(applied, nginxSite(row))
+			if existing, ok := upgrades[row.SiteID]; ok {
+				if _, err := tx.ExecContext(r.Context(), `UPDATE site_registry SET browser_origin=?, source='openresty'
+					WHERE project_id=?`, existing.Origin, protocol.SiteProjectID(row.SiteID)); err != nil {
+					return err
+				}
+				result.Sites[i].NeedsSDK = true
+			} else if err := storeSite(r.Context(), tx, nginxSite(row), nginxSource(row), true); err != nil {
+				return err
+			}
 		}
 	}
-	if err := s.storeSites(r.Context(), applied, source, true); err != nil {
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	s.audit("nginx.enable", "")
 	jsonOut(w, http.StatusOK, result)
 	return nil
+}
+
+func (s *Server) canAddOpenRestySDK(ctx context.Context, row NginxSiteResult) (bool, error) {
+	var currentOrigin, accessLog string
+	var originInUse bool
+	id := protocol.SiteProjectID(row.SiteID)
+	err := s.DB.QueryRowContext(ctx, `SELECT s.browser_origin,s.access_log,
+		EXISTS(SELECT 1 FROM site_registry WHERE project_id<>s.project_id
+			AND source<>'scan' AND browser_origin=?)
+		FROM site_registry s WHERE s.project_id=? AND s.source<>'scan'`,
+		row.Origin, id).Scan(&currentOrigin, &accessLog, &originInUse)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return row.Origin != "" && accessLog != "" && !originInUse &&
+		(currentOrigin == "" || (currentOrigin == row.Origin && row.Status == "ready")), err
 }
 
 func siteOriginKey(origin string) string {
