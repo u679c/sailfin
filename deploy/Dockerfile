@@ -5,7 +5,8 @@ RUN go mod download
 COPY browser-agent ./browser-agent
 COPY cmd/core ./cmd/core
 COPY internal ./internal
-RUN CGO_ENABLED=1 go build -trimpath -o /sailfin-core ./cmd/core
+ARG SAILFIN_VERSION
+RUN CGO_ENABLED=1 go build -ldflags "-X sailfin/internal/branding.packageVersion=${SAILFIN_VERSION}" -trimpath -o /sailfin-core ./cmd/core
 
 FROM debian:bookworm-slim
 COPY --from=build /sailfin-core /usr/local/bin/sailfin-core

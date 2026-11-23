@@ -6,12 +6,16 @@ kind=install
 case "${1:-}" in
     install|update) kind=$1; shift ;;
 esac
-version=${1:-${SAILFIN_PACKAGE_VERSION:-}}
+version_file="$PWD/internal/branding/VERSION"
+version=${SAILFIN_PACKAGE_VERSION:-$(<"$version_file")}
+if [[ $# -gt 0 && $1 != --* ]]; then
+    version=$1
+    shift
+fi
 if [[ ! $version =~ ^[0-9][A-Za-z0-9._-]*$ ]]; then
-    printf 'Usage: ./aqua build install|update <version> [--platform <os/arch>] [--from <git-ref> (update only)]\n' >&2
+    printf 'Usage: ./aqua build install|update [version] [--platform <os/arch>] [--from <git-ref> (update only)]\n' >&2
     exit 2
 fi
-if [[ $# -gt 0 ]]; then shift; fi
 platform=''
 from=''
 while [[ $# -gt 0 ]]; do
@@ -65,6 +69,7 @@ ldflags=${SAILFIN_PACKAGE_LDFLAGS-}
 if [[ $os == darwin && -z ${SAILFIN_PACKAGE_LDFLAGS+set} ]]; then
     ldflags=-linkmode=external
 fi
+ldflags="${ldflags:+$ldflags }-X sailfin/internal/branding.packageVersion=$version"
 
 name="sailfin-$version-$os-$arch"
 release_notes=''
@@ -154,7 +159,7 @@ cp -R browser-agent/src "$image_context/browser-agent/"
 npm run build -w web -- --outDir "$image_context/web"
 test -s "$image_context/web/index.html"
 image_tag="sailfin-package:$os-$arch-${stage##*.}"
-docker build --platform "linux/$arch" --tag "$image_tag" \
+docker build --platform "linux/$arch" --tag "$image_tag" --build-arg "SAILFIN_VERSION=$version" \
     --file deploy/Dockerfile "$image_context"
 docker image save --output "$bundle/image.tar" "$image_tag"
 printf '%s\n' "$image_tag" > "$bundle/image-ref"
@@ -193,4 +198,8 @@ fi
 cd "$output"
 # Publish the finished installer as one directory.
 node -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' "$stage/release" "$release"
+if [[ $(<"$version_file") != "$version" ]]; then
+    printf '%s\n' "$version" > "$stage/VERSION"
+    mv -f -- "$stage/VERSION" "$version_file"
+fi
 printf 'Package: %s/%s\nSHA-256: %s\n' "$release" "$installer" "${checksum%% *}"

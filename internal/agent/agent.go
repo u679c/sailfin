@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sailfin/internal/branding"
 	"sailfin/internal/parser"
 	"sailfin/internal/protocol"
 	"strings"
@@ -379,7 +380,7 @@ func (a *Agent) heartbeat(ctx context.Context) {
 		values["configuredSites"] = len(a.sites)
 	}
 	metrics, _ := json.Marshal(values)
-	b := protocol.Heartbeat{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Version: "0.1.1-dev", Containers: containers, Metrics: metrics, Error: a.lastErr}
+	b := protocol.Heartbeat{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Version: branding.Version(), Containers: containers, Metrics: metrics, Error: a.lastErr}
 	if e := a.request(ctx, "POST", "/api/v1/agent/heartbeat", b, nil); e != nil {
 		slog.Warn("heartbeat failed", "error", e)
 	}
