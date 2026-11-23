@@ -542,7 +542,7 @@ function App() {
               </nav>
           )}
           </div>}
-          <div className={`detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}`}>
+          <div className={`detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}`}>
           {siteView && (
               <div className="filterbar">
                 <div className="filters">
@@ -741,12 +741,13 @@ function Trend({ rows }: { rows: Row[] }) {
     </div>
   );
 }
-function DataTable({ path, query, revision, columns, bare = false }: {
+function DataTable({ path, query, revision, columns, bare = false, emptyLabel }: {
   path: string;
   query: string;
   revision: number;
   columns: Parameters<typeof Table>[0]["columns"];
   bare?: boolean;
+  emptyLabel?: string;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
@@ -756,7 +757,7 @@ function DataTable({ path, query, revision, columns, bare = false }: {
     [path, query, page, pageSize, revision],
   );
   const content = <AsyncPanel state={state}>
-    <Table manual rows={state.data || []} columns={columns} />
+    <Table manual rows={state.data || []} columns={columns} emptyLabel={emptyLabel} />
     <Pager page={page} setPage={setPage} total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize} />
   </AsyncPanel>;
   return bare ? content : <section className="panel list-panel">{content}</section>;
@@ -1408,10 +1409,30 @@ function SystemInfo({ revision }: { revision: number }) {
           </section>
         )}
       </AsyncPanel>
-      <UpdatePackage />
+      <div className="split system-update-grid">
+        <UpdatePackage />
+        <section className="panel list-panel">
+          <h2>更新日志</h2>
+          <DataTable bare path="/system/update/history" query="?" revision={revision}
+            emptyLabel="暂无更新记录" columns={[
+              { key: "created_at", label: "更新时间", render: (row) => when(row.created_at) },
+              { key: "action", label: "状态", render: (row) => {
+                const status = updateHistoryStatuses[row.action];
+                return status ? <span className={`badge ${status.tone}`}>{status.label}</span> : "—";
+              } },
+            ]} />
+        </section>
+      </div>
     </>
   );
 }
+
+const updateHistoryStatuses: Record<string, { label: string; tone: string }> = {
+  "system.update.started": { label: "开始更新", tone: "neutral" },
+  "system.update.succeeded": { label: "更新成功", tone: "good" },
+  "system.update.failed": { label: "更新失败", tone: "warn" },
+  "system.update.rolled_back": { label: "已回退", tone: "neutral" },
+};
 
 function UpdatePackageDrop({ onChoose, onFiles }: {
   onChoose: () => void;

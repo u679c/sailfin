@@ -525,6 +525,27 @@ a {
 .split > .panel {
   margin-bottom: 0;
 }
+.system-update-grid {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 7fr);
+  align-items: start;
+}
+.system-update-grid > .list-panel {
+  align-self: stretch;
+}
+@media (width > 1100px) {
+  .system-info-workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .system-info-workspace > :not(.system-update-grid) {
+    flex-shrink: 0;
+  }
+  .system-update-grid {
+    flex: 1;
+    min-height: 250px;
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
 .table-wrap {
   overflow: auto;
   max-width: 100%;
