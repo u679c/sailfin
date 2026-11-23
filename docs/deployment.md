@@ -89,15 +89,21 @@ chmod +x ./Sailfin-update-实际MD5.bin
 
 ### 从管理端更新
 
-首次启用网页更新时，在发布机生成 Ed25519 密钥。私钥留在发布机，只把公钥放到 Sailfin 宿主机上。
+网页更新使用发布机生成的 Ed25519 密钥。私钥始终留在打包机。使用 `SAILFIN_UPDATE_SIGNING_KEY` 构建新装包时，打包脚本从私钥导出公钥，并把公钥放入包内。`aqua start` 自动读取安装目录的 `update-public.pem`。多台服务器使用同一把私钥生成的可信新装包，即可自动配置相同的公钥。
 
 ```sh
-umask 077
-openssl genpkey -algorithm ED25519 -out sailfin-update-private.pem
-openssl pkey -in sailfin-update-private.pem -pubout -out sailfin-update-public.pem
-SAILFIN_UPDATE_SIGNING_KEY=/path/to/sailfin-update-private.pem ./aqua build update 0.2.1
+release_keys="$HOME/.config/sailfin-release"
+mkdir -p "$release_keys"
+if [ ! -e "$release_keys/sailfin-update-private.pem" ]; then
+    (umask 077; openssl genpkey -algorithm ED25519 -out "$release_keys/sailfin-update-private.pem")
+fi
+
+SAILFIN_UPDATE_SIGNING_KEY="$release_keys/sailfin-update-private.pem" ./aqua build install 0.2.1
+SAILFIN_UPDATE_SIGNING_KEY="$release_keys/sailfin-update-private.pem" ./aqua build update 0.2.2
 ```
 
-首次将支持网页更新的版本装到宿主机，启动时在原有参数之外设置 `SAILFIN_UPDATE_PUBLIC_KEY=/path/to/sailfin-update-public.pem`。如果已经运行，先停止，再带齐原配置和公钥变量执行 `aqua start`。公钥文件应在宿主机可读，放在容器挂载之外。反向代理要允许此上传接口接收更新包，请求体上限至少能容纳实际包大小和表单开销，Sailfin 支持最多 256 MiB 的包。OpenResty 可以为 `/api/v1/system/update/install` 设置 `client_max_body_size 257m`。
+已有安装继续使用原有的公钥。还没有公钥的旧安装，可在通过命令行升级到支持网页更新的版本后，在宿主机放置对应的公钥，并用 `SAILFIN_UPDATE_PUBLIC_KEY=/path/to/sailfin-update-public.pem` 带原有配置启动一次。显式指定的公钥优先于安装目录中的公钥。两种方式都要求公钥位于容器的数据挂载之外。网页更新包沿用原公钥进行验证，升级时不会替换它。更换打包机时可迁移原私钥，无需逐台调整公钥。
+
+反向代理要允许此上传接口接收更新包，请求体上限至少能容纳实际包大小和表单开销，Sailfin 支持最多 256 MiB 的包。OpenResty 可以为 `/api/v1/system/update/install` 设置 `client_max_body_size 257m`。
 
 在「系统信息 → 软件更新」选择签名后的 `.bin`，验证管理员密码并点击「确认安装」。宿主机重新验证签名，执行更新包的 `--check` 和 `--apply`。管理页面会在重启后查询更新结果。未启用公钥或未签名的包可沿用命令行更新流程。

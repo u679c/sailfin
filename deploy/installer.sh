@@ -189,6 +189,9 @@ else
 fi
 [[ -x $destination/aqua ]] || fail '安装包缺少 aqua 管理命令。'
 [[ -s $destination/image.tar && -s $destination/image-ref ]] || fail '安装包缺少 Sailfin Docker 镜像或镜像标签。'
+if [[ -s $destination/update-public.pem ]]; then
+    passed '已安装网页更新公钥，启动时自动读取'
+fi
 trap - EXIT
 printf '\n安装完成。请在安装目录执行：\n  cd %q\n  ./aqua start\n' "$destination"
 exit 0

@@ -58,6 +58,13 @@ if [[ $(printf '%s' "$release_notes" | wc -c) -gt 8192 ]]; then
     exit 2
 fi
 release_notes=$(printf '%s' "$release_notes" | base64 | tr -d '\r\n')
+sign_script="$PWD/scripts/sign-package.mjs"
+sign_key=${SAILFIN_UPDATE_SIGNING_KEY:-}
+public_key=''
+if [[ -n $sign_key ]]; then
+    if [[ $sign_key != /* ]]; then sign_key="$PWD/$sign_key"; fi
+    public_key=$(node "$sign_script" --public-key "$sign_key")
+fi
 output="$PWD/dist"
 release="$output/$name"
 package_prefix=Sailfin-installer
@@ -82,6 +89,9 @@ bundle="$stage/$name"
 
 # Build into an empty directory so binaries and hashed Web assets belong to this build.
 mkdir -p "$bundle/bin" "$bundle/examples"
+if [[ $kind == install && -n $public_key ]]; then
+    printf '%s\n' "$public_key" > "$bundle/update-public.pem"
+fi
 # The Linux host process runs Aqua and the probe. SQLite runs inside the image.
 host_cgo=0
 if [[ $os == darwin ]]; then
@@ -111,9 +121,6 @@ install -m 755 deploy/aqua "$bundle/aqua"
 install -m 644 examples/nginx/host-sites.example.json "$bundle/examples/sites.example.json"
 
 installer_template="$PWD/deploy/installer.sh"
-sign_script="$PWD/scripts/sign-package.mjs"
-sign_key=${SAILFIN_UPDATE_SIGNING_KEY:-}
-if [[ -n $sign_key && $sign_key != /* ]]; then sign_key="$PWD/$sign_key"; fi
 mkdir "$stage/release"
 cd "$stage/release"
 

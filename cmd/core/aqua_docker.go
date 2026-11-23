@@ -111,7 +111,16 @@ func runDocker(ctx context.Context, options serveOptions, ready func()) (runErr 
 		"--env", "SAILFIN_ADMIN_NAME", "--env", "SAILFIN_ADMIN_PASSWORD",
 	}
 	var webUpdateKey ed25519.PublicKey
-	if path := os.Getenv(updateKeyEnv); path != "" {
+	path := os.Getenv(updateKeyEnv)
+	if path == "" {
+		bundled := filepath.Join(root, "update-public.pem")
+		if _, err := os.Lstat(bundled); err == nil {
+			path = bundled
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("读取安装包附带的网页更新公钥：%w", err)
+		}
+	}
+	if path != "" {
 		installRoot, err := filepath.EvalSymlinks("/data/sailfin")
 		if err != nil || installRoot != root {
 			return errors.New("网页更新要求 Sailfin 安装在 /data/sailfin")
