@@ -4,6 +4,7 @@ set -euo pipefail
 package='@PACKAGE@'
 platform='@PLATFORM@'
 payload_line='@PAYLOAD_LINE@'
+# sailfin-release-notes: @RELEASE_NOTES@
 
 fail() {
     printf 'Sailfin 安装失败：%s\n' "$*" >&2

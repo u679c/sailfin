@@ -364,6 +364,7 @@ func (s *Server) routes() {
 	})
 	s.route("POST /api/v1/auth/login", false, s.login)
 	s.route("POST /api/v1/auth/password", true, s.changePassword)
+	s.route("POST /api/v1/system/update/verify-password", true, s.verifyUpdatePassword)
 	s.route("GET /api/v1/auth/me", true, func(w http.ResponseWriter, r *http.Request) error {
 		c, _ := r.Cookie("sailfin_session")
 		return s.query(w, r, "SELECT u.name,u.role,a.csrf FROM auth_sessions a JOIN users u ON u.id=a.user_id WHERE a.token=?", hash(c.Value))
@@ -781,6 +782,32 @@ func (s *Server) saveAgentConfig(w http.ResponseWriter, r *http.Request) error {
 	}
 	s.audit("agent.config", id)
 	jsonOut(w, 200, c)
+	return nil
+}
+
+func (s *Server) verifyUpdatePassword(w http.ResponseWriter, r *http.Request) error {
+	var b struct {
+		Password string `json:"password"`
+	}
+	if err := decode(r, &b); err != nil {
+		return err
+	}
+	if b.Password == "" || len(b.Password) > 256 {
+		return fail(400, "请输入有效的管理员密码")
+	}
+	c, _ := r.Cookie("sailfin_session")
+	var id, encoded string
+	if err := s.DB.QueryRowContext(r.Context(), "SELECT u.id,u.password FROM users u JOIN auth_sessions a ON a.user_id=u.id WHERE a.token=?", hash(c.Value)).Scan(&id, &encoded); err != nil {
+		return err
+	}
+	if !s.rate("update-password:"+id, 10) {
+		return fail(429, "验证次数过多，请稍后重试")
+	}
+	if !passwordOK(b.Password, encoded) {
+		s.count("authentication_failed")
+		return fail(403, "管理员密码不正确")
+	}
+	jsonOut(w, 200, map[string]bool{"ok": true})
 	return nil
 }
 

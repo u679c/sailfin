@@ -1024,6 +1024,34 @@ footer span {
   justify-self: start;
 }
 
+.update-package-drop {
+  width: 100%;
+  min-height: 144px;
+  flex-direction: column;
+  border: 1px dashed #8c9db3;
+}
+
+.update-package-drop:hover,
+.update-package-drop[data-dragging="true"] {
+  border-color: var(--accent);
+  background: #eef3fa;
+}
+
+.update-package-drop > * { pointer-events: none; }
+.update-package-drop svg { color: var(--accent); }
+.update-package-drop small { color: var(--muted); }
+.update-package-message { margin: 0; }
+.update-package-notes {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#update-password-form {
+  display: grid;
+  gap: 12px;
+}
+
 .delete-record {
   margin-top: 28px;
 }

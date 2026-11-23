@@ -20,6 +20,15 @@ if [[ $os == darwin && -z ${SAILFIN_PACKAGE_LDFLAGS+set} ]]; then
 fi
 
 name="sailfin-$version-$os-$arch"
+release_notes=''
+if [[ -n ${SAILFIN_RELEASE_NOTES_FILE:-} ]]; then
+    notes_file=$SAILFIN_RELEASE_NOTES_FILE
+    if [[ ! -f $notes_file || $(wc -c < "$notes_file") -gt 8192 ]]; then
+        printf 'Release notes must be a file of at most 8192 bytes.\n' >&2
+        exit 2
+    fi
+    release_notes=$(base64 < "$notes_file" | tr -d '\r\n')
+fi
 output="$PWD/dist"
 release="$output/$name"
 if [[ -L $output ]]; then
@@ -73,6 +82,7 @@ cd "$stage/release"
 
 payload_line=$(( $(wc -l < "$installer_template") + 1 ))
 sed -e "s|@PACKAGE@|$name|g" -e "s|@PLATFORM@|$os/$arch|g" \
+    -e "s|@RELEASE_NOTES@|$release_notes|g" \
     -e "s|@PAYLOAD_LINE@|$payload_line|g" "$installer_template" > installer.bin
 COPYFILE_DISABLE=1 tar -czf - -C "$stage" "$name" >> installer.bin
 if command -v md5sum >/dev/null 2>&1; then

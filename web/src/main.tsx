@@ -12,6 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Info,
+  Upload,
   LoaderCircle,
   Plus,
   X,
@@ -33,7 +35,8 @@ const sections = [
   { id: "devices", name: "设备" },
   { id: "collection", name: "探针管理" },
   { id: "security", name: "安全审计" },
-  { id: "system", name: "系统设置" },
+  { id: "system", name: "运行设置" },
+  { id: "system-info", name: "系统信息" },
 ];
 const siteSections = sections.filter((s) =>
   ["overview", "pages", "clicks", "sessions", "events", "devices"].includes(s.id),
@@ -466,11 +469,11 @@ function App() {
     setError("");
   }
   const siteView = siteSections.some((item) => item.id === section);
-  const settingsView = section === "system" || section === "security";
+  const settingsView = section === "system-info" || section === "system" || section === "security";
   const probeView = section === "collection";
   const probePane = params.get("view") === "probes" ? "probes" : "sites";
   const selectedSite = projects.data?.find((item) => item.id === project);
-  const primarySection = settingsView ? "system" : section === "collection" ? "collection" : "sites";
+  const primarySection = settingsView ? "system-info" : section === "collection" ? "collection" : "sites";
   return (
     <div className="shell site-shell">
       <header className="topbar">
@@ -481,7 +484,7 @@ function App() {
           {[
             { id: "sites", name: "站点" },
             { id: "collection", name: "探针管理" },
-            { id: "system", name: "系统设置" },
+            { id: "system-info", name: "系统设置" },
           ].map((item) => (
             <a key={item.id} href={href(item.id, item.id === "sites" ? { projectId: "" } : {})}
               className={primarySection === item.id ? "selected" : ""}
@@ -518,7 +521,7 @@ function App() {
           </aside>}
           {settingsView && <aside className="site-assets module-menu" aria-label="设置导航">
             <nav>
-              {[{ id: "system", name: "运行设置", icon: Settings }, { id: "security", name: "安全审计", icon: ShieldCheck }].map((item) => (
+              {[{ id: "system-info", name: "系统信息", icon: Info }, { id: "system", name: "运行设置", icon: Settings }, { id: "security", name: "安全审计", icon: ShieldCheck }].map((item) => (
                 <a key={item.id} className={`asset-item ${section === item.id ? "selected" : ""}`}
                   href={href(item.id)} onClick={followLink}
                   aria-current={section === item.id ? "page" : undefined}>
@@ -575,7 +578,8 @@ function App() {
           {section === "sessions" && <Sessions query={query} revision={revision} />}
           {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
-          {section === "system" && <System revision={revision} />}
+          {section === "system-info" && <SystemInfo revision={revision} />}
+          {section === "system" && <SystemSettings />}
           </div>
           </div>
         </div>
@@ -1375,17 +1379,14 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   );
 }
 
-function System({ revision }: { revision: number }) {
+function SystemInfo({ revision }: { revision: number }) {
   const state = useData(() => api<Row>("/system/status"), [revision]);
-  const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
   const d = state.data;
   return (
     <>
       <AsyncPanel state={state}>
         {d && (
           <section className="panel">
-            <h2>运行信息</h2>
             <dl className="facts">
               <dt>版本</dt>
               <dd>{d.version}</dd>
@@ -1404,35 +1405,238 @@ function System({ revision }: { revision: number }) {
               <dt>统计时区</dt>
               <dd>{d.timezone}</dd>
             </dl>
-            <h2>数据备份</h2>
-            <p className="muted">
-              备份包含账户与采集数据，请妥善保存。
-            </p>
-            <ErrorBox message={error} />
-            <button
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                setError("");
-                try {
-                  await backup();
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              <Download size={16} />
-              {busy ? "生成备份中…" : "下载备份"}
-            </button>
-            <PasswordSettings />
           </section>
         )}
       </AsyncPanel>
+      <UpdatePackage />
     </>
   );
 }
+
+function UpdatePackageDrop({ onChoose, onFiles }: {
+  onChoose: () => void;
+  onFiles: (files: FileList) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  return (
+    <button type="button" className="update-package-drop" data-dragging={dragging} onClick={onChoose}
+      onDragEnter={(event) => {
+        if (event.dataTransfer.types.includes("Files")) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (event.dataTransfer.files.length) onFiles(event.dataTransfer.files);
+      }}>
+      <Upload size={22} aria-hidden="true" />
+      <span>拖入或选择更新包</span>
+      <small>.bin 文件</small>
+    </button>
+  );
+}
+
+async function readUpdatePackage(file: File) {
+  if (!/^Sailfin-update-[a-f0-9]{32}\.bin$/i.test(file.name)) {
+    throw new Error("请选择名为 Sailfin-update-<md5>.bin 的安装包。");
+  }
+  const bytes = new Uint8Array(await file.slice(0, 64 * 1024).arrayBuffer());
+  const decoder = new TextDecoder();
+  const prefix = decoder.decode(bytes.subarray(0, 512));
+  const payloadLine = Number(/^payload_line='(\d+)'$/m.exec(prefix)?.[1]);
+  if (!prefix.startsWith("#!/bin/bash\n") || !Number.isInteger(payloadLine) || payloadLine < 2 || payloadLine > bytes.length) {
+    throw new Error("无法识别 Sailfin 安装包格式。");
+  }
+  let payload = 0;
+  for (let line = 1; line < payloadLine; line++) {
+    const newline = bytes.indexOf(10, payload);
+    if (newline < 0) throw new Error("安装包头部不完整。");
+    payload = newline + 1;
+  }
+  const header = decoder.decode(bytes.subarray(0, payload));
+  const platform = /^platform='((?:linux|darwin)\/(?:amd64|arm64))'$/m.exec(header)?.[1];
+  const packageName = /^package='(sailfin-[0-9][A-Za-z0-9._-]*)'$/m.exec(header)?.[1];
+  const suffix = platform && `-${platform.replace("/", "-")}`;
+  if (!suffix || !packageName?.endsWith(suffix) || bytes[payload] !== 0x1f || bytes[payload + 1] !== 0x8b) {
+    throw new Error("安装包的平台信息或压缩内容无效。");
+  }
+  const version = packageName.slice("sailfin-".length, -suffix.length);
+  if (!/^\d/.test(version)) throw new Error("无法识别安装包版本。");
+  const notes = /^# sailfin-release-notes: ([A-Za-z0-9+/=]+)$/m.exec(header)?.[1];
+  return {
+    file, platform, version,
+    notes: notes ? decoder.decode(Uint8Array.from(atob(notes), (character) => character.charCodeAt(0))).trim() : "",
+  };
+}
+
+function UpdatePackage() {
+  const drawer = useRef<HTMLDialogElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const [password, setPassword] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [fileError, setFileError] = useState("");
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof readUpdatePackage>> | null>(null);
+
+  useEffect(() => {
+    if (confirming) title.current?.focus();
+  }, [confirming]);
+
+  async function selectPackage(files: FileList) {
+    if (busy) return;
+    if (!drawer.current?.open) drawer.current?.showModal();
+    setPreview(null);
+    setPassword("");
+    setPasswordError("");
+    setFileError("");
+    setConfirming(false);
+    setBusy(true);
+    try {
+      if (files.length !== 1) throw new Error("每次请选择一个更新包。");
+      setPreview(await readUpdatePackage(files[0]));
+    } catch (error) {
+      setFileError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || !preview || !password) return;
+    setBusy(true);
+    setPasswordError("");
+    try {
+      await api("/system/update/verify-password", {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+      setPassword("");
+      setConfirming(true);
+    } catch (error) {
+      setPasswordError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function reset() {
+    setPassword("");
+    setConfirming(false);
+    setPasswordError("");
+    setFileError("");
+    setPreview(null);
+  }
+
+  return (
+    <section className="panel">
+      <h2>软件更新</h2>
+      <input ref={picker} type="file" accept=".bin" hidden onChange={(event) => {
+        if (event.currentTarget.files?.length) void selectPackage(event.currentTarget.files);
+        event.currentTarget.value = "";
+      }} />
+      <UpdatePackageDrop onChoose={() => picker.current?.click()} onFiles={selectPackage} />
+      <dialog ref={drawer} className="site-drawer" aria-labelledby="update-drawer-title" onClose={reset}
+        onCancel={(event) => { if (busy) event.preventDefault(); }}>
+        <div className="site-drawer-layout">
+          <header className="site-drawer-header">
+            <h2 ref={title} id="update-drawer-title" tabIndex={-1}>{confirming ? "确认安装" : "软件更新"}</h2>
+            <button type="button" aria-label="关闭" className="site-drawer-close" disabled={busy}
+              onClick={() => drawer.current?.close()}><X size={20} aria-hidden="true" /></button>
+          </header>
+          <div className="site-drawer-body">
+            {preview ? (
+              <>
+                <dl className="facts">
+                  <dt>文件名</dt><dd>{preview.file.name}</dd>
+                  <dt>目标版本</dt><dd>{preview.version}</dd>
+                  <dt>适用平台</dt><dd>{preview.platform}</dd>
+                </dl>
+                {confirming ? (
+                  <>
+                    <p className="notice update-package-message">
+                      安装将由更新包执行，可能替换程序文件并自动重启 Sailfin。管理页面和采集服务可能暂时中断。
+                    </p>
+                    <p className="muted update-package-message">当前安装尚未接入更新包执行功能。</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="notice update-package-message">
+                      更新包会安排服务重启，期间管理页面和采集服务可能暂时中断。
+                    </p>
+                    <section aria-labelledby="update-release-notes">
+                      <h3 id="update-release-notes">更新说明</h3>
+                      <p className="update-package-notes">{preview.notes || "此包未附更新说明。"}</p>
+                    </section>
+                    <form id="update-password-form" onSubmit={verify}>
+                      <label>当前管理员密码
+                        <input type="password" autoComplete="current-password" required maxLength={256}
+                          value={password} disabled={busy} onChange={(event) => setPassword(event.target.value)} />
+                      </label>
+                      <ErrorBox message={passwordError} />
+                    </form>
+                  </>
+                )}
+              </>
+            ) : busy ? (
+              <p className="update-package-message" role="status">正在检查更新包…</p>
+            ) : (
+              <>
+                <ErrorBox message={fileError} />
+                <UpdatePackageDrop onChoose={() => picker.current?.click()} onFiles={selectPackage} />
+              </>
+            )}
+          </div>
+          <footer className="site-drawer-footer">
+            <button type="button" disabled={busy} onClick={() => drawer.current?.close()}>
+              取消
+            </button>
+            {confirming ? <button type="button" className="primary" disabled>确认安装</button> : preview && (
+              <button type="submit" form="update-password-form" className="primary" disabled={busy || !password}>
+                {busy ? "验证中…" : "确认"}
+              </button>
+            )}
+          </footer>
+        </div>
+      </dialog>
+    </section>
+  );
+}
+
+function SystemSettings() {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="panel">
+      <h2>数据备份</h2>
+      <p className="muted">备份包含账户与采集数据，请妥善保存。</p>
+      <ErrorBox message={error} />
+      <button disabled={busy} onClick={async () => {
+        setBusy(true);
+        setError("");
+        try {
+          await backup();
+        } catch (error) {
+          setError((error as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}>
+        <Download size={16} />
+        {busy ? "生成备份中…" : "下载备份"}
+      </button>
+      <PasswordSettings />
+    </section>
+  );
+}
+
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
