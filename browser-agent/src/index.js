@@ -29,7 +29,8 @@ export function init(options) {
   let activePage = currentPage();
   const listeners = [];
   const project = options.projectId;
-  const id = () => crypto.randomUUID();
+  const id = () => crypto.randomUUID?.() ??
+    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
   const key = `sailfin:${project}`;
   const legacyKey = `tracelite:${project}`;
   const disabled = () => window.SAILFIN_DISABLED || window.TRACELITE_DISABLED;

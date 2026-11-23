@@ -43,7 +43,7 @@ server {
 `
 	const relay = "127.0.0.1:8091"
 	const auth = "/var/local/sailfin/.nginx-relay-auth.conf"
-	after, reports, err := planAutomaticInjection(before, "/tmp/site.conf", relay, auth)
+	after, reports, err := planAutomaticInjection(before, "/tmp/site.conf", relay, auth, "192.0.2.10")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +64,36 @@ server {
 			t.Errorf("updated configuration lacks %q", directive)
 		}
 	}
-	again, statuses, err := planAutomaticInjection(after, "/tmp/site.conf", relay, auth)
+	again, statuses, err := planAutomaticInjection(after, "/tmp/site.conf", relay, auth, "192.0.2.10")
 	if err != nil || again != after || len(statuses) != 2 || statuses[0].Status != "configured" {
 		t.Fatalf("repeated scans must be idempotent: %v, %+v", err, statuses)
+	}
+}
+
+func TestNginxSiteOriginSupportsIPDeployment(t *testing.T) {
+	tests := []struct {
+		config, fallback, origin string
+	}{
+		{`listen 80; server_name 192.0.2.10;`, "", "http://192.0.2.10"},
+		{`listen 192.0.2.10:8080; server_name _;`, "", "http://192.0.2.10:8080"},
+		{`listen 192.0.2.10;`, "", "http://192.0.2.10"},
+		{`listen [2001:db8::10]:8443 ssl;`, "", "https://[2001:db8::10]:8443"},
+		{`listen 80; server_name _;`, "192.0.2.10", "http://192.0.2.10"},
+		{`listen 80; server_name _;`, "", ""},
+		{`listen 192.0.2.10:80; listen 192.0.2.11:80;`, "", ""},
+		{`listen 80; server_name one.test two.test;`, "192.0.2.10", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.config+tt.fallback, func(t *testing.T) {
+			nodes, err := parseNginx("server { " + tt.config + " }")
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, origin := nginxSiteOrigin(nodes[0], tt.fallback)
+			if origin != tt.origin || (id == "") != (tt.origin == "") {
+				t.Fatalf("got (%q, %q), want origin %q", id, origin, tt.origin)
+			}
+		})
 	}
 }
 

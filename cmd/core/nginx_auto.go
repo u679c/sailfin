@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,14 +25,15 @@ import (
 )
 
 type nginxAuto struct {
-	mu       sync.Mutex
-	relay    string
-	keyPath  string
-	authPath string
-	key      string
-	active   atomic.Bool
-	ready    atomic.Bool
-	pending  *nginxAutoPlan
+	mu        sync.Mutex
+	relay     string
+	keyPath   string
+	authPath  string
+	defaultIP string
+	key       string
+	active    atomic.Bool
+	ready     atomic.Bool
+	pending   *nginxAutoPlan
 }
 
 type nginxAutoPlan struct {
@@ -90,7 +92,7 @@ func (c *nginxAuto) browserSite(r *http.Request) (agent.Site, bool) {
 	host := strings.ToLower(u.Hostname())
 	port := u.Port()
 	if port != "" && !(u.Scheme == "http" && port == "80") && !(u.Scheme == "https" && port == "443") {
-		host += ":" + port
+		host = net.JoinHostPort(host, port)
 	}
 	return agent.Site{
 		ID: autoNginxSiteID(host), Name: strings.ToLower(u.Host),
@@ -153,7 +155,7 @@ func (c *nginxAuto) Scan(ctx context.Context) (core.NginxPreview, error) {
 			if !bytes.Contains(file.before, []byte("server")) {
 				continue
 			}
-			next, reports, err := planAutomaticInjection(string(file.before), path, c.relay, c.authPath)
+			next, reports, err := planAutomaticInjection(string(file.before), path, c.relay, c.authPath, c.defaultIP)
 			if err != nil {
 				plan.view.Sites = append(plan.view.Sites, core.NginxSiteResult{Site: "配置文件", File: path, Status: "skipped", Reason: c.safeError(err)})
 				continue
@@ -166,9 +168,7 @@ func (c *nginxAuto) Scan(ctx context.Context) (core.NginxPreview, error) {
 			}
 			for _, report := range reports {
 				if report.Status == "ready" {
-					if report.SiteID == "" {
-						report.Status, report.Reason = "skipped", "请手动添加没有单一明确域名的站点"
-					} else if blocked != "" {
+					if blocked != "" {
 						report.Status, report.Reason = "skipped", blocked
 					} else {
 						plan.view.Ready++
@@ -188,6 +188,19 @@ func (c *nginxAuto) Scan(ctx context.Context) (core.NginxPreview, error) {
 	}
 	if len(plan.view.Sites) == 0 {
 		plan.view.Sites = append(plan.view.Sites, core.NginxSiteResult{Site: "Nginx", Status: "skipped", Reason: "没有发现可识别的 HTTP 站点"})
+	}
+	ready := make(map[string]int)
+	for _, site := range plan.view.Sites {
+		if site.Status == "ready" || site.Status == "configured" {
+			ready[site.SiteID]++
+		}
+	}
+	for i, site := range plan.view.Sites {
+		if site.Status == "ready" && ready[site.SiteID] > 1 {
+			plan.view.Sites[i].Status = "skipped"
+			plan.view.Sites[i].Reason = "多个站点使用同一访问地址，请明确区分站点配置"
+			plan.view.Ready--
+		}
 	}
 	c.pending = plan
 	return plan.view, nil
@@ -214,14 +227,14 @@ func (c *nginxAuto) Apply(ctx context.Context, id string, ids []string) (core.Ng
 	}
 	selected := map[string]bool{}
 	for _, id := range ids {
-		if available[id] == 0 || selected[id] {
+		if available[id] != 1 || selected[id] {
 			return core.NginxPreview{}, errors.New("所选站点不在预览中，请重新扫描")
 		}
 		selected[id] = true
 	}
 	var files []*deploymentFile
 	for _, file := range plan.files {
-		next, _, err := planHostInjection(string(file.before), file.path, c.relay, c.authPath, selected)
+		next, _, err := planHostInjection(string(file.before), file.path, c.relay, c.authPath, c.defaultIP, selected)
 		if err != nil {
 			return core.NginxPreview{}, err
 		}

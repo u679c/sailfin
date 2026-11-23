@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -32,6 +34,7 @@ var containerName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 type openRestyNginx struct {
 	docker      localDockerHost
 	name, relay string
+	defaultIP   string
 	roots       []string
 	ready       *atomic.Bool
 	mu          sync.Mutex
@@ -52,6 +55,11 @@ type openRestySite struct {
 }
 
 func hostNginxIntegration(ctx context.Context, options serveOptions, auto *nginxAuto) (core.NginxIntegration, error) {
+	if management, err := url.Parse(options.publicURL); err == nil {
+		if ip := net.ParseIP(management.Hostname()); ip != nil && !ip.IsUnspecified() && !ip.IsLoopback() {
+			auto.defaultIP = ip.String()
+		}
+	}
 	if options.openRestyContainer == "" {
 		return auto, nil
 	}
@@ -64,7 +72,7 @@ func hostNginxIntegration(ctx context.Context, options serveOptions, auto *nginx
 	}
 	return &openRestyNginx{
 		docker: docker, name: options.openRestyContainer, relay: auto.relay,
-		roots: strings.Split(options.logRoots, ","), ready: &auto.ready,
+		roots: strings.Split(options.logRoots, ","), ready: &auto.ready, defaultIP: auto.defaultIP,
 	}, nil
 }
 
@@ -176,12 +184,15 @@ func (p *openRestyNginx) readSite(name string, mounts map[string]string) (core.N
 		return fail("需要一个明确的站点 server 块")
 	}
 	server := servers[0]
-	_, origin := nginxSiteOrigin(server)
-	domain := strings.TrimPrefix(origin, "https://")
-	if !strings.HasPrefix(origin, "https://") || !protocol.ValidSiteID(domain) {
-		return fail("需要一个明确的 HTTPS 域名")
+	id, origin := nginxSiteOrigin(server, p.defaultIP)
+	address, err := url.Parse(origin)
+	if err != nil || id == "" || (address.Scheme != "https" && net.ParseIP(address.Hostname()) == nil) {
+		return fail("需要一个明确的 HTTPS 域名或 IP 地址")
 	}
-	row.Site, row.SiteID, row.Origin = domain, domain, origin
+	if protocol.ValidSiteID(address.Host) {
+		id = address.Host
+	}
+	row.Site, row.SiteID, row.Origin = address.Host, id, origin
 	var proxy string
 	for _, directive := range nginxDirective(server.children, "include") {
 		if len(directive.args) == 2 && strings.HasPrefix(directive.args[1], "/www/sites/") && strings.HasSuffix(directive.args[1], "/proxy/*.conf") {
@@ -216,7 +227,7 @@ func (p *openRestyNginx) readSite(name string, mounts map[string]string) (core.N
     proxy_cache off;
     proxy_read_timeout 10s;
 }
-`, p.relay, domain))
+`, p.relay, id))
 	if !site.route.exists {
 		site.route.mode = 0644
 	}

@@ -14,6 +14,8 @@ Sailfin 采用单机部署。开发时 Core 启动内置探针。安装版由安
 
 1Panel 部署时在安装目录通过 `./aqua start --openresty-container 容器名 --log-roots 宿主机已授权日志目录` 一次性指定目标容器和可读范围，并保留原有管理域名等参数。探针读取该容器的 1Panel 挂载目录，支持宿主机网络下带标准 `proxy/root.conf` 的 HTTPS 反向代理站点。后续扫描、勾选、配置和启停通过探针管理页面完成。
 
+IP 站点可通过 `server_name` 或 `listen` 中明确的 IP 识别。默认站点只监听通配地址时，扫描可使用管理地址中的 IP，同时采用站点的监听端口。无法确定唯一地址，或多个站点使用同一访问地址时，扫描会提示补充站点配置。
+
 已接入访问日志且站点标识与域名一致的 OpenResty 站点，可在一键扫描中勾选「可补装 SDK」，点击「应用所选配置」。探针自动配置同源路由、注入 SDK、校验并重载 OpenResty，浏览器采集地址写入原站点。站点已有的访问日志、采集开关和同意设置继续沿用。
 
 ## 自动为现有站点加 JS 注入
@@ -119,7 +121,7 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 
 把 [Nginx 示例](../examples/nginx/site.conf) 中的相关指令合并到**宿主机 Nginx** 的站点配置。示例入口是 `http://localhost:9080`，站点上游是 `http://127.0.0.1:8888`。用 Nginx 入口访问网站，`browserOrigin` 填入口的实际协议、主机和端口，末尾不带斜杠。
 
-- 通过 `sub_filter` 在 HTML 的 `</head>` 前加入同源 SDK。执行 `nginx -V` 检查当前 Nginx 是否包含 `http_sub_module`，该模块需要构建时启用。上游 HTML 要能返回未压缩内容，站点 CSP 需要允许加载和连接同源采集路由。浏览器采集需要 HTTPS 或浏览器认可的本地开发安全上下文。[Nginx sub_filter 文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html)
+- 通过 `sub_filter` 在 HTML 的 `</head>` 前加入同源 SDK。执行 `nginx -V` 检查当前 Nginx 是否包含 `http_sub_module`，该模块需要构建时启用。上游 HTML 要能返回未压缩内容，站点 CSP 需要允许加载和连接同源采集路由。[Nginx sub_filter 文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html)
 - `/__sailfin/` 代理到同机 Agent 的回环监听地址，默认 `127.0.0.1:8091`，通过 `SAILFIN_RELAY_ADDR` 修改。Nginx 固定覆盖 `X-Sailfin-Site`，值与站点 ID 一致。浏览器沿同源路径上报，探针把事件在本机进程内交给 Core。日志文件可按需省略。[Nginx proxy_pass 文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)
 - 示例启用了 `requireConsent`。网站已有同意组件时，可在同意后设置 `window.SAILFIN_CONSENT = true` 并派发 `new Event("sailfin:consent")`，撤回时把该值置为 `false` 并派发 `new Event("sailfin:revoke")`。在自有本机测试环境可以设为 `false`，用于页面打开后直接采集。
 - 在手动启用配置前执行 `nginx -t`。根据宿主机原有方式重载 Nginx。若原页面返回错误或没有可匹配的 HTML，先检查业务上游。常规网页继续由业务服务返回。

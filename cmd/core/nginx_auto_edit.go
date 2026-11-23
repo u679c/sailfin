@@ -17,11 +17,11 @@ type nginxInsertion struct {
 	text   string
 }
 
-func planAutomaticInjection(text, path, address, authPath string) (string, []core.NginxSiteResult, error) {
-	return planHostInjection(text, path, address, authPath, nil)
+func planAutomaticInjection(text, path, address, authPath, defaultIP string) (string, []core.NginxSiteResult, error) {
+	return planHostInjection(text, path, address, authPath, defaultIP, nil)
 }
 
-func planHostInjection(text, path, address, authPath string, selected map[string]bool) (string, []core.NginxSiteResult, error) {
+func planHostInjection(text, path, address, authPath, defaultIP string, selected map[string]bool) (string, []core.NginxSiteResult, error) {
 	nodes, err := parseNginx(text)
 	if err != nil {
 		return "", nil, err
@@ -38,8 +38,13 @@ func planHostInjection(text, path, address, authPath string, selected map[string
 			continue
 		}
 		report := core.NginxSiteResult{Site: nginxSiteLabel(server), File: path, Status: "skipped"}
-		report.SiteID, report.Origin = nginxSiteOrigin(server)
+		report.SiteID, report.Origin = nginxSiteOrigin(server, defaultIP)
 		if selected != nil && !selected[report.SiteID] {
+			continue
+		}
+		if report.SiteID == "" {
+			report.Reason = "无法确定站点的唯一访问地址，请配置 server_name 或明确的监听 IP"
+			reports = append(reports, report)
 			continue
 		}
 		inserts, reason := autoServerChanges(text, server, address, authPath)
@@ -59,38 +64,79 @@ func planHostInjection(text, path, address, authPath string, selected map[string
 	return text, reports, nil
 }
 
-func nginxSiteOrigin(server nginxNode) (string, string) {
+func nginxSiteOrigin(server nginxNode, defaultIP string) (string, string) {
 	names := nginxDirective(server.children, "server_name")
-	if len(names) != 1 || len(names[0].args) != 2 {
-		return "", ""
+	var host string
+	if len(names) != 0 {
+		if len(names) != 1 || len(names[0].args) != 2 {
+			return "", ""
+		}
+		host = strings.ToLower(names[0].args[1])
+		if host == "_" {
+			host = ""
+		}
 	}
-	host := strings.ToLower(names[0].args[1])
-	if !protocol.ValidSiteID(host) || strings.Contains(host, "_") {
+	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
+		host = ""
+		if !ip.IsUnspecified() {
+			host = ip.String()
+		}
+	} else if host != "" && (!protocol.ValidSiteID(host) || strings.Contains(host, "_")) {
 		return "", ""
 	}
 	scheme, port := "http", "80"
+	var listenIP string
+	ambiguousIP := false
 	for _, listen := range nginxDirective(server.children, "listen") {
 		if len(listen.args) < 2 {
 			continue
 		}
 		value := listen.args[1]
-		if _, candidate, err := net.SplitHostPort(value); err == nil {
-			value = candidate
+		boundHost := strings.Trim(value, "[]")
+		if address, candidate, err := net.SplitHostPort(value); err == nil {
+			boundHost, value = address, candidate
+		} else if net.ParseIP(boundHost) != nil {
+			value = "80"
+		}
+		if ip := net.ParseIP(boundHost); ip != nil && !ip.IsUnspecified() {
+			if listenIP != "" && listenIP != ip.String() {
+				ambiguousIP = true
+			}
+			listenIP = ip.String()
 		}
 		number, err := strconv.Atoi(value)
 		if err != nil || number < 1 || number > 65535 {
 			continue
 		}
-		port = strconv.Itoa(number)
 		if number == 443 || nginxHasArg([]nginxNode{listen}, "listen", "ssl") {
-			scheme = "https"
-			break
+			if scheme != "https" {
+				scheme, port = "https", strconv.Itoa(number)
+			}
+		} else if scheme == "http" {
+			port = strconv.Itoa(number)
 		}
 	}
-	if (scheme == "http" && port != "80") || (scheme == "https" && port != "443") {
-		host += ":" + port
+	if host == "" {
+		if ambiguousIP {
+			return "", ""
+		}
+		host = listenIP
+		if host == "" {
+			host = defaultIP
+		}
+		if host == "" {
+			return "", ""
+		}
 	}
-	return autoNginxSiteID(host), scheme + "://" + host
+	authority := host
+	if strings.Contains(host, ":") {
+		authority = "[" + host + "]"
+	}
+	if (scheme == "http" && port != "80") || (scheme == "https" && port != "443") {
+		host = net.JoinHostPort(host, port)
+		authority = host
+	}
+	return autoNginxSiteID(host), scheme + "://" + authority
 }
 
 func nginxSiteLabel(server nginxNode) string {
