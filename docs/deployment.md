@@ -4,13 +4,22 @@
 
 ## 生成发布包
 
-在 macOS 或 Linux 的 amd64、arm64 构建机上准备 Go ≥1.22、Node ≥20.19、npm 和能够构建 Linux 镜像的 Docker。macOS 打包还需要 C 工具链和 `codesign`。在与目标机匹配的系统和 CPU 架构上构建宿主机探针。Linux 安装包里的宿主机程序不依赖 glibc，SQLite 在镜像内运行。
+在 macOS 或 Linux 的 amd64、arm64 构建机上准备 Go ≥1.22、Node ≥20.19、npm 和能够构建目标架构 Linux 镜像的 Docker。默认按构建机平台打包。Linux 包可用 `--platform` 指定目标系统和架构，宿主机程序不依赖 glibc，SQLite 在镜像内运行。macOS 包仍在同架构的 macOS 上构建，需要 C 工具链和 `codesign`。
 
 ```sh
 npm ci
 ./aqua build install 0.1.1
 ./aqua build update 0.1.2 --from 99806fc
 ```
+
+从 Apple Silicon Mac 为 Linux amd64 服务器打包时，使用支持 amd64 构建的 Docker，并指定目标平台：
+
+```sh
+./aqua build install 0.1.1 --platform linux/amd64
+./aqua build update 0.1.2 --platform linux/amd64 --from 99806fc
+```
+
+签名更新包继续使用原有的 `SAILFIN_UPDATE_SIGNING_KEY`。
 
 以 Linux amd64 为例，新装包是 `dist/sailfin-0.1.1-linux-amd64/Sailfin-installer-<md5>.bin`，更新包是 `dist/sailfin-update-0.1.2-linux-amd64/Sailfin-update-<md5>.bin`。`--from` 可指定起始 Git 提交或标签，打包时把从该引用到当前 HEAD 的提交摘要加入说明。两种包均包含当前工作区构建的程序和镜像。命令会打印 SHA-256，可随发布说明提供给下载者。原有 `./scripts/package.sh 0.1.1` 和 `make package VERSION=0.1.1` 仍可生成新装包。
 

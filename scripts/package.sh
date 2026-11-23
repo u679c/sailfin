@@ -8,30 +8,45 @@ case "${1:-}" in
 esac
 version=${1:-${SAILFIN_PACKAGE_VERSION:-}}
 if [[ ! $version =~ ^[0-9][A-Za-z0-9._-]*$ ]]; then
-    printf 'Usage: ./aqua build install <version> | ./aqua build update <version> [--from <git-ref>]\n' >&2
+    printf 'Usage: ./aqua build install|update <version> [--platform <os/arch>] [--from <git-ref> (update only)]\n' >&2
     exit 2
 fi
 if [[ $# -gt 0 ]]; then shift; fi
+platform=''
+from=''
+while [[ $# -gt 0 ]]; do
+    if [[ $1 == --platform && -z $platform && -n ${2:-} ]]; then
+        platform=$2
+    elif [[ $1 == --from && $kind == update && -z $from && -n ${2:-} && $2 != --* ]]; then
+        from=$2
+    else
+        printf 'Invalid build argument: %s. See ./aqua for usage.\n' "$1" >&2
+        exit 2
+    fi
+    shift 2
+done
 base=''
-if [[ $kind == update && $# -eq 2 && $1 == --from ]]; then
-    base=$(git rev-parse --verify --end-of-options "$2^{commit}")
+if [[ -n $from ]]; then
+    base=$(git rev-parse --verify --end-of-options "$from^{commit}")
     if ! git merge-base --is-ancestor "$base" HEAD; then
         printf 'The base commit must be an ancestor of HEAD.\n' >&2
         exit 2
     fi
-    shift 2
-fi
-if [[ $# -ne 0 ]]; then
-    printf 'Unexpected build arguments. See ./aqua for usage.\n' >&2
-    exit 2
 fi
 
-os=$(go env GOHOSTOS)
-arch=$(go env GOHOSTARCH)
-case "$os/$arch" in
+host_os=$(go env GOHOSTOS)
+host_arch=$(go env GOHOSTARCH)
+platform=${platform:-$host_os/$host_arch}
+case "$platform" in
     darwin/amd64|darwin/arm64|linux/amd64|linux/arm64) ;;
-    *) printf 'Unsupported build platform: %s/%s\n' "$os" "$arch" >&2; exit 1 ;;
+    *) printf 'Unsupported package platform: %s\n' "$platform" >&2; exit 2 ;;
 esac
+os=${platform%/*}
+arch=${platform#*/}
+if [[ $os == darwin && $platform != "$host_os/$host_arch" ]]; then
+    printf 'Build macOS packages on a matching macOS host: %s\n' "$platform" >&2
+    exit 2
+fi
 ldflags=${SAILFIN_PACKAGE_LDFLAGS-}
 if [[ $os == darwin && -z ${SAILFIN_PACKAGE_LDFLAGS+set} ]]; then
     ldflags=-linkmode=external
