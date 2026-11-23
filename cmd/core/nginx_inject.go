@@ -206,8 +206,14 @@ func runNginx(ctx context.Context, command string, base []string, args ...string
 	defer cancel()
 	cmd := exec.CommandContext(ctx, command, append(append([]string{}, base...), args...)...)
 	output, err := cmd.Output()
+	var exit *exec.ExitError
+	if len(base) >= 2 && base[0] == "-e" && base[1] == "stderr" &&
+		errors.As(err, &exit) && bytes.Contains(exit.Stderr, []byte(`invalid option: "e"`)) {
+		// Some installed Nginx versions support -T but lack the error-log override.
+		cmd = exec.CommandContext(ctx, command, append(append([]string{}, base[2:]...), args...)...)
+		output, err = cmd.Output()
+	}
 	if err != nil {
-		var exit *exec.ExitError
 		if errors.As(err, &exit) {
 			return nil, fmt.Errorf("nginx %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(exit.Stderr)))
 		}

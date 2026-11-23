@@ -1,9 +1,31 @@
 package main
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestNginxRetriesWithoutUnsupportedErrorLogFlag(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), "nginx")
+	const script = `#!/bin/sh
+if [ "$1" = "-e" ]; then
+    echo 'nginx: invalid option: "e"' >&2
+    exit 1
+fi
+test "$#" -eq 3 && test "$1" = "-c" && test "$2" = "/etc/nginx/nginx.conf" && test "$3" = "-T" || exit 2
+printf 'configuration dump\n'
+`
+	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	output, err := runNginx(context.Background(), binary, []string{"-e", "stderr", "-c", "/etc/nginx/nginx.conf"}, "-T")
+	if err != nil || string(output) != "configuration dump\n" {
+		t.Fatalf("unexpected fallback result: %q, %v", output, err)
+	}
+}
 
 func TestAutomaticNginxPlanChangesOnlyCompatibleServers(t *testing.T) {
 	const before = `server {
