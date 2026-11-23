@@ -55,8 +55,8 @@ export function parse<T = any>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
-export const when = (v: unknown) =>
+export const when = (v: unknown, timeZone: string) =>
   v
-    ? new Date(Number(v)).toLocaleString("zh-CN", { hour12: false })
+    ? new Date(Number(v)).toLocaleString("zh-CN", { hour12: false, timeZone })
     : "尚未上报";
 export const number = (v: unknown) => Number(v || 0).toLocaleString("zh-CN");

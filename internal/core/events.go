@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata"
 )
 
 var browserTypes = map[string]bool{"page_view": true, "route_change": true, "click": true, "session_start": true, "page_hidden": true, "js_error": true, "unhandled_rejection": true, "performance_event": true}
@@ -286,7 +288,7 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 	jsonOut(w, 200, map[string]int{"accepted": accepted, "duplicates": len(events) - accepted - discarded})
 	return nil
 }
-func bounds(r *http.Request) (int64, int64, error) {
+func (s *Server) bounds(r *http.Request) (int64, int64, error) {
 	end := Now()
 	start := end - 86400000
 	var e error
@@ -302,13 +304,48 @@ func bounds(r *http.Request) (int64, int64, error) {
 			return 0, 0, fail(400, "invalid to")
 		}
 	}
+	if fromLocal, toLocal := r.URL.Query().Get("fromLocal"), r.URL.Query().Get("toLocal"); fromLocal != "" || toLocal != "" {
+		name, err := s.systemTimezone(r.Context())
+		if err != nil {
+			return 0, 0, err
+		}
+		loc, err := time.LoadLocation(name)
+		if err != nil {
+			return 0, 0, err
+		}
+		if toLocal != "" {
+			end, err = parseLocalTime(toLocal, loc)
+			if err != nil {
+				return 0, 0, err
+			}
+			if r.URL.Query().Get("from") == "" {
+				start = end - 86400000
+			}
+		}
+		if fromLocal != "" {
+			start, err = parseLocalTime(fromLocal, loc)
+			if err != nil {
+				return 0, 0, err
+			}
+		}
+	}
 	if start < 0 || end < start || end-start > int64(366*24*time.Hour/time.Millisecond) {
 		return 0, 0, fail(400, "time range must be within 366 days")
 	}
 	return start, end, nil
 }
+
+func parseLocalTime(value string, loc *time.Location) (int64, error) {
+	const layout = "2006-01-02T15:04"
+	t, err := time.ParseInLocation(layout, value, loc)
+	if err != nil || t.Format(layout) != value {
+		return 0, fail(400, "所选时区下的日期或时间无效")
+	}
+	return t.UnixMilli(), nil
+}
+
 func (s *Server) filter(r *http.Request) (string, []any, error) {
-	from, to, e := bounds(r)
+	from, to, e := s.bounds(r)
 	if e != nil {
 		return "", nil, e
 	}
@@ -463,13 +500,45 @@ func (s *Server) security(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 func (s *Server) system(w http.ResponseWriter, r *http.Request) error {
+	timezone, err := s.systemTimezone(r.Context())
+	if err != nil {
+		return err
+	}
 	var size int64
 	for _, suffix := range []string{"", "-wal", "-shm"} {
 		if f, e := os.Stat(s.cfg.DBPath + suffix); e == nil {
 			size += f.Size()
 		}
 	}
-	jsonOut(w, 200, map[string]any{"version": "0.1.1-dev", "databaseBytes": size, "diskFreeBytes": diskFree(filepath.Dir(s.cfg.DBPath)), "offlineSeconds": s.cfg.OfflineSeconds, "publicUrl": s.cfg.PublicURL, "database": "SQLite WAL", "dockerMode": "authorized host collector (read only)", "timezone": "UTC"})
+	jsonOut(w, 200, map[string]any{"version": "0.1.1-dev", "databaseBytes": size, "diskFreeBytes": diskFree(filepath.Dir(s.cfg.DBPath)), "offlineSeconds": s.cfg.OfflineSeconds, "publicUrl": s.cfg.PublicURL, "database": "SQLite WAL", "dockerMode": "authorized host collector (read only)", "timezone": timezone})
+	return nil
+}
+
+func (s *Server) systemTimezone(ctx context.Context) (string, error) {
+	var name string
+	err := s.DB.QueryRowContext(ctx, `SELECT COALESCE((SELECT value FROM system_settings WHERE name='timezone'),'UTC')`).Scan(&name)
+	return name, err
+}
+
+func (s *Server) setSystemTimezone(w http.ResponseWriter, r *http.Request) error {
+	var input struct {
+		Timezone string `json:"timezone"`
+	}
+	if err := decode(r, &input); err != nil {
+		return err
+	}
+	if input.Timezone == "" || input.Timezone == "Local" || len(input.Timezone) > 100 {
+		return fail(400, "请选择有效的时区")
+	}
+	if _, err := time.LoadLocation(input.Timezone); err != nil {
+		return fail(400, "请选择有效的时区")
+	}
+	if _, err := s.DB.ExecContext(r.Context(), `INSERT INTO system_settings(name,value) VALUES('timezone',?)
+		ON CONFLICT(name) DO UPDATE SET value=excluded.value`, input.Timezone); err != nil {
+		return err
+	}
+	s.audit("system.timezone", input.Timezone)
+	jsonOut(w, 200, input)
 	return nil
 }
 func (s *Server) backup(w http.ResponseWriter, r *http.Request) error {

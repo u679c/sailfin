@@ -14,6 +14,7 @@ CREATE INDEX IF NOT EXISTS events_type_time ON events(type,timestamp);
 CREATE TABLE IF NOT EXISTS daily_usage(project_id TEXT NOT NULL,day TEXT NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(project_id,day));
 CREATE TABLE IF NOT EXISTS security_counters(name TEXT PRIMARY KEY,count INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY,action TEXT NOT NULL,target TEXT NOT NULL,created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS system_settings(name TEXT PRIMARY KEY,value TEXT NOT NULL);
 INSERT OR IGNORE INTO migrations VALUES(1,unixepoch()*1000);
 
 CREATE TABLE IF NOT EXISTS project_configs(project_id TEXT NOT NULL,version INTEGER NOT NULL,config TEXT NOT NULL,created_at INTEGER NOT NULL,PRIMARY KEY(project_id,version));

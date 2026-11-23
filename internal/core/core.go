@@ -435,6 +435,7 @@ func (s *Server) routes() {
 		return s.pagedQuery(w, r, "SELECT * FROM audit_logs ORDER BY id DESC LIMIT ? OFFSET ?")
 	})
 	s.route("GET /api/v1/system/status", true, s.system)
+	s.route("PATCH /api/v1/system/timezone", true, s.setSystemTimezone)
 	s.route("POST /api/v1/system/backup", true, s.backup)
 	s.route("GET /api/v1/system/update/history", true, func(w http.ResponseWriter, r *http.Request) error {
 		return s.pagedQuery(w, r, `SELECT id, created_at, action FROM audit_logs

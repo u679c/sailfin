@@ -1045,6 +1045,42 @@ footer span {
   justify-self: start;
 }
 
+.system-info-panel {
+  padding: 16px 18px;
+}
+
+.system-info-panel .facts {
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-auto-rows: minmax(32px, auto);
+  align-items: center;
+  gap: 2px 16px;
+  margin: 0;
+}
+
+.timezone-settings {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timezone-settings > button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.timezone-settings > .ui-select {
+  flex: 0 1 216px;
+  min-width: 0;
+}
+
+.timezone-settings > button[type="submit"] {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .update-package-drop {
   width: 100%;
   min-height: 144px;

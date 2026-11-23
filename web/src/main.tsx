@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -18,10 +18,17 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { api, backup, setCSRF, parse, when, number, Row } from "./api";
+import { api, backup, setCSRF, parse, when as formatTime, number, Row } from "./api";
 import { Select } from "./components/Select";
 import "./style.css";
 const PAGE_SIZE = 20;
+const TimezoneContext = createContext("UTC");
+
+function useTimeFormatter() {
+  const timezone = useContext(TimezoneContext);
+  return (value: unknown) => formatTime(value, timezone);
+}
+
 function listTotal(rows: Row[] | null | undefined) {
   return (rows as (Row[] & { total?: number }) | null | undefined)?.total ?? rows?.length ?? 0;
 }
@@ -430,6 +437,11 @@ function App() {
     [authenticated, revision],
     authenticated ? 10000 : 0,
   );
+  const system = useData(
+    () => authenticated ? api<Row>("/system/status") : Promise.resolve(null),
+    [authenticated, revision],
+  );
+  const timezone = system.data?.timezone ?? "UTC";
   useEffect(() => {
     api("/auth/me")
       .then((rows) => {
@@ -442,12 +454,16 @@ function App() {
     return () => window.removeEventListener("sailfin:unauthorized", expired);
   }, []);
   const query = useMemo(() => {
-    const end = range === "custom" ? new Date(customTo).getTime() : NaN;
-    const start = range === "custom" ? new Date(customFrom).getTime() : NaN;
-    const to = Number.isFinite(end) ? end : Date.now();
-    const hours = range === "custom" ? 24 : Number(range);
-    const from = Number.isFinite(start) ? start : to - hours * 3600000;
-    return `?projectId=${encodeURIComponent(project)}&from=${from}&to=${to}`;
+    const filter = new URLSearchParams({ projectId: project });
+    if (range === "custom") {
+      if (customFrom) filter.set("fromLocal", customFrom);
+      if (customTo) filter.set("toLocal", customTo);
+    } else {
+      const to = Date.now();
+      filter.set("to", String(to));
+      filter.set("from", String(to - Number(range) * 3600000));
+    }
+    return `?${filter}`;
   }, [project, range, customFrom, customTo, revision]);
   if (authenticated === null)
     return <div className="loading">正在连接 Core…</div>;
@@ -475,6 +491,7 @@ function App() {
   const selectedSite = projects.data?.find((item) => item.id === project);
   const primarySection = settingsView ? "system-info" : section === "collection" ? "collection" : "sites";
   return (
+    <TimezoneContext.Provider value={timezone}>
     <div className="shell site-shell">
       <header className="topbar">
         <a className="brand" href={href("sites", { projectId: "" })} onClick={followLink}>
@@ -558,8 +575,9 @@ function App() {
                   {range === "custom" && <>
                     <label>开始：<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
                     <label>结束：<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
+                    <span className="site-meta">{timezone}</span>
                   </>}
-                  {selectedSite && <span className="site-meta">{selectedSite.last_event ? `最近上报：${when(selectedSite.last_event)}` : "等待首批数据"}</span>}
+                  {selectedSite && <span className="site-meta">{selectedSite.last_event ? `最近上报：${formatTime(selectedSite.last_event, timezone)}` : "等待首批数据"}</span>}
                 </div>
               </div>
           )}
@@ -578,16 +596,18 @@ function App() {
           {section === "sessions" && <Sessions query={query} revision={revision} />}
           {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
-          {section === "system-info" && <SystemInfo revision={revision} />}
+          {section === "system-info" && <SystemInfo state={system} revision={revision} onChange={refresh} />}
           {section === "system" && <SystemSettings />}
           </div>
           </div>
         </div>
       </main>
     </div>
+    </TimezoneContext.Provider>
   );
 }
 function Overview({ query, revision }: { query: string; revision: number }) {
+  const timezone = useContext(TimezoneContext);
   const state = useData(async () => {
     const [overview, trends] = await Promise.all([
       api("/stats/overview" + query),
@@ -628,7 +648,7 @@ function Overview({ query, revision }: { query: string; revision: number }) {
           <div className="panel">
             <div className="panel-title">
               <h2>采集趋势</h2>
-              <span className="muted">UTC · 每小时</span>
+              <span className="muted">{timezone} · 每小时</span>
             </div>
             {d.trends.length ? (
               <>
@@ -680,6 +700,8 @@ function Overview({ query, revision }: { query: string; revision: number }) {
   );
 }
 function Trend({ rows }: { rows: Row[] }) {
+  const when = useTimeFormatter();
+  const hour = (row: Row) => when(Date.parse(String(row.time).replace(" ", "T") + ":00Z"));
   const max = Math.max(
     1,
     ...rows.flatMap((r) => [Number(r.pv), Number(r.requests)]),
@@ -718,10 +740,10 @@ function Trend({ rows }: { rows: Row[] }) {
           strokeWidth="2.5"
         />
         <text x="30" y="212">
-          {rows[0]?.time}
+          {hour(rows[0])}
         </text>
         <text x="970" y="212" textAnchor="end">
-          {rows.at(-1)?.time}
+          {hour(rows[rows.length - 1])}
         </text>
       </svg>
       <details>
@@ -729,7 +751,7 @@ function Trend({ rows }: { rows: Row[] }) {
         <Table
           rows={rows}
           columns={[
-            { key: "time", label: "UTC 小时" },
+            { key: "time", label: "小时", render: hour },
             { key: "pv", label: "PV" },
             { key: "uv", label: "UV" },
             { key: "requests", label: "HTTP 请求" },
@@ -763,6 +785,7 @@ function DataTable({ path, query, revision, columns, bare = false, emptyLabel }:
   return bare ? content : <section className="panel list-panel">{content}</section>;
 }
 function Clicks({ query, revision }: { query: string; revision: number }) {
+  const when = useTimeFormatter();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   useEffect(() => setPage(1), [query]);
@@ -789,6 +812,7 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
   );
 }
 function Events({ query, revision, eventType = "" }: { query: string; revision: number; eventType?: string }) {
+  const when = useTimeFormatter();
   const type = eventType;
   const [page, setPage] = useState(1),
     [detail, setDetail] = useState<Row | null>(null);
@@ -856,6 +880,7 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
   );
 }
 function Sessions({ query, revision }: { query: string; revision: number }) {
+  const when = useTimeFormatter();
   const [page, setPage] = useState(1),
     [selected, setSelected] = useState<Row | null>(null),
     [eventPage, setEventPage] = useState(1);
@@ -952,6 +977,7 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
   );
 }
 function Security({ revision }: { revision: number }) {
+  const when = useTimeFormatter();
   const state = useData(() => api<Row>("/security/summary"), [revision]);
   const d = state.data;
   return (
@@ -1039,6 +1065,7 @@ function Security({ revision }: { revision: number }) {
   );
 }
 function LocalProbe({ revision }: { revision: number }) {
+  const when = useTimeFormatter();
   const [change, setChange] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1127,6 +1154,7 @@ const emptySite: SiteDraft = {
 };
 
 function NginxCollection({ revision, onChange }: { revision: number; onChange: () => void }) {
+  const when = useTimeFormatter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [drawer, setDrawer] = useState<"add" | "edit" | null>(null);
   const [tab, setTab] = useState<"manual" | "scan">("manual");
@@ -1380,14 +1408,18 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   );
 }
 
-function SystemInfo({ revision }: { revision: number }) {
-  const state = useData(() => api<Row>("/system/status"), [revision]);
+function SystemInfo({ state, revision, onChange }: {
+  state: ReturnType<typeof useData<Row | null>>;
+  revision: number;
+  onChange: () => void;
+}) {
+  const when = useTimeFormatter();
   const d = state.data;
   return (
     <>
       <AsyncPanel state={state}>
         {d && (
-          <section className="panel">
+          <section className="panel system-info-panel">
             <dl className="facts">
               <dt>版本</dt>
               <dd>{d.version}</dd>
@@ -1401,10 +1433,8 @@ function SystemInfo({ revision }: { revision: number }) {
                   ? `${(d.diskFreeBytes / 1024 / 1024 / 1024).toFixed(2)} GB`
                   : "Unknown"}
               </dd>
-              <dt>管理端 Origin</dt>
-              <dd>{d.publicUrl}</dd>
               <dt>统计时区</dt>
-              <dd>{d.timezone}</dd>
+              <dd><TimezoneSettings key={d.timezone} timezone={d.timezone} onChange={onChange} /></dd>
             </dl>
           </section>
         )}
@@ -1423,6 +1453,51 @@ function SystemInfo({ revision }: { revision: number }) {
             ]} />
         </section>
       </div>
+    </>
+  );
+}
+
+const commonTimezones = [
+  { value: "UTC", label: "UTC（协调世界时）" },
+  { value: "Asia/Shanghai", label: "Asia/Shanghai（北京时间）" },
+];
+
+function TimezoneSettings({ timezone, onChange }: { timezone: string; onChange: () => void }) {
+  const [selected, setSelected] = useState(timezone);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const values = Intl.supportedValuesOf?.("timeZone") ?? ["Asia/Tokyo", "Europe/London", "America/New_York"];
+  const options = [
+    ...commonTimezones,
+    ...[...new Set([...values, timezone])]
+      .filter((value) => !commonTimezones.some((option) => option.value === value))
+      .map((value) => ({ value, label: value })),
+  ];
+  return (
+    <>
+      <form className="timezone-settings" onSubmit={async (event) => {
+        event.preventDefault();
+        if (busy || selected === timezone) return;
+        setBusy(true);
+        setError("");
+        try {
+          await api("/system/timezone", {
+            method: "PATCH",
+            body: JSON.stringify({ timezone: selected }),
+          });
+          onChange();
+        } catch (error) {
+          setError((error as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}>
+        <Select ariaLabel="统计时区" value={selected} options={options} onChange={setSelected} disabled={busy} />
+        <button type="submit" className="primary" disabled={busy || selected === timezone}>
+          {busy ? "保存中…" : "保存"}
+        </button>
+      </form>
+      <ErrorBox message={error} />
     </>
   );
 }
