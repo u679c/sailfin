@@ -92,11 +92,15 @@ func (c *nginxAuto) browserSite(r *http.Request) (agent.Site, bool) {
 	if port != "" && !(u.Scheme == "http" && port == "80") && !(u.Scheme == "https" && port == "443") {
 		host += ":" + port
 	}
-	key := sha256.Sum256([]byte(host))
 	return agent.Site{
-		ID: fmt.Sprintf("nginx-%x", key[:16]), Name: strings.ToLower(u.Host),
+		ID: autoNginxSiteID(host), Name: strings.ToLower(u.Host),
 		BrowserOrigin: origin, RequireConsent: !isLoopbackHost(u.Hostname()),
 	}, true
+}
+
+func autoNginxSiteID(host string) string {
+	key := sha256.Sum256([]byte(host))
+	return fmt.Sprintf("nginx-%x", key[:16])
 }
 
 func (c *nginxAuto) Scan(ctx context.Context) (core.NginxPreview, error) {
@@ -162,7 +166,9 @@ func (c *nginxAuto) Scan(ctx context.Context) (core.NginxPreview, error) {
 			}
 			for _, report := range reports {
 				if report.Status == "ready" {
-					if blocked != "" {
+					if report.SiteID == "" {
+						report.Status, report.Reason = "skipped", "请手动添加没有单一明确域名的站点"
+					} else if blocked != "" {
 						report.Status, report.Reason = "skipped", blocked
 					} else {
 						plan.view.Ready++
@@ -187,7 +193,7 @@ func (c *nginxAuto) Scan(ctx context.Context) (core.NginxPreview, error) {
 	return plan.view, nil
 }
 
-func (c *nginxAuto) Apply(ctx context.Context, id string) (core.NginxPreview, error) {
+func (c *nginxAuto) Apply(ctx context.Context, id string, ids []string) (core.NginxPreview, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	plan := c.pending
@@ -200,6 +206,34 @@ func (c *nginxAuto) Apply(ctx context.Context, id string) (core.NginxPreview, er
 	if !c.ready.Load() {
 		return core.NginxPreview{}, errors.New("本机探针的转发端口未就绪，请查看探针状态")
 	}
+	available := map[string]int{}
+	for _, row := range plan.view.Sites {
+		if row.Status == "ready" {
+			available[row.SiteID]++
+		}
+	}
+	selected := map[string]bool{}
+	for _, id := range ids {
+		if available[id] == 0 || selected[id] {
+			return core.NginxPreview{}, errors.New("所选站点不在预览中，请重新扫描")
+		}
+		selected[id] = true
+	}
+	var files []*deploymentFile
+	for _, file := range plan.files {
+		next, _, err := planHostInjection(string(file.before), file.path, c.relay, c.authPath, selected)
+		if err != nil {
+			return core.NginxPreview{}, err
+		}
+		if next != string(file.before) {
+			file.after = []byte(next)
+			files = append(files, file)
+		}
+	}
+	if len(files) == 0 {
+		return core.NginxPreview{}, errors.New("请选择可接入的站点")
+	}
+	plan.files = files
 	c.pending = nil
 	for _, master := range plan.instances {
 		if err := verifyNginxMaster(master); err != nil {
@@ -264,9 +298,11 @@ func (c *nginxAuto) Apply(ctx context.Context, id string) (core.NginxPreview, er
 	plan.view.Ready = 0
 	for i := range plan.view.Sites {
 		report := &plan.view.Sites[i]
-		if report.Status == "ready" {
+		if report.Status == "ready" && selected[report.SiteID] {
 			report.Status = "applied"
 			report.Reason = "配置校验通过，已请求重载"
+		} else if report.Status == "ready" {
+			report.Status, report.Reason = "skipped", "本次未选择，可重新扫描后接入"
 		}
 	}
 	return plan.view, nil

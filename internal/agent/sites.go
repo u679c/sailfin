@@ -6,21 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"sailfin/internal/protocol"
 )
 
-type Site struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	AccessLog      string `json:"accessLog,omitempty"`
-	BrowserOrigin  string `json:"browserOrigin,omitempty"`
-	RequireConsent bool   `json:"requireConsent,omitempty"`
-}
+type Site = protocol.Site
 
 func LoadSites(path string) ([]Site, error) {
 	if path == "" {
@@ -98,4 +94,47 @@ func indexSites(sites []Site) (map[string]Site, error) {
 		index[site.ID] = site
 	}
 	return index, nil
+}
+
+func siteLogPaths(roots []string) []string {
+	var paths []string
+	seen := map[string]bool{}
+	visited := 0
+	for _, root := range roots {
+		absolute, err := filepath.Abs(root)
+		if err != nil {
+			continue
+		}
+		absolute, err = filepath.EvalSymlinks(absolute)
+		if err != nil {
+			continue
+		}
+		_ = filepath.WalkDir(absolute, func(path string, entry fs.DirEntry, err error) error {
+			visited++
+			if len(paths) >= 100 || visited > 3000 {
+				return filepath.SkipAll
+			}
+			if err != nil || path == absolute {
+				return nil
+			}
+			if entry.IsDir() {
+				child, _ := filepath.Rel(absolute, path)
+				if strings.HasPrefix(entry.Name(), ".") || strings.Count(child, string(filepath.Separator)) >= 4 {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			name := strings.ToLower(entry.Name())
+			if entry.Type().IsRegular() && strings.Contains(name, "access") && strings.HasSuffix(name, ".log") && !seen[path] && len(path) <= 2048 {
+				seen[path] = true
+				paths = append(paths, path)
+			}
+			return nil
+		})
+		if len(paths) >= 100 || visited > 3000 {
+			break
+		}
+	}
+	sort.Strings(paths)
+	return paths
 }

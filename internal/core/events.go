@@ -1,7 +1,9 @@
 package core
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -181,6 +183,7 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 		return e
 	}
 	defer tx.Rollback()
+	var enabledSince int64
 	if siteName != "" {
 		// Recheck the host inside the write transaction so revocation wins over a
 		// batch that has authenticated but has not started writing.
@@ -196,15 +199,14 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 			}
 			return fail(401, "invalid or disabled host")
 		}
-		if local && strings.HasPrefix(p, "site_") {
-			// Dynamic Host names from a default vhost must not create an
-			// unbounded number of site records.
-			var exists, total int
-			if e = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM projects WHERE id=?), (SELECT count(*) FROM (SELECT 1 FROM projects WHERE id GLOB 'site_*' LIMIT 500))", p).Scan(&exists, &total); e != nil {
-				return e
+		if local {
+			e = tx.QueryRowContext(r.Context(), "SELECT enabled_since FROM site_registry WHERE project_id=? AND enabled=1", p).Scan(&enabledSince)
+			if errors.Is(e, sql.ErrNoRows) {
+				jsonOut(w, 200, map[string]int{"accepted": 0, "duplicates": 0})
+				return nil
 			}
-			if exists == 0 && total >= 500 {
-				return fail(429, "site capacity reached")
+			if e != nil {
+				return e
 			}
 		}
 		// Only the entry HTML title names the site; inner-page and hash-router
@@ -212,7 +214,7 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 		title := ""
 		if source == "browser" {
 			for _, ev := range events {
-				if ev.Path != "/" && ev.Path != "/index.html" && ev.Path != "/index.htm" {
+				if ev.Timestamp < enabledSince || (ev.Path != "/" && ev.Path != "/index.html" && ev.Path != "/index.htm") {
 					continue
 				}
 				pagePath, _ := ev.Properties["pagePath"].(string)
@@ -248,7 +250,12 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 		return e
 	}
 	accepted := 0
+	discarded := 0
 	for _, ev := range events {
+		if ev.Timestamp < enabledSince {
+			discarded++
+			continue
+		}
 		var exists int
 		if e = tx.QueryRow("SELECT count(*) FROM events WHERE project_id=? AND id=?", p, ev.EventID).Scan(&exists); e != nil {
 			return e
@@ -276,7 +283,7 @@ func (s *Server) ingestBatch(w http.ResponseWriter, r *http.Request, p, source, 
 	if e = tx.Commit(); e != nil {
 		return e
 	}
-	jsonOut(w, 200, map[string]int{"accepted": accepted, "duplicates": len(events) - accepted})
+	jsonOut(w, 200, map[string]int{"accepted": accepted, "duplicates": len(events) - accepted - discarded})
 	return nil
 }
 func bounds(r *http.Request) (int64, int64, error) {
@@ -300,13 +307,16 @@ func bounds(r *http.Request) (int64, int64, error) {
 	}
 	return start, end, nil
 }
-func filter(r *http.Request) (string, []any, error) {
+func (s *Server) filter(r *http.Request) (string, []any, error) {
 	from, to, e := bounds(r)
 	if e != nil {
 		return "", nil, e
 	}
 	q := " timestamp>=? AND timestamp<=?"
 	args := []any{from, to}
+	if s.cfg.LocalOnly && r.URL.Query().Get("projectId") == "" {
+		q += " AND project_id IN (SELECT project_id FROM site_registry WHERE enabled=1)"
+	}
 	for _, v := range []struct{ key, col string }{{"projectId", "project_id"}, {"agentId", "agent_id"}, {"eventType", "type"}} {
 		if x := r.URL.Query().Get(v.key); x != "" {
 			q += " AND " + v.col + "=?"
@@ -353,14 +363,14 @@ func (s *Server) pagedQuery(w http.ResponseWriter, r *http.Request, query string
 	return nil
 }
 func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
-	q, a, e := filter(r)
+	q, a, e := s.filter(r)
 	if e != nil {
 		return e
 	}
 	return s.pagedQuery(w, r, "SELECT * FROM events WHERE "+q+" ORDER BY timestamp DESC,id LIMIT ? OFFSET ?", a...)
 }
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) error {
-	q, a, e := filter(r)
+	q, a, e := s.filter(r)
 	if e != nil {
 		return e
 	}
@@ -374,7 +384,7 @@ func (s *Server) sessionDetail(w http.ResponseWriter, r *http.Request) error {
 	return s.pagedQuery(w, r, "SELECT * FROM events WHERE project_id=? AND session_id=? ORDER BY timestamp,id LIMIT ? OFFSET ?", p, r.PathValue("id"))
 }
 func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) error {
-	q, a, e := filter(r)
+	q, a, e := s.filter(r)
 	if e != nil {
 		return e
 	}
@@ -459,7 +469,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) error {
 			size += f.Size()
 		}
 	}
-	jsonOut(w, 200, map[string]any{"version": "0.1.0-dev", "databaseBytes": size, "diskFreeBytes": diskFree(filepath.Dir(s.cfg.DBPath)), "offlineSeconds": s.cfg.OfflineSeconds, "publicUrl": s.cfg.PublicURL, "database": "SQLite WAL", "dockerMode": "authorized host collector (read only)", "timezone": "UTC"})
+	jsonOut(w, 200, map[string]any{"version": "0.1.1-dev", "databaseBytes": size, "diskFreeBytes": diskFree(filepath.Dir(s.cfg.DBPath)), "offlineSeconds": s.cfg.OfflineSeconds, "publicUrl": s.cfg.PublicURL, "database": "SQLite WAL", "dockerMode": "authorized host collector (read only)", "timezone": "UTC"})
 	return nil
 }
 func (s *Server) backup(w http.ResponseWriter, r *http.Request) error {

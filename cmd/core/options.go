@@ -11,6 +11,7 @@ type serveOptions struct {
 	addr, db, publicURL, webDir string
 	sitesFile, relayAddr        string
 	probeState, logRoots        string
+	openRestyContainer          string
 	offline                     int
 	nginx                       managedNginxOptions
 }
@@ -27,6 +28,7 @@ func serveFlags(args []string) (serveOptions, error) {
 	flags.StringVar(&o.relayAddr, "relay-addr", os.Getenv("SAILFIN_RELAY_ADDR"), "local probe listen address")
 	flags.StringVar(&o.probeState, "probe-state", os.Getenv("SAILFIN_PROBE_STATE"), "probe state directory")
 	flags.StringVar(&o.logRoots, "log-roots", os.Getenv("SAILFIN_LOG_ROOTS"), "comma-separated authorized log directories")
+	flags.StringVar(&o.openRestyContainer, "openresty-container", os.Getenv("SAILFIN_OPENRESTY_CONTAINER"), "authorized 1Panel OpenResty container name")
 	flags.IntVar(&o.offline, "offline-seconds", offline, "probe heartbeat timeout in seconds")
 	flags.StringVar(&o.nginx.upstream, "nginx-upstream", os.Getenv("SAILFIN_NGINX_UPSTREAM"), "optional isolated Nginx upstream")
 	flags.StringVar(&o.nginx.port, "nginx-port", os.Getenv("SAILFIN_NGINX_PORT"), "isolated Nginx port")

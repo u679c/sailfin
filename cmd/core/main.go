@@ -96,7 +96,10 @@ func run(ctx context.Context, options serveOptions, hostKey string) error {
 		if err != nil {
 			return err
 		}
-		nginx = auto
+		nginx, err = hostNginxIntegration(ctx, options, auto)
+		if err != nil {
+			return err
+		}
 	} else {
 		bridge = newHostBridge()
 		nginx = bridge

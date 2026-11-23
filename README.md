@@ -45,9 +45,9 @@ cp .env.example .env
 
 在 macOS 或 Linux 宿主机启动 Core 时会自动启动本机探针。在「探针管理 → 探针管理」可以查看心跳、配置站点数及暂停或恢复采集。探针支持读取授权的 Nginx 日志，以及接收 Nginx 注入的浏览器事件。两种来源使用同一站点 ID 时归入同一站点。
 
-后台收到首批有效数据后自动显示站点。首次使用时站点列表为空属于正常情况。完整配置见 [本机探针与 Nginx 接入](docs/host-nginx.md)。
+首页只展示已启用的站点，尚无事件的站点显示「等待首批数据」。关闭站点会停止写入事件并保留已有数据。完整配置见 [本机探针与 Nginx 接入](docs/host-nginx.md)。
 
-本地开发时启动 `make dev`，登录后打开 **探针管理 → 站点接入**，页面自动扫描本机正在运行的 Nginx 站点。查看预览后点击「确认接入」；需要更新结果时点击「重新扫描」。接入后仍使用原网址，无需逐个填写站点或环境变量。现有手动命令保留给特殊配置。[本机 Nginx 接入说明](docs/host-nginx.md)
+本地开发时启动 `make dev`，登录后打开 **探针管理 → 站点接入**。可以扫描本机 Nginx、批量勾选接入，也可以从「手动添加站点」配置已授权的访问日志。扫描和手动保存会先登记站点；启用采集后站点才会出现在首页。 [本机 Nginx 接入说明](docs/host-nginx.md)
 
 管理界面统一使用顶部导航和左右分栏：站点左侧搜索、选择站点，右侧查看概览、页面、点击行为、访问轨迹、事件记录和设备；探针管理左侧为站点接入和探针管理；系统设置左侧为运行设置和安全审计。右侧数据列表默认每页 20 条，左侧站点列表不分页。
 
@@ -55,7 +55,7 @@ cp .env.example .env
 
 ## 单机打包与部署
 
-在目标系统和架构对应的构建机上执行 `npm ci` 和 `./scripts/package.sh 0.1.0`。脚本在 `dist/` 对应的版本目录生成单个 `Sailfin-installer-<md5>.bin`，其中内嵌 Docker 镜像和宿主机探针。安装需要 Docker。宿主机 Nginx 用于自动注入，容器里的 OpenResty 可手动指定宿主机日志路径。进入安装目录执行 `./aqua start`，Core 和管理端在 Sailfin 专用 Docker 容器中运行，探针在宿主机运行。用 `./aqua status`、`./aqua stop` 和 `./aqua restart` 管理本次安装。 [部署步骤](docs/deployment.md)
+在目标系统和架构对应的构建机上执行 `npm ci` 和 `./scripts/package.sh 0.1.1`。脚本在 `dist/` 对应的版本目录生成单个 `Sailfin-installer-<md5>.bin`，其中内嵌 Docker 镜像和宿主机探针。安装需要 Docker。宿主机 Nginx 用于自动注入，容器里的 OpenResty 可手动指定宿主机日志路径。进入安装目录执行 `./aqua start`，Core 和管理端在 Sailfin 专用 Docker 容器中运行，探针在宿主机运行。用 `./aqua status`、`./aqua stop` 和 `./aqua restart` 管理本次安装。 [部署步骤](docs/deployment.md)
 
 ### 部署后续工作
 
@@ -69,7 +69,7 @@ make check   # TypeScript 无产物检查 + 编排脚本语法检查
 make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态文件
 ```
 
-`make build` 输出 `bin/sailfin-core` 和 `web/dist`，需要本机 C 工具链。`make package VERSION=0.1.0` 生成自解压安装文件，Linux 安装包的宿主机程序禁用 CGO，Docker 镜像内的 Core 保留 SQLite 支持。
+`make build` 输出 `bin/sailfin-core` 和 `web/dist`，需要本机 C 工具链。`make package VERSION=0.1.1` 生成自解压安装文件，Linux 安装包的宿主机程序禁用 CGO，Docker 镜像内的 Core 保留 SQLite 支持。
 
 用户自行构建后，可以不运行 Node 服务：
 

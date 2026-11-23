@@ -8,10 +8,10 @@
 
 ```sh
 npm ci
-./scripts/package.sh 0.1.0
+./scripts/package.sh 0.1.1
 ```
 
-也可运行 `make package VERSION=0.1.0`。以 Linux amd64 为例，产物位于 `dist/sailfin-0.1.0-linux-amd64/Sailfin-installer-<md5>.bin`。文件名使用完整的 32 位 MD5。镜像和探针都压缩到同一个安装文件中。脚本会打印 SHA-256，可随发布说明提供给下载者。
+也可运行 `make package VERSION=0.1.1`。以 Linux amd64 为例，产物位于 `dist/sailfin-0.1.1-linux-amd64/Sailfin-installer-<md5>.bin`。文件名使用完整的 32 位 MD5。镜像和探针都压缩到同一个安装文件中。脚本会打印 SHA-256，可随发布说明提供给下载者。
 
 再次打包时，脚本会在构建前清除 `dist/` 下同版本、同平台的旧产物目录。
 

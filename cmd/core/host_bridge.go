@@ -23,6 +23,7 @@ const hostBridgePath = "/_sailfin_host"
 type nginxJob struct {
 	ID       string
 	PlanID   string
+	SiteIDs  []string
 	Deadline time.Time
 }
 
@@ -42,24 +43,24 @@ func newHostBridge() *hostBridge {
 }
 
 func (b *hostBridge) Scan(ctx context.Context) (core.NginxPreview, error) {
-	return b.request(ctx, "")
+	return b.request(ctx, "", nil)
 }
 
-func (b *hostBridge) Apply(ctx context.Context, id string) (core.NginxPreview, error) {
+func (b *hostBridge) Apply(ctx context.Context, id string, selected []string) (core.NginxPreview, error) {
 	if id == "" {
 		return core.NginxPreview{}, errors.New("请选择有效的 Nginx 接入预览")
 	}
-	return b.request(ctx, id)
+	return b.request(ctx, id, selected)
 }
 
-func (b *hostBridge) request(ctx context.Context, planID string) (core.NginxPreview, error) {
+func (b *hostBridge) request(ctx context.Context, planID string, selected []string) (core.NginxPreview, error) {
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		deadline = time.Now().Add(15 * time.Second)
 	}
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
-	job := nginxJob{ID: core.Random(), PlanID: planID, Deadline: deadline}
+	job := nginxJob{ID: core.Random(), PlanID: planID, SiteIDs: selected, Deadline: deadline}
 	reply := make(chan nginxResult, 1)
 	b.mu.Lock()
 	if len(b.pending) != 0 {
@@ -183,7 +184,7 @@ func handleNextNginxJob(ctx context.Context, client *http.Client, baseURL, key s
 	if job.PlanID == "" {
 		result.Preview, err = nginx.Scan(operation)
 	} else {
-		result.Preview, err = nginx.Apply(operation, job.PlanID)
+		result.Preview, err = nginx.Apply(operation, job.PlanID, job.SiteIDs)
 	}
 	if err != nil {
 		result.Error = err.Error()

@@ -68,9 +68,14 @@ func (a *Agent) relayHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		site, ok := a.sites[branding.Header(r, "Site")]
+		sites := a.relaySites.Load().sites
+		site, ok := sites[branding.Header(r, "Site")]
 		if branding.Header(r, "Auto") != "" && a.opt.AutoBrowserSite != nil {
 			site, ok = a.opt.AutoBrowserSite(r)
+			if configured, exists := sites[site.ID]; ok && exists {
+				ok = configured.BrowserOrigin == site.BrowserOrigin
+				site = configured
+			}
 		}
 		if !ok || site.BrowserOrigin == "" {
 			http.NotFound(w, r)
@@ -94,8 +99,12 @@ func (a *Agent) relayHandler() http.Handler {
 			_, _ = w.Write(raw)
 		case "GET " + relayPrefix + "config":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = io.WriteString(w, `{"enabled":true,"batchSize":20,"intervalSeconds":5}`)
+			_ = json.NewEncoder(w).Encode(map[string]any{"enabled": a.siteEnabled(site.ID), "batchSize": 20, "intervalSeconds": 5})
 		case "POST " + relayPrefix + "events":
+			if !a.siteEnabled(site.ID) {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 			select {
 			case slots <- struct{}{}:
 				defer func() { <-slots }()

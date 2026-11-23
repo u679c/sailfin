@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"sailfin/internal/agent"
 	"sailfin/internal/protocol"
 )
 
@@ -39,7 +40,58 @@ func (s *Server) ProbeHandler() http.Handler {
 		if err != nil {
 			return err
 		}
-		jsonOut(w, 200, protocol.Config{Version: 1, Enabled: enabled, BatchSize: 50, IntervalSeconds: 5})
+		config := protocol.Config{Version: 1, Enabled: enabled, BatchSize: 50, IntervalSeconds: 5, SiteEnabled: make(map[string]bool)}
+		rows, err := s.DB.QueryContext(r.Context(), `SELECT a.project_id,a.site_id,p.name,
+			a.enabled,a.access_log,a.browser_origin,a.require_consent,a.source
+			FROM site_registry a JOIN projects p ON p.id=a.project_id`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var site protocol.Site
+			var projectID, source string
+			var active bool
+			if err := rows.Scan(&projectID, &site.ID, &site.Name, &active, &site.AccessLog, &site.BrowserOrigin, &site.RequireConsent, &source); err != nil {
+				return err
+			}
+			config.SiteEnabled[projectID] = active
+			if site.ID != "" && source != "scan" {
+				config.LocalSites = append(config.LocalSites, site)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		jsonOut(w, 200, config)
+		return nil
+	})
+	handle("POST /api/v1/agent/site-sources", func(w http.ResponseWriter, r *http.Request) error {
+		var sites []protocol.Site
+		if err := decode(r, &sites); err != nil {
+			return err
+		}
+		if err := agent.ValidateSites(sites); err != nil {
+			return fail(400, err.Error())
+		}
+		if err := s.storeSites(r.Context(), sites, "file", true); err != nil {
+			return err
+		}
+		jsonOut(w, 200, map[string]bool{"ok": true})
+		return nil
+	})
+	handle("POST /api/v1/agent/site-logs", func(w http.ResponseWriter, r *http.Request) error {
+		var paths []string
+		if err := decode(r, &paths); err != nil {
+			return err
+		}
+		if len(paths) > 100 {
+			return fail(400, "too many site log paths")
+		}
+		s.mu.Lock()
+		s.siteLogs = paths
+		s.mu.Unlock()
+		jsonOut(w, 200, map[string]bool{"ok": true})
 		return nil
 	})
 	handle("POST /api/v1/agent/heartbeat", func(w http.ResponseWriter, r *http.Request) error {

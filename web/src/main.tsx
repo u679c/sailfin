@@ -12,6 +12,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  LoaderCircle,
+  Plus,
+  X,
 } from "lucide-react";
 import { api, backup, setCSRF, parse, when, number, Row } from "./api";
 import { Select } from "./components/Select";
@@ -161,26 +164,39 @@ function Table({
   rows,
   onRow,
   manual = false,
+  loading,
+  keepPage = false,
+  emptyLabel = "暂无数据",
 }: {
   columns: {
     key: string;
     label: string;
+    width?: string;
     render?: (r: Row) => React.ReactNode;
   }[];
   rows: Row[];
   onRow?: (r: Row) => void;
   manual?: boolean;
+  loading?: boolean;
+  keepPage?: boolean;
+  emptyLabel?: string;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  useEffect(() => setPage(1), [rows]);
+  useEffect(() => {
+    setPage((previous) => keepPage ? Math.min(previous, Math.max(1, Math.ceil(rows.length / pageSize))) : 1);
+  }, [rows, pageSize, keepPage]);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)));
   const visible = manual ? rows : rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  if (!rows.length) return <Empty>暂无数据</Empty>;
-  return (
-    <>
+  if (!rows.length && loading === undefined) return <Empty>{emptyLabel}</Empty>;
+  const grid = (
     <div className="table-wrap">
       <table>
+        {columns.some((column) => column.width) && (
+          <colgroup>
+            {columns.map((column) => <col key={column.key} style={{ width: column.width }} />)}
+          </colgroup>
+        )}
         <thead>
           <tr>
             {columns.map((c) => (
@@ -189,6 +205,7 @@ function Table({
           </tr>
         </thead>
         <tbody>
+          {!rows.length && <tr><td colSpan={columns.length} className="table-refresh-empty">{emptyLabel}</td></tr>}
           {visible.map((r, i) => (
             <tr key={r.id || `${r.project_id}:${r.session_id || i}`}>
               {columns.map((c, j) => (
@@ -210,7 +227,20 @@ function Table({
         </tbody>
       </table>
     </div>
-    {!manual && <Pager page={currentPage} setPage={setPage} total={rows.length}
+  );
+  return (
+    <>
+    {loading === undefined ? grid : (
+      <div className="table-refresh-frame" aria-busy={loading}>
+        {grid}
+        {loading && (
+          <div className="table-refresh-overlay" role="status" aria-label="正在刷新站点">
+            <LoaderCircle size={20} aria-hidden="true" />
+          </div>
+        )}
+      </div>
+    )}
+    {!manual && rows.length > 0 && <Pager page={currentPage} setPage={setPage} total={rows.length}
       pageSize={pageSize} setPageSize={setPageSize} />}
     </>
   );
@@ -334,9 +364,6 @@ function Login({ onLogin }: { onLogin: () => void }) {
           {busy ? "正在登录…" : "登录"}
           <ArrowRight size={16} />
         </button>
-        <p className="hint">
-          首次登录凭据：数据目录 bootstrap-admin.txt
-        </p>
       </form>
     </div>
   );
@@ -512,7 +539,7 @@ function App() {
               </nav>
           )}
           </div>}
-          <div className={`detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) || (probeView && probePane === "probes") ? "list-workspace" : ""}`}>
+          <div className={`detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}`}>
           {siteView && (
               <div className="filterbar">
                 <div className="filters">
@@ -529,7 +556,7 @@ function App() {
                     <label>开始：<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
                     <label>结束：<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
                   </>}
-                  {selectedSite && <span className="site-meta">最近上报：{when(selectedSite.last_event)}</span>}
+                  {selectedSite && <span className="site-meta">{selectedSite.last_event ? `最近上报：${when(selectedSite.last_event)}` : "等待首批数据"}</span>}
                 </div>
               </div>
           )}
@@ -546,7 +573,7 @@ function App() {
           {section === "events" && <Events key="events" query={query} revision={revision} eventType={eventType} />}
           {section === "clicks" && <Clicks query={query} revision={revision} />}
           {section === "sessions" && <Sessions query={query} revision={revision} />}
-          {probeView && (probePane === "sites" ? <NginxCollection /> : <LocalProbe revision={revision} />)}
+          {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
           {section === "system" && <System revision={revision} />}
           </div>
@@ -1076,32 +1103,108 @@ type NginxScan = {
     file?: string;
     status: "ready" | "configured" | "skipped" | "applied";
     reason?: string;
+    siteId?: string;
+    origin?: string;
+    added?: boolean;
   }[];
 };
 
-function NginxCollection() {
+type SiteDraft = {
+  id: string;
+  name: string;
+  accessLog: string;
+  browserOrigin: string;
+  requireConsent: boolean;
+};
+
+const emptySite: SiteDraft = {
+  id: "", name: "", accessLog: "", browserOrigin: "", requireConsent: true,
+};
+
+function NginxCollection({ revision, onChange }: { revision: number; onChange: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [drawer, setDrawer] = useState<"add" | "edit" | null>(null);
+  const [tab, setTab] = useState<"manual" | "scan">("manual");
   const [plan, setPlan] = useState<NginxScan | null>(null);
-  const [pending, setPending] = useState<"scan" | "apply" | null>("scan");
+  const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const initialScan = useRef(false);
+  const [drawerError, setDrawerError] = useState("");
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [draft, setDraft] = useState<SiteDraft>(emptySite);
+  const registered = useData(() => api("/system/sites"), [revision], 10000);
+  const showLogs = drawer !== null && tab === "manual";
+  const logPaths = useData(() => showLogs ? api<string[]>("/system/site-logs") : Promise.resolve([]), [showLogs, revision]);
+  const rows = (registered.data ?? []).filter((row) => row.source !== "scan");
+
   useEffect(() => {
-    if (initialScan.current) return;
-    initialScan.current = true;
-    void scan();
-  }, []);
-  const statusLabel: Record<NginxScan["sites"][number]["status"], string> = {
-    ready: "可接入",
-    configured: "已配置",
-    skipped: "已跳过",
-    applied: "已请求重载",
-  };
+    const panel = dialog.current;
+    if (drawer && panel && !panel.open) panel.showModal();
+    if (!drawer && panel?.open) panel.close();
+  }, [drawer]);
+
+  function openDrawer(site?: Row) {
+    setTab("manual");
+    setPlan(null);
+    setChosen([]);
+    setDrawerError("");
+    if (site) {
+      setDraft({
+        id: site.siteId, name: site.name, accessLog: site.accessLog,
+        browserOrigin: site.browserOrigin, requireConsent: Boolean(site.requireConsent),
+      });
+      setDrawer("edit");
+    } else {
+      setDraft(emptySite);
+      setDrawer("add");
+    }
+  }
 
   async function scan() {
     setPlan(null);
-    setError("");
+    setChosen([]);
+    setDrawerError("");
     setPending("scan");
     try {
       setPlan(await api<NginxScan>("/system/nginx/scan", { method: "POST" }));
+      onChange();
+    } catch (error) {
+      setDrawerError((error as Error).message);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  const selectable = (row: NginxScan["sites"][number]) =>
+    Boolean(row.siteId && row.status === "ready" && !row.added);
+
+  async function apply() {
+    if (!plan || chosen.length === 0) return;
+    setDrawerError("");
+    setPending("apply");
+    try {
+      setPlan(await api<NginxScan>("/system/nginx/apply", {
+        method: "POST",
+        body: JSON.stringify({ id: plan.id, siteIds: chosen }),
+      }));
+      setChosen([]);
+      onChange();
+    } catch (error) {
+      setPlan(null);
+      setDrawerError((error as Error).message);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function toggle(row: Row) {
+    setPending(row.id);
+    setError("");
+    try {
+      await api(`/system/sites/${encodeURIComponent(row.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: !Boolean(row.enabled) }),
+      });
+      onChange();
     } catch (error) {
       setError((error as Error).message);
     } finally {
@@ -1109,83 +1212,165 @@ function NginxCollection() {
     }
   }
 
-  async function apply() {
-    if (!plan?.ready) return;
-    setError("");
-    setPending("apply");
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setDrawerError("");
+    if (drawer === "add" && rows.some((row) => row.siteId === draft.id.trim())) {
+      setDrawerError("此站点已添加，可在列表中编辑。");
+      return;
+    }
+    setPending("save");
     try {
-      setPlan(
-        await api<NginxScan>("/system/nginx/apply", {
-          method: "POST",
-          body: JSON.stringify({ id: plan.id }),
-        }),
-      );
+      await api("/system/sites", { method: "POST", body: JSON.stringify(draft) });
+      setDrawer(null);
+      onChange();
     } catch (error) {
-      setPlan(null);
-      setError((error as Error).message);
+      setDrawerError((error as Error).message);
     } finally {
       setPending(null);
     }
   }
 
   return (
-    <section className="panel" aria-label="站点接入">
-      <div className="panel-title">
-        <button
-          className="primary"
-          disabled={pending !== null}
-          onClick={() => void scan()}
-        >
-          {pending === "scan"
-            ? "扫描中…"
-            : "重新扫描"}
+    <section className="panel list-panel" aria-label="站点接入">
+      <div className="panel-title site-management-toolbar">
+        <button className="primary" disabled={pending !== null} onClick={() => openDrawer()}>
+          <Plus size={16} aria-hidden="true" />添加站点
         </button>
       </div>
       <ErrorBox message={error} />
-      {plan && (
-        <>
-          {plan.ready > 0 && (
-            <p>
-              接入 {plan.ready} 个站点，将备份配置并重载 Nginx。
-            </p>
-          )}
-          {plan.sites.some((site) => site.status === "applied") && (
-            <p role="status">
-              已请求重载，收到数据后显示在站点列表。
-            </p>
-          )}
-          <Table
-            rows={plan.sites}
-            columns={[
-              { key: "site", label: "站点" },
-              {
-                key: "status",
-                label: "状态",
-                render: (row) =>
-                  statusLabel[
-                    row.status as NginxScan["sites"][number]["status"]
-                  ],
-              },
-              { key: "reason", label: "说明" },
-              { key: "file", label: "配置文件" },
-            ]}
-          />
-          {plan.ready > 0 && (
-            <div className="actions nginx-confirm-actions">
-              <button
-                className="primary"
-                disabled={pending !== null}
-                onClick={() => void apply()}
-              >
-                {pending === "apply" ? "应用中…" : "确认接入"}
+      <ErrorBox message={registered.error} />
+        <Table rows={rows} loading={registered.loading} keepPage
+          emptyLabel={registered.data !== null || !registered.loading ? "暂无站点" : ""}
+          columns={[
+          { key: "name", label: "站点", width: "18%" },
+          { key: "source", label: "采集来源", width: "17%", render: (row) => [row.accessLog && "访问日志", row.browserOrigin && "浏览器事件"].filter(Boolean).join("、") || "已有采集" },
+          { key: "last_event", label: "最近上报", width: "35%", render: (row) => row.enabled && !row.last_event ? "等待首批数据" : when(row.last_event) },
+          {
+            key: "enabled", label: "采集状态", width: "20%", render: (row) => (
+              <button className="site-collection-switch" type="button" role="switch"
+                aria-checked={Boolean(row.enabled)} aria-label={`${row.name} 采集状态`}
+                aria-busy={pending === row.id} disabled={pending !== null}
+                onClick={() => void toggle(row)}>
+                <span aria-hidden="true" />
               </button>
-              <button disabled={pending !== null} onClick={() => setPlan(null)}>
-                取消
-              </button>
+            ),
+          },
+          {
+            key: "edit", label: "操作", width: "10%", render: (row) => row.siteId ? (
+              <button disabled={pending !== null} onClick={() => openDrawer(row)}>编辑</button>
+            ) : null,
+          },
+        ]} />
+      <dialog ref={dialog} className="site-drawer" aria-labelledby="site-drawer-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (pending === null) setDrawer(null);
+        }}>
+        {drawer && (
+          <div className="site-drawer-layout">
+            <header className="site-drawer-header">
+              <h2 id="site-drawer-title">{drawer === "edit" ? "编辑站点" : "添加站点"}</h2>
+              <button type="button" aria-label="关闭" className="site-drawer-close"
+                disabled={pending !== null} onClick={() => setDrawer(null)}><X size={20} aria-hidden="true" /></button>
+            </header>
+            {drawer === "add" && (
+              <div className="site-drawer-tabs" role="tablist" aria-label="添加方式"
+                onKeyDown={(event) => {
+                  if (pending !== null || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+                  event.preventDefault();
+                  const next = tab === "manual" ? "scan" : "manual";
+                  setTab(next);
+                  setDrawerError("");
+                  dialog.current?.querySelector<HTMLElement>(`#site-tab-${next}`)?.focus();
+                }}>
+                {([["manual", "手动添加"], ["scan", "一键扫描"]] as const).map(([key, label]) => (
+                  <button type="button" key={key} id={`site-tab-${key}`} role="tab" aria-selected={tab === key}
+                    aria-controls="site-drawer-panel" tabIndex={tab === key ? 0 : -1}
+                    disabled={pending !== null} onClick={() => { setTab(key); setDrawerError(""); }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div id="site-drawer-panel" className="site-drawer-body"
+              role={drawer === "add" ? "tabpanel" : undefined}
+              aria-labelledby={drawer === "add" ? `site-tab-${tab}` : undefined}>
+              <ErrorBox message={drawerError} />
+              {tab === "manual" ? (
+                <div className="form-panel">
+                  <form id="site-drawer-form" onSubmit={save}>
+                    <div className="form-grid">
+                      <label>站点标识<input required disabled={drawer === "edit" || pending !== null} pattern={"[a-z0-9][a-z0-9._\\-]*"} maxLength={120} placeholder="example.com" value={draft.id} onChange={(e) => setDraft({ ...draft, id: e.target.value })} /></label>
+                      <label>站点名称<input required maxLength={120} disabled={pending !== null} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
+                    </div>
+                    <label>访问日志路径<input placeholder="/path/to/access.log" disabled={pending !== null} value={draft.accessLog} onChange={(e) => setDraft({ ...draft, accessLog: e.target.value })} /></label>
+                    {!!logPaths.data?.length && <Select label="已授权日志" ariaLabel="选择已授权的访问日志文件"
+                      value={logPaths.data.includes(draft.accessLog) ? draft.accessLog : ""}
+                      options={[{ value: "", label: "选择日志文件" }, ...logPaths.data.map((path) => ({ value: path, label: path }))]}
+                      disabled={pending !== null}
+                      onChange={(path) => setDraft({ ...draft, accessLog: path })} />}
+                    <label>浏览器采集地址<input type="url" placeholder="https://example.com" disabled={pending !== null} value={draft.browserOrigin} onChange={(e) => setDraft({ ...draft, browserOrigin: e.target.value })} /></label>
+                    <p className="site-drawer-hint">至少填写一个采集来源。浏览器采集需要站点已配置同源 SDK 路由。</p>
+                    {draft.browserOrigin && <label className="checkbox"><input type="checkbox" checked={draft.requireConsent} disabled={pending !== null} onChange={(e) => setDraft({ ...draft, requireConsent: e.target.checked })} />等待站点同意信号</label>}
+                  </form>
+                </div>
+              ) : (
+                <>
+                  <button type="button" className={plan ? "" : "primary"} disabled={pending !== null} onClick={() => void scan()}>
+                    <Search size={16} aria-hidden="true" />
+                    {pending === "scan" ? "扫描中…" : plan ? "重新扫描" : "扫描站点"}
+                  </button>
+                  {plan && (
+                    <div className="site-scan-results" aria-live="polite">
+                      {!plan.sites.length && <p className="site-drawer-hint">未扫描到站点</p>}
+                      <ul aria-label="扫描结果">
+                        {plan.sites.map((row, index) => {
+                          const added = row.added || row.status === "configured" || row.status === "applied";
+                          const id = row.siteId;
+                          return (
+                            <li key={id || `${row.file || row.site}-${index}`}>
+                              <div className="site-scan-name">
+                                {id && selectable(row) && <input type="checkbox" className="site-select"
+                                  aria-label={`选择 ${row.site}`} checked={chosen.includes(id)} disabled={pending !== null}
+                                  onChange={(event) => setChosen((ids) => event.target.checked ? [...ids, id] : ids.filter((selected) => selected !== id))} />}
+                                <div>
+                                  <strong>{row.origin || row.site}</strong>
+                                  {row.reason && !added && <p className="site-drawer-hint">{row.reason}</p>}
+                                </div>
+                              </div>
+                              <span className={added ? "site-scan-added" : "site-scan-status"}>
+                                {added ? "已添加" : row.status === "ready" ? "可添加" : "已跳过"}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {plan.sites.some(selectable) && (
+                        <div className="actions site-scan-actions">
+                          <button type="button" className="primary" disabled={pending !== null || !chosen.length}
+                            onClick={() => void apply()}>
+                            {pending === "apply" ? "应用中…" : chosen.length ? `接入并启用 ${chosen.length} 个站点` : "接入并启用"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          )}
-        </>
-      )}
+            {tab === "manual" && (
+              <footer className="site-drawer-footer">
+                <button type="button" disabled={pending !== null} onClick={() => setDrawer(null)}>取消</button>
+                <button type="submit" form="site-drawer-form" className="primary"
+                  disabled={pending !== null || (!draft.accessLog.trim() && !draft.browserOrigin.trim())}>
+                  {pending === "save" ? "保存中…" : "保存站点"}
+                </button>
+              </footer>
+            )}
+          </div>
+        )}
+      </dialog>
     </section>
   );
 }
@@ -1300,12 +1485,11 @@ function PasswordSettings() {
           />
         </label>
         <label>
-          新密码（至少 12 字符）
+          新密码
           <input
             type="password"
             autoComplete="new-password"
             required
-            minLength={12}
             maxLength={256}
             value={next}
             onChange={(e) => setNext(e.target.value)}

@@ -150,7 +150,7 @@ else
     fail "宿主机程序无法在当前系统运行（退出码 ${core_status}）。"
 fi
 [[ -x $destination/aqua ]] || fail '安装包缺少 aqua 管理命令。'
-[[ -s $destination/image.tar && -s $destination/image-id ]] || fail '安装包缺少 Sailfin Docker 镜像。'
+[[ -s $destination/image.tar && -s $destination/image-ref ]] || fail '安装包缺少 Sailfin Docker 镜像或镜像标签。'
 trap - EXIT
 printf '\n安装完成。请在安装目录执行：\n  cd %q\n  ./aqua start\n' "$destination"
 exit 0

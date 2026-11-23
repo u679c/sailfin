@@ -1,7 +1,9 @@
 package protocol
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"regexp"
 )
 
@@ -23,13 +25,29 @@ type Source struct {
 	Fields map[string]string `json:"fields,omitempty"`
 }
 type Config struct {
-	Version         int      `json:"version"`
-	Enabled         bool     `json:"enabled"`
-	Sources         []Source `json:"sources"`
-	DockerTargets   []string `json:"dockerTargets"`
-	BatchSize       int      `json:"batchSize"`
-	IntervalSeconds int      `json:"intervalSeconds"`
+	Version         int             `json:"version"`
+	Enabled         bool            `json:"enabled"`
+	Sources         []Source        `json:"sources"`
+	DockerTargets   []string        `json:"dockerTargets"`
+	BatchSize       int             `json:"batchSize"`
+	IntervalSeconds int             `json:"intervalSeconds"`
+	LocalSites      []Site          `json:"localSites,omitempty"`
+	SiteEnabled     map[string]bool `json:"siteEnabled"`
 }
+
+type Site struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	AccessLog      string `json:"accessLog,omitempty"`
+	BrowserOrigin  string `json:"browserOrigin,omitempty"`
+	RequireConsent bool   `json:"requireConsent,omitempty"`
+}
+
+func SiteProjectID(id string) string {
+	sum := sha256.Sum256([]byte(id))
+	return fmt.Sprintf("site_%x", sum[:16])
+}
+
 type Container struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`

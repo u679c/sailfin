@@ -17,3 +17,13 @@ CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY,action TEXT NOT NUL
 INSERT OR IGNORE INTO migrations VALUES(1,unixepoch()*1000);
 
 CREATE TABLE IF NOT EXISTS project_configs(project_id TEXT NOT NULL,version INTEGER NOT NULL,config TEXT NOT NULL,created_at INTEGER NOT NULL,PRIMARY KEY(project_id,version));
+
+CREATE TABLE IF NOT EXISTS site_registry (
+  project_id TEXT PRIMARY KEY, site_id TEXT NOT NULL DEFAULT '', source TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 0, enabled_since INTEGER NOT NULL DEFAULT 0,
+  access_log TEXT NOT NULL DEFAULT '', browser_origin TEXT NOT NULL DEFAULT '',
+  require_consent INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO site_registry(project_id,source,enabled)
+  SELECT id,'legacy',1 FROM projects WHERE id GLOB 'site_*' AND status='active';
+INSERT OR IGNORE INTO migrations VALUES(2,unixepoch()*1000);

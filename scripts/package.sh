@@ -4,7 +4,7 @@ set -euo pipefail
 CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 version=${1:-${SAILFIN_PACKAGE_VERSION:-}}
 if [[ $# -gt 1 || ! $version =~ ^[0-9][A-Za-z0-9._-]*$ ]]; then
-    printf 'Usage: ./scripts/package.sh 0.1.0\n' >&2
+    printf 'Usage: ./scripts/package.sh 0.1.1\n' >&2
     exit 2
 fi
 
@@ -62,8 +62,8 @@ test -s "$image_context/web/index.html"
 image_tag="sailfin-package:$os-$arch-${stage##*.}"
 docker build --platform "linux/$arch" --tag "$image_tag" \
     --file deploy/Dockerfile "$image_context"
-docker image inspect --format '{{.Id}}' "$image_tag" > "$bundle/image-id"
-docker image save --output "$bundle/image.tar" "$(cat "$bundle/image-id")"
+docker image save --output "$bundle/image.tar" "$image_tag"
+printf '%s\n' "$image_tag" > "$bundle/image-ref"
 install -m 755 deploy/aqua "$bundle/aqua"
 install -m 644 examples/nginx/host-sites.example.json "$bundle/examples/sites.example.json"
 

@@ -19,6 +19,7 @@ import (
 	"sailfin/internal/parser"
 	"sailfin/internal/protocol"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -50,14 +51,20 @@ type State struct {
 	Dropped     int64             `json:"dropped"`
 }
 type Agent struct {
-	opt     Options
-	state   State
-	client  *http.Client
-	docker  *Docker
-	lastErr string
-	lock    *os.File
+	opt        Options
+	state      State
+	client     *http.Client
+	docker     *Docker
+	lastErr    string
+	lock       *os.File
+	sites      map[string]Site
+	local      bool
+	relaySites atomic.Pointer[relaySites]
+}
+
+type relaySites struct {
 	sites   map[string]Site
-	local   bool
+	enabled map[string]bool
 }
 type HTTPError struct {
 	Status int
@@ -96,6 +103,7 @@ func open(o Options, localID string) (*Agent, error) {
 		return nil, errors.New("agent state directory already in use")
 	}
 	a := &Agent{opt: o, client: &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, lock: lock, sites: sites, local: localID != ""}
+	a.relaySites.Store(&relaySites{sites: sites})
 	good := false
 	defer func() {
 		if !good {
@@ -225,6 +233,11 @@ func (a *Agent) register(ctx context.Context) error {
 	return nil
 }
 func (a *Agent) Run(ctx context.Context) error {
+	if a.local && len(a.opt.Sites) != 0 {
+		if err := a.request(ctx, http.MethodPost, "/api/v1/agent/site-sources", a.opt.Sites, nil); err != nil {
+			return fmt.Errorf("load existing local site sources: %w", err)
+		}
+	}
 	if !a.local {
 		if err := a.registerWithRetry(ctx); err != nil {
 			return err
@@ -324,6 +337,16 @@ func (a *Agent) syncConfig(ctx context.Context) {
 	}
 	a.state.Config = c
 	if a.local {
+		if c.SiteEnabled != nil {
+			sites, err := indexSites(c.LocalSites)
+			if err != nil {
+				a.lastErr = err.Error()
+				return
+			}
+			a.opt.Sites = c.LocalSites
+			a.sites = sites
+			a.relaySites.Store(&relaySites{sites: sites, enabled: c.SiteEnabled})
+		}
 		return
 	}
 	if e := a.save(); e != nil {
@@ -331,6 +354,11 @@ func (a *Agent) syncConfig(ctx context.Context) {
 	}
 }
 func (a *Agent) heartbeat(ctx context.Context) {
+	if a.local {
+		if err := a.request(ctx, http.MethodPost, "/api/v1/agent/site-logs", siteLogPaths(a.opt.LogRoots), nil); err != nil {
+			slog.Warn("could not update authorized site logs", "error", err)
+		}
+	}
 	host, _ := os.Hostname()
 	containers := []protocol.Container{}
 	if a.docker != nil {
@@ -351,7 +379,7 @@ func (a *Agent) heartbeat(ctx context.Context) {
 		values["configuredSites"] = len(a.sites)
 	}
 	metrics, _ := json.Marshal(values)
-	b := protocol.Heartbeat{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Version: "0.1.0-dev", Containers: containers, Metrics: metrics, Error: a.lastErr}
+	b := protocol.Heartbeat{Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Version: "0.1.1-dev", Containers: containers, Metrics: metrics, Error: a.lastErr}
 	if e := a.request(ctx, "POST", "/api/v1/agent/heartbeat", b, nil); e != nil {
 		slog.Warn("heartbeat failed", "error", e)
 	}
@@ -364,7 +392,7 @@ func (a *Agent) cycle(ctx context.Context) error {
 	if a.state.ProjectID == "" {
 		hasLogs := false
 		for _, site := range a.opt.Sites {
-			if site.AccessLog == "" {
+			if site.AccessLog == "" || !a.siteEnabled(site.ID) {
 				continue
 			}
 			hasLogs = true
@@ -438,6 +466,11 @@ func (a *Agent) cycle(ctx context.Context) error {
 		return e
 	}
 	return a.flush(ctx)
+}
+
+func (a *Agent) siteEnabled(id string) bool {
+	enabled := a.relaySites.Load().enabled
+	return enabled == nil || enabled[protocol.SiteProjectID(id)]
 }
 func (a *Agent) flush(ctx context.Context) error {
 	size := a.state.Config.BatchSize

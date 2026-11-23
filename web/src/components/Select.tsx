@@ -133,7 +133,7 @@ export function Select({ value, options, onChange, label, ariaLabel, disabled = 
           onPointerMove={() => setActive(index)} onPointerDown={(event) => event.preventDefault()} onClick={() => choose(index)}>
           <span>{option.label}</span>{option.value === value && <Check size={15} aria-hidden="true" />}
         </div>)}
-      </div>, document.body,
+      </div>, trigger.current?.closest("dialog") ?? document.body,
     )}
   </>;
 }

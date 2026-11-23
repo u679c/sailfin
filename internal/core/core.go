@@ -42,12 +42,14 @@ type bucket struct {
 	Count int
 }
 type Server struct {
-	DB     *sql.DB
-	cfg    Config
-	mux    *http.ServeMux
-	mu     sync.Mutex
-	limits map[string]bucket
-	slots  chan struct{}
+	DB       *sql.DB
+	cfg      Config
+	mux      *http.ServeMux
+	mu       sync.Mutex
+	siteMu   sync.Mutex
+	siteLogs []string
+	limits   map[string]bucket
+	slots    chan struct{}
 }
 type apiError struct {
 	Status  int
@@ -375,6 +377,10 @@ func (s *Server) routes() {
 	})
 	s.route("GET /api/v1/sites", true, s.collectedSites)
 	if s.cfg.LocalOnly {
+		s.route("GET /api/v1/system/sites", true, s.managedSites)
+		s.route("GET /api/v1/system/site-logs", true, s.siteLogPaths)
+		s.route("POST /api/v1/system/sites", true, s.saveSite)
+		s.route("PATCH /api/v1/system/sites/{id}", true, s.toggleSite)
 		s.route("GET /api/v1/system/probe", true, s.probeStatus)
 		s.route("PATCH /api/v1/system/probe", true, s.setProbeEnabled)
 		if s.cfg.Nginx != nil {
@@ -786,8 +792,11 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) error {
 	if e := decode(r, &b); e != nil {
 		return e
 	}
-	if len(b.New) < 12 || len(b.New) > 256 || len(b.Current) > 256 {
-		return fail(400, "new password must contain 12..256 characters")
+	if b.New == "" {
+		return fail(400, "new password is required")
+	}
+	if len(b.New) > 256 || len(b.Current) > 256 {
+		return fail(400, "password must not exceed 256 bytes")
 	}
 	c, _ := r.Cookie("sailfin_session")
 	var id, encoded string

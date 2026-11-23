@@ -239,10 +239,12 @@ func TestPasswordChangeAndExpiredEnrollment(t *testing.T) {
 		t.Fatal(e)
 	}
 	h.call("POST", "/agent/enroll", map[string]string{"token": token}, "", 401)
-	h.call("POST", "/auth/password", map[string]string{"currentPassword": "wrong", "newPassword": "new-test-password-12345"}, "", 403)
-	h.call("POST", "/auth/password", map[string]string{"currentPassword": testPassword, "newPassword": "new-test-password-12345"}, "", 200)
+	const newPassword = "short-test"
+	h.call("POST", "/auth/password", map[string]string{"currentPassword": testPassword, "newPassword": ""}, "", 400)
+	h.call("POST", "/auth/password", map[string]string{"currentPassword": "wrong", "newPassword": newPassword}, "", 403)
+	h.call("POST", "/auth/password", map[string]string{"currentPassword": testPassword, "newPassword": newPassword}, "", 200)
 	h.call("POST", "/auth/login", map[string]string{"name": "admin", "password": testPassword}, "", 401)
-	h.call("POST", "/auth/login", map[string]string{"name": "admin", "password": "new-test-password-12345"}, "", 200)
+	h.call("POST", "/auth/login", map[string]string{"name": "admin", "password": newPassword}, "", 200)
 }
 
 func BenchmarkIngest100(b *testing.B) {

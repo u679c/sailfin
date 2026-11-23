@@ -1,12 +1,12 @@
 # 当前交付状态
 
-2026-11-20，本机开发版本 0.1.0-dev。以下区分源码实现、自动测试与实机验收，不把它们合并成“已全部验证”。
+2026-11-20，本机开发版本 0.1.1-dev。以下区分源码实现、自动测试与实机验收，不把它们合并成“已全部验证”。
 
 ## 已实现（当前本机模式）
 
 - Go Core、内置本机探针、Browser SDK、React 管理端的 Monorepo；Core 启动时自动运行本机探针。
 - Makefile 提供 setup/dev/test/check/build/package/site/docker-test。独立 Agent 源码入口为 cmd/host-agent，保留在兼容范围。
-- `./scripts/package.sh 0.1.0` 生成单个 `Sailfin-installer-<md5>.bin` 并打印 SHA-256。安装包逐项检查系统、Docker 和 Nginx，然后解压内嵌镜像及宿主机探针。 [部署文档](deployment.md)
+- `./scripts/package.sh 0.1.1` 生成单个 `Sailfin-installer-<md5>.bin` 并打印 SHA-256。安装包逐项检查系统、Docker 和 Nginx，然后解压内嵌镜像及宿主机探针。 [部署文档](deployment.md)
 - 在安装目录执行 `./aqua start|stop|restart|status`，管理当前安装的 Core 容器和宿主机探针。
 - make dev 编排 Core 和 Web，Go/SQL/SDK JS 变化后重启 Core，Web 使用 Vite Fast Refresh；SDK 由 Go embed 提供源码。
 - SQLite WAL、启动时初始化 schema、持久化、按保留期清理与一致性在线备份。

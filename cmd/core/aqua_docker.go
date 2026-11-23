@@ -25,6 +25,7 @@ import (
 const containerKeyPath = "/run/sailfin-probe-key"
 
 var dockerDigest = regexp.MustCompile(`^[a-f0-9]{64}$`)
+var packagedImageTag = regexp.MustCompile(`^sailfin-package:[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$`)
 
 func runDocker(ctx context.Context, options serveOptions, ready func()) (runErr error) {
 	address := options.addr
@@ -83,21 +84,9 @@ func runDocker(ctx context.Context, options serveOptions, ready func()) (runErr 
 	}
 	options.db = filepath.Join(dataDir, filepath.Base(dbPath))
 
-	imageFile, err := os.ReadFile("image-id")
+	imageRef, err := loadPackagedImage(ctx, docker)
 	if err != nil {
 		return err
-	}
-	imageID := strings.TrimSpace(string(imageFile))
-	if !strings.HasPrefix(imageID, "sha256:") || !dockerDigest.MatchString(strings.TrimPrefix(imageID, "sha256:")) {
-		return errors.New("安装包中的 Docker 镜像 ID 无效")
-	}
-	if _, err := docker.output(ctx, "image", "inspect", imageID); err != nil {
-		if _, err := docker.output(ctx, "image", "load", "--input", "image.tar"); err != nil {
-			return err
-		}
-		if _, err := docker.output(ctx, "image", "inspect", imageID); err != nil {
-			return err
-		}
 	}
 	securityOptions, err := docker.output(ctx, "info", "--format", "{{json .SecurityOptions}}")
 	if err != nil {
@@ -126,7 +115,7 @@ func runDocker(ctx context.Context, options serveOptions, ready func()) (runErr 
 		webDir = "/opt/sailfin/custom-web"
 		args = append(args, "--mount", dockerMount(customWeb, webDir, true))
 	}
-	args = append(args, imageID, "container-serve",
+	args = append(args, imageRef, "container-serve",
 		"--addr", "0.0.0.0:8080", "--web-dir", webDir,
 		"--db", "/data/"+filepath.Base(options.db), "--public-url", options.publicURL,
 		"--offline-seconds", strconv.Itoa(options.offline))
@@ -182,10 +171,50 @@ func runDocker(ctx context.Context, options serveOptions, ready func()) (runErr 
 	return serveDockerProbe(ctx, client, coreURL, key, dataDir, options, containerDone, ready)
 }
 
+func loadPackagedImage(ctx context.Context, docker localDockerHost) (string, error) {
+	raw, err := os.ReadFile("image-ref")
+	var ref string
+	switch {
+	case err == nil:
+		ref = strings.TrimSpace(string(raw))
+		if !packagedImageTag.MatchString(ref) {
+			return "", errors.New("安装包中的 Docker 镜像标签无效")
+		}
+	case errors.Is(err, os.ErrNotExist):
+		// Older installations recorded the image ID instead of an archive tag.
+		raw, err = os.ReadFile("image-id")
+		if err != nil {
+			return "", err
+		}
+		ref = strings.TrimSpace(string(raw))
+		digest, ok := strings.CutPrefix(ref, "sha256:")
+		if !ok || !dockerDigest.MatchString(digest) {
+			return "", errors.New("安装包中的 Docker 镜像 ID 无效")
+		}
+	default:
+		return "", err
+	}
+
+	if _, err := docker.output(ctx, "image", "inspect", ref); err == nil {
+		return ref, nil
+	}
+	if _, err := docker.output(ctx, "image", "load", "--input", "image.tar"); err != nil {
+		return "", err
+	}
+	if _, err := docker.output(ctx, "image", "inspect", ref); err != nil {
+		return "", fmt.Errorf("镜像导入后无法找到 %s：%w", ref, err)
+	}
+	return ref, nil
+}
+
 func serveDockerProbe(ctx context.Context, client *http.Client, coreURL, key, dataDir string, options serveOptions, containerDone <-chan error, ready func()) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	auto, err := newNginxAuto(dataDir, options.relayAddr)
+	if err != nil {
+		return err
+	}
+	nginx, err := hostNginxIntegration(ctx, options, auto)
 	if err != nil {
 		return err
 	}
@@ -223,7 +252,7 @@ func serveDockerProbe(ctx context.Context, client *http.Client, coreURL, key, da
 	bridgeDone := make(chan struct{})
 	go func() {
 		defer close(bridgeDone)
-		pollNginx(ctx, client, coreURL, key, auto)
+		pollNginx(ctx, client, coreURL, key, nginx)
 	}()
 	defer func() {
 		cancel()
