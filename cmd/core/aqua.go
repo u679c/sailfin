@@ -25,8 +25,29 @@ const (
 	aquaTimeout = 2 * time.Minute
 )
 
+const aquaHelp = `Sailfin 服务管理
+
+  ./aqua start [参数]   启动服务
+  ./aqua stop           停止服务
+  ./aqua restart        按原启动配置重启
+  ./aqua status         查看服务状态
+  ./aqua -h, --help     显示帮助
+
+启动参数
+
+  参数加在 ./aqua start 后，例如 ./aqua start --public-url https://sailfin.example.com
+`
+
 func aquaCommand(args []string) error {
-	usage := errors.New("用法：./aqua start [serve 参数] | stop | restart | status")
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		fmt.Print(aquaHelp)
+		var options serveOptions
+		flags := newServeFlags(&options)
+		flags.SetOutput(os.Stdout)
+		flags.PrintDefaults()
+		return nil
+	}
+	usage := errors.New("用法：./aqua start [serve 参数] | stop | restart | status | -h | --help")
 	if len(args) == 0 {
 		return usage
 	}

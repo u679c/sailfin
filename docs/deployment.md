@@ -49,6 +49,7 @@ chmod +x "$installer" &&
 所有 `aqua` 命令都在安装目录下执行。`./aqua start` 会把内嵌镜像导入本机 Docker，启动当前安装专用的 Core 容器和宿主机探针。停止和重启仅操作当前安装创建的容器。日志写入安装目录中的 `.aqua/sailfin.log`。
 
 ```sh
+./aqua --help
 ./aqua start
 ./aqua status
 ./aqua restart
