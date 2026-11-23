@@ -35,6 +35,11 @@ func command(args []string) error {
 			return aquaCommand(args[1:])
 		case "aqua-serve":
 			return aquaServe(args[1:])
+		case "aqua-replace":
+			if len(args) != 2 {
+				return fmt.Errorf("aqua-replace requires a staging directory")
+			}
+			return replaceAquaRelease(args[1])
 		case "nginx-inject":
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()

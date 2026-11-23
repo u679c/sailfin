@@ -4,7 +4,9 @@ set -euo pipefail
 package='@PACKAGE@'
 platform='@PLATFORM@'
 payload_line='@PAYLOAD_LINE@'
+package_kind='@PACKAGE_KIND@'
 # sailfin-release-notes: @RELEASE_NOTES@
+destination=/data/sailfin
 
 fail() {
     printf 'Sailfin 安装失败：%s\n' "$*" >&2
@@ -27,20 +29,25 @@ rejected() {
     check_failed=1
 }
 
-case "${1:-}" in
-    --check)
+case "$package_kind:${1:-}" in
+    install:--check|update:--check)
         [[ $# -eq 1 ]] || fail '用法：安装文件 [--check]'
         printf '[1/1] 系统校验\n'
         ;;
-    '')
+    install:)
         [[ $# -eq 0 ]] || fail '用法：安装文件 [--check]'
         printf '[1/3] 系统校验\n'
         ;;
-    *) fail '用法：安装文件 [--check]';;
+    update:--apply)
+        [[ $# -eq 1 ]] || fail '用法：更新文件 --check 或 --apply'
+        printf '[1/4] 系统校验\n'
+        ;;
+    update:*) fail '用法：更新文件 --check 或 --apply' ;;
+    *) fail '用法：安装文件 [--check]' ;;
 esac
 
 missing_tools=''
-for tool in mkdir ps tar gzip tail rm; do
+for tool in dirname mkdir mktemp ps tar gzip tail rm rmdir; do
     command -v "$tool" >/dev/null 2>&1 || missing_tools+=" $tool"
 done
 if [[ -z $missing_tools ]]; then
@@ -109,17 +116,25 @@ else
     warning '无法读取宿主机 Nginx 信息。可在 sites.json 中指定访问日志路径。'
 fi
 
-if parent_path=$(dirname -- "$0") && parent=$(cd -- "$parent_path" && pwd -P); then
-    destination="$parent/$package"
-    if [[ ! -w $parent || ! -x $parent ]]; then
-        rejected "安装文件所在目录不可写：$parent"
-    elif [[ -e $destination || -L $destination ]]; then
-        rejected "安装目录已存在：$destination"
+if [[ $package_kind == update ]]; then
+    if [[ -L $destination || ! -d $destination || ! -w $destination ||
+          ! -x $destination/aqua || ! -x $destination/bin/sailfin-core ||
+          ! -s $destination/image.tar ||
+          ( ! -s $destination/image-ref && ! -s $destination/image-id ) ]]; then
+        rejected "未找到可更新的 Sailfin 安装：$destination"
     else
-        passed "安装目录可用：$destination"
+        passed "Sailfin 安装目录可更新：$destination"
     fi
 else
-    rejected '无法读取安装文件所在目录，请检查 dirname 和目录访问权限。'
+    parent=${destination%/*}
+    if [[ -e $destination || -L $destination ]]; then
+        rejected "安装目录已存在：$destination"
+    elif [[ -d $parent && -w $parent && -x $parent ]] ||
+         [[ ! -e $parent && ! -L $parent && -w / && -x / ]]; then
+        passed "安装目录可创建：$destination"
+    else
+        rejected "无法在 $parent 创建安装目录，请检查目录和写入权限。"
+    fi
 fi
 
 if [[ $check_failed -ne 0 ]]; then
@@ -132,7 +147,28 @@ if [[ ${1:-} == --check ]]; then
 fi
 
 umask 022
+if [[ $package_kind == update ]]; then
+    installer_path=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)/${0##*/}
+    cd -- "$destination"
+    update_lock="$destination/.sailfin-update.lock"
+    mkdir -- "$update_lock" || fail '已有更新在执行。'
+    stage=''
+    trap 'if [[ -n $stage ]]; then rm -rf -- "$stage"; fi; rmdir -- "$update_lock"' EXIT
+    stage=$(mktemp -d "$destination/.sailfin-update.XXXXXXXX")
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    printf '\n[2/4] 解压更新文件\n'
+    tail -n "+$payload_line" "$installer_path" | tar -xzvf - -C "$stage" --strip-components 1 ||
+        fail '无法解压更新包，请重新下载并核对 SHA-256。'
+    printf '\n[3/4] 停止服务并替换程序和镜像\n'
+    "$stage/bin/sailfin-core" aqua-replace "$stage" || fail '替换程序失败，请查看上方输出。'
+    printf '\n[4/4] 重启 Sailfin\n'
+    /data/sailfin/aqua restart || fail '新版本启动失败，旧版程序文件已保留，请检查 .aqua/sailfin.log。'
+    exit 0
+fi
+
 printf '\n[2/3] 解压安装文件到 %s\n' "$destination"
+mkdir -p -- "$parent" || fail "无法创建安装目录的父目录：$parent"
 mkdir -- "$destination" || fail "无法创建安装目录：$destination"
 trap 'rm -rf -- "$destination"' EXIT
 trap 'exit 130' INT

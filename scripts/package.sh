@@ -2,9 +2,27 @@
 set -euo pipefail
 
 CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+kind=install
+case "${1:-}" in
+    install|update) kind=$1; shift ;;
+esac
 version=${1:-${SAILFIN_PACKAGE_VERSION:-}}
-if [[ $# -gt 1 || ! $version =~ ^[0-9][A-Za-z0-9._-]*$ ]]; then
-    printf 'Usage: ./scripts/package.sh 0.1.1\n' >&2
+if [[ ! $version =~ ^[0-9][A-Za-z0-9._-]*$ ]]; then
+    printf 'Usage: ./aqua build install <version> | ./aqua build update <version> [--from <git-ref>]\n' >&2
+    exit 2
+fi
+if [[ $# -gt 0 ]]; then shift; fi
+base=''
+if [[ $kind == update && $# -eq 2 && $1 == --from ]]; then
+    base=$(git rev-parse --verify --end-of-options "$2^{commit}")
+    if ! git merge-base --is-ancestor "$base" HEAD; then
+        printf 'The base commit must be an ancestor of HEAD.\n' >&2
+        exit 2
+    fi
+    shift 2
+fi
+if [[ $# -ne 0 ]]; then
+    printf 'Unexpected build arguments. See ./aqua for usage.\n' >&2
     exit 2
 fi
 
@@ -27,10 +45,26 @@ if [[ -n ${SAILFIN_RELEASE_NOTES_FILE:-} ]]; then
         printf 'Release notes must be a file of at most 8192 bytes.\n' >&2
         exit 2
     fi
-    release_notes=$(base64 < "$notes_file" | tr -d '\r\n')
+    release_notes=$(cat -- "$notes_file")
 fi
+if [[ -n $base ]]; then
+    commits=$(git log --format='%h %s' "$base..HEAD")
+    if [[ -n $commits ]]; then
+        release_notes="${release_notes:+$release_notes"$'\n\n'"}$commits"
+    fi
+fi
+if [[ $(printf '%s' "$release_notes" | wc -c) -gt 8192 ]]; then
+    printf 'Combined release notes must not exceed 8192 bytes. Choose a shorter Git range.\n' >&2
+    exit 2
+fi
+release_notes=$(printf '%s' "$release_notes" | base64 | tr -d '\r\n')
 output="$PWD/dist"
 release="$output/$name"
+package_prefix=Sailfin-installer
+if [[ $kind == update ]]; then
+    release="$output/sailfin-update-$version-$os-$arch"
+    package_prefix=Sailfin-update
+fi
 if [[ -L $output ]]; then
     printf 'Release output must be a local directory: %s\n' "$output" >&2
     exit 1
@@ -82,6 +116,7 @@ cd "$stage/release"
 
 payload_line=$(( $(wc -l < "$installer_template") + 1 ))
 sed -e "s|@PACKAGE@|$name|g" -e "s|@PLATFORM@|$os/$arch|g" \
+    -e "s|@PACKAGE_KIND@|$kind|g" \
     -e "s|@RELEASE_NOTES@|$release_notes|g" \
     -e "s|@PAYLOAD_LINE@|$payload_line|g" "$installer_template" > installer.bin
 COPYFILE_DISABLE=1 tar -czf - -C "$stage" "$name" >> installer.bin
@@ -91,7 +126,7 @@ if command -v md5sum >/dev/null 2>&1; then
 else
     digest=$(md5 -q installer.bin)
 fi
-installer="Sailfin-installer-$digest.bin"
+installer="$package_prefix-$digest.bin"
 mv installer.bin "$installer"
 chmod 755 "$installer"
 
@@ -103,4 +138,4 @@ fi
 cd "$output"
 # Publish the finished installer as one directory.
 node -e 'require("node:fs").renameSync(process.argv[1], process.argv[2])' "$stage/release" "$release"
-printf 'Installer: %s/%s\nSHA-256: %s\n' "$release" "$installer" "${checksum%% *}"
+printf 'Package: %s/%s\nSHA-256: %s\n' "$release" "$installer" "${checksum%% *}"

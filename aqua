@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+project=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd -P)
+if [ "${1:-}" = build ] && { [ "${2:-}" = install ] || [ "${2:-}" = update ]; }; then
+    shift
+    exec bash "$project/scripts/package.sh" "$@"
+fi
+printf '用法：./aqua build install <版本> | ./aqua build update <版本> [--from <Git 引用>]\n' >&2
+exit 2

@@ -1555,6 +1555,9 @@ async function readUpdatePackage(file: File) {
     payload = newline + 1;
   }
   const header = decoder.decode(bytes.subarray(0, payload));
+  if (!/^package_kind='update'$/m.test(header)) {
+    throw new Error("此文件不是 Sailfin 更新包。");
+  }
   const platform = /^platform='((?:linux|darwin)\/(?:amd64|arm64))'$/m.exec(header)?.[1];
   const packageName = /^package='(sailfin-[0-9][A-Za-z0-9._-]*)'$/m.exec(header)?.[1];
   const suffix = platform && `-${platform.replace("/", "-")}`;

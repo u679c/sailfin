@@ -55,7 +55,7 @@ cp .env.example .env
 
 ## 单机打包与部署
 
-在目标系统和架构对应的构建机上执行 `npm ci` 和 `./scripts/package.sh 0.1.1`。脚本在 `dist/` 对应的版本目录生成单个 `Sailfin-installer-<md5>.bin`，其中内嵌 Docker 镜像和宿主机探针。安装需要 Docker。宿主机 Nginx 用于自动注入，容器里的 OpenResty 可手动指定宿主机日志路径。进入安装目录执行 `./aqua start`，Core 和管理端在 Sailfin 专用 Docker 容器中运行，探针在宿主机运行。用 `./aqua status`、`./aqua stop` 和 `./aqua restart` 管理本次安装。 [部署步骤](docs/deployment.md)
+在与目标系统和架构匹配的构建机上执行 `npm ci`。在源码根目录用 `./aqua build install 0.1.1` 生成新装包，或用 `./aqua build update 0.1.2` 生成原位更新包。产物位于 `dist/`，内嵌 Docker 镜像和宿主机探针。安装需要 Docker，安装目录为 `/data/sailfin`。进入该目录执行 `./aqua start` 后，Core 和管理端在 Sailfin 专用 Docker 容器中运行，探针在宿主机运行。宿主机 Nginx 用于自动注入，容器里的 OpenResty 可手动指定宿主机日志路径。 [部署步骤](docs/deployment.md)
 
 ### 部署后续工作
 

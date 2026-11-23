@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -20,6 +21,7 @@ const (
 	aquaDir     = ".aqua"
 	aquaSocket  = aquaDir + "/control.sock"
 	aquaLog     = aquaDir + "/sailfin.log"
+	aquaStartup = aquaDir + "/startup.json"
 	aquaTimeout = 2 * time.Minute
 )
 
@@ -45,27 +47,11 @@ func aquaCommand(args []string) error {
 		return usage
 	}
 
-	if err := os.Mkdir(aquaDir, 0700); err != nil && !errors.Is(err, os.ErrExist) {
-		return err
-	}
-	info, err := os.Lstat(aquaDir)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() || info.Mode().Perm()&0077 != 0 || info.Sys().(*syscall.Stat_t).Uid != uint32(os.Geteuid()) {
-		return fmt.Errorf("%s 必须是仅当前用户可访问的目录", aquaDir)
-	}
-	lock, err := os.OpenFile(aquaDir+"/command.lock", os.O_CREATE|os.O_RDWR, 0600)
+	lock, err := lockAqua()
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return errors.New("已有 aqua 命令正在执行")
-		}
-		return err
-	}
 
 	conn, err := net.DialTimeout("unix", aquaSocket, time.Second)
 	if err == nil {
@@ -89,7 +75,95 @@ func aquaCommand(args []string) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return aquaStart(args[1:])
+	startArgs := args[1:]
+	if action == "restart" {
+		startArgs, err = restoreAquaStartup()
+		if err != nil {
+			return err
+		}
+	}
+	return aquaStart(startArgs)
+}
+
+func lockAqua() (*os.File, error) {
+	if err := os.Mkdir(aquaDir, 0700); err != nil && !errors.Is(err, os.ErrExist) {
+		return nil, err
+	}
+	info, err := os.Lstat(aquaDir)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() || info.Mode().Perm()&0077 != 0 || info.Sys().(*syscall.Stat_t).Uid != uint32(os.Geteuid()) {
+		return nil, fmt.Errorf("%s 必须是仅当前用户可访问的目录", aquaDir)
+	}
+	lock, err := os.OpenFile(aquaDir+"/command.lock", os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		lock.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, errors.New("已有 aqua 命令正在执行")
+		}
+		return nil, err
+	}
+	return lock, nil
+}
+
+var startupEnv = []string{
+	"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG", "SAILFIN_ADDR", "SAILFIN_DB",
+	"SAILFIN_PUBLIC_URL", "SAILFIN_WEB_DIR", "SAILFIN_SITES_FILE", "SAILFIN_RELAY_ADDR",
+	"SAILFIN_PROBE_STATE", "SAILFIN_LOG_ROOTS", "SAILFIN_OPENRESTY_CONTAINER",
+	"SAILFIN_OFFLINE_SECONDS", "SAILFIN_NGINX_UPSTREAM", "SAILFIN_NGINX_PORT",
+	"SAILFIN_NGINX_SITE_ID", "SAILFIN_NGINX_SITE_NAME", "SAILFIN_NGINX_REQUIRE_CONSENT",
+}
+
+type aquaStartupConfig struct {
+	Args []string
+	Env  map[string]string
+}
+
+func saveAquaStartup(args []string) error {
+	config := aquaStartupConfig{Args: args, Env: make(map[string]string)}
+	for _, key := range startupEnv {
+		if value, set := os.LookupEnv(key); set {
+			config.Env[key] = value
+		}
+	}
+	file, err := os.CreateTemp(aquaDir, "startup-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	if err := errors.Join(json.NewEncoder(file).Encode(config), file.Close()); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), aquaStartup)
+}
+
+func restoreAquaStartup() ([]string, error) {
+	data, err := os.ReadFile(aquaStartup)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var config aquaStartupConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+	for _, key := range startupEnv {
+		if value, set := config.Env[key]; set {
+			err = os.Setenv(key, value)
+		} else {
+			err = os.Unsetenv(key)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return config.Args, nil
 }
 
 func aquaRequest(conn net.Conn, action string) error {
@@ -153,6 +227,9 @@ func aquaStart(args []string) error {
 			if err := aquaRequest(conn, "status"); err != nil {
 				_ = cmd.Process.Signal(syscall.SIGTERM)
 				return fmt.Errorf("Sailfin 启动失败，请查看 %s：%w", aquaLog, err)
+			}
+			if err := saveAquaStartup(args); err != nil {
+				fmt.Fprintf(os.Stderr, "无法保存 Aqua 启动配置：%v\n", err)
 			}
 			return nil
 		}
