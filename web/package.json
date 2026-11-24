@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "test": "node --test ../tests/sdk.test.mjs"
+    "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

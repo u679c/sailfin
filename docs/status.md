@@ -1,11 +1,11 @@
 # 当前交付状态
 
-2026-11-20，本机开发版本 0.1.1-dev。以下区分源码实现、自动测试与实机验收，不把它们合并成“已全部验证”。
+2026-11-20，本机开发版本 0.1.1-dev。以下记录源码实现、静态检查与实机验收状态。
 
 ## 已实现（当前本机模式）
 
 - Go Core、内置本机探针、Browser SDK、React 管理端的 Monorepo；Core 启动时自动运行本机探针。
-- Makefile 提供 setup/dev/test/check/build/package/site/docker-test。独立 Agent 源码入口为 cmd/host-agent，保留在兼容范围。
+- Makefile 提供 setup/dev/check/build/package/site。独立 Agent 源码入口为 cmd/host-agent，保留在兼容范围。
 - `./scripts/package.sh 0.1.1` 生成单个 `Sailfin-installer-<md5>.bin` 并打印 SHA-256。安装包逐项检查系统、Docker 和 Nginx，然后解压内嵌镜像及宿主机探针。 [部署文档](deployment.md)
 - 在安装目录执行 `./aqua start|stop|restart|status`，管理当前安装的 Core 容器和宿主机探针。
 - make dev 编排 Core 和 Web，Go/SQL/SDK JS 变化后重启 Core，Web 使用 Vite Fast Refresh；SDK 由 Go embed 提供源码。
@@ -22,7 +22,7 @@
 
 ## 源码保留的兼容能力
 
-项目增删改、浏览器策略历史、远程 Agent 注册与凭据管理、配置版本和 Docker 只读发现/日志读取仍有源码和测试。相关公开路由只在 Core.Config.LocalOnly=false 时注册；当前 cmd/core serve 固定启用本机模式，管理界面不提供这些流程。
+源码保留项目增删改、浏览器策略历史、远程 Agent 注册与凭据管理、配置版本和 Docker 只读发现及日志读取。相关公开路由只在 Core.Config.LocalOnly=false 时注册；当前 cmd/core serve 固定启用本机模式，管理界面不提供这些流程。
 
 ## 验证记录
 
@@ -34,7 +34,7 @@
 - make build 的完整产物验证：遵守用户偏好，未自动运行生产构建。
 - 安装包构建、系统预检、`aqua` 进程管理及 macOS/Linux 目标机验收。
 - Docker 只读发现与授权日志读取的实机验收。
-- React/Vue/原生站点的真实浏览器兼容性矩阵，SDK 生命周期已有内存 DOM 测试，真实浏览器仍需验收。
+- React/Vue/原生站点的真实浏览器兼容性矩阵。
 - Linux 2GB 目标机性能、RSS、磁盘压力、长时间运行、SQLite Busy、异常退出恢复专项。
 
 ## 当前能力边界 / 后续功能

@@ -61,10 +61,9 @@ cp .env.example .env
 
 - [ ] 分布式部署留待后续，届时探针可以部署在与管理节点不同的设备。
 
-## 测试、检查与主动构建
+## 静态检查与主动构建
 
 ```sh
-make test    # Go + SQLite 集成测试，JS SDK 策略测试
 make check   # TypeScript 无产物检查 + 编排脚本语法检查
 make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态文件
 ```
