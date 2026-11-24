@@ -4,6 +4,10 @@ Go + SQLite + React 的单机 Web 采集与分析平台。所有管理视图调�
 
 本机发布包的生成、部署与数据保留流程见 [单机打包与部署](docs/deployment.md)。完整范围和待验证项见 [交付状态](docs/status.md)，原需求保存在 [原始 PRD](docs/original-requirements.md)。
 
+## 功能预览
+
+[查看界面功能预览](docs/feature-preview.md)，包含站点分析、探针接入、备份管理和系统设置的界面截图。
+
 ## 开始开发
 
 需要 **Go ≥1.22、Node ≥20.19、npm、make、C 编译器**（SQLite 使用 CGO）。macOS 使用 Xcode Command Line Tools；Linux 使用系统编译工具链。Docker 可选，启动 Core 不需要 Docker。
