@@ -18,7 +18,7 @@ import (
 	"sailfin/internal/protocol"
 )
 
-const relayPrefix = "/__sailfin/"
+const relayPrefix = branding.BrowserRelayPrefix
 
 func (a *Agent) startRelay() (*http.Server, error) {
 	if a.opt.AutoBrowserSite != nil {
@@ -87,7 +87,7 @@ func (a *Agent) relayHandler() http.Handler {
 		}
 		path := relayPrefix + strings.TrimPrefix(r.URL.Path, prefix)
 		switch r.Method + " " + path {
-		case "GET " + relayPrefix + "boot.js":
+		case "GET " + branding.BrowserBootPath, "GET " + branding.PreviousBrowserBootPath:
 			a.serveBoot(w, site, prefix)
 		case "GET " + relayPrefix + "index.js", "GET " + relayPrefix + "policy.js":
 			raw, err := browsersdk.Files.ReadFile("src/" + strings.TrimPrefix(r.URL.Path, prefix))

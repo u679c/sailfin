@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"sailfin/internal/agent"
+	"sailfin/internal/branding"
 	"sailfin/internal/protocol"
 )
 
@@ -87,7 +88,7 @@ func nginxInject(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("Nginx: %s, server %s, location %s\n", target.path, *server, *location)
-	fmt.Printf("SDK: %s/__sailfin/boot.js → probe %s\n", *origin, address)
+	fmt.Printf("SDK: %s%s → probe %s\n", *origin, branding.BrowserBootPath, address)
 	fmt.Printf("Sailfin site: %s → %s\n", *id, siteConfig.path)
 	if !*apply {
 		fmt.Println("Preview only. Use --apply to write the files, validate and reload Nginx.")

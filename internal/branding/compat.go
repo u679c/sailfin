@@ -8,8 +8,14 @@ import (
 	"strings"
 )
 
-const LegacyRelayPrefix = "/__tracelite/"
-const LegacyHTML = `<script type="module" src="/__tracelite/boot.js"></script></head>`
+const (
+	BrowserRelayPrefix      = "/__sailfin/"
+	BrowserBootPath         = BrowserRelayPrefix + "sailfin-boot.js"
+	PreviousBrowserBootPath = BrowserRelayPrefix + "boot.js"
+
+	LegacyRelayPrefix = "/__tracelite/"
+	LegacyHTML        = `<script type="module" src="/__tracelite/boot.js"></script></head>`
+)
 
 // Environment gives explicitly configured Sailfin variables precedence.
 func Environment() {

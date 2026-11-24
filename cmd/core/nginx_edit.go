@@ -190,10 +190,11 @@ func editNginxSite(text, serverName, listen, location, id, relay string) (string
 		return "", false, fmt.Errorf("expected one location %s in server %s, found %d", location, serverName, len(html))
 	}
 	page := html[0]
-	if relayFound || nginxHasArg(page.children, "sub_filter", sailfinHTML) {
+	injected := nginxHasArg(page.children, "sub_filter", sailfinHTML) ||
+		nginxHasArg(page.children, "sub_filter", previousSailfinHTML)
+	if relayFound || injected {
 		relayBlock := nginxRelayBlock(id, relay)
-		if strings.Contains(text[server.start:server.end], relayBlock) &&
-			nginxHasArg(page.children, "sub_filter", sailfinHTML) {
+		if injected && strings.Contains(text[server.start:server.end], relayBlock) {
 			return text, false, nil
 		}
 		return "", false, fmt.Errorf("existing Sailfin route or injection conflicts with this configuration")
@@ -232,7 +233,10 @@ func editNginxSite(text, serverName, listen, location, id, relay string) (string
 	return updated, true, nil
 }
 
-const sailfinHTML = `<script type="module" src="/__sailfin/boot.js"></script></head>`
+const (
+	sailfinHTML         = `<script type="module" src="` + branding.BrowserBootPath + `"></script></head>`
+	previousSailfinHTML = `<script type="module" src="` + branding.PreviousBrowserBootPath + `"></script></head>`
+)
 
 func nginxRelayBlock(id, relay string) string {
 	return fmt.Sprintf(`

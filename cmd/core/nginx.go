@@ -214,10 +214,10 @@ http {
             proxy_pass http://%[4]s;
             proxy_set_header Host $http_host;
             proxy_set_header Accept-Encoding "";
-            sub_filter '</head>' '<script type="module" src="/__sailfin/boot.js"></script></head>';
+            sub_filter '</head>' '%[5]s';
             sub_filter_once on;
         }
     }
 }
-`, c.listen, c.relay, c.site.ID, c.upstream)
+`, c.listen, c.relay, c.site.ID, c.upstream, sailfinHTML)
 }

@@ -58,7 +58,7 @@ server {
 		"proxy_set_header Host ${host};",
 		"proxy_set_header Accept-Encoding \"\";",
 		"include \"" + auth + "\";",
-		"/__sailfin/boot.js",
+		"/__sailfin/sailfin-boot.js",
 	} {
 		if !strings.Contains(after, directive) {
 			t.Errorf("updated configuration lacks %q", directive)

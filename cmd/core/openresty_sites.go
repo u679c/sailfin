@@ -22,11 +22,14 @@ import (
 
 const openRestyHTTPDir = "/usr/local/openresty/nginx/conf/http.d"
 const openRestyVHosts = "/usr/local/openresty/nginx/conf/conf.d"
-const openRestyMap = `map $upstream_http_content_type $sailfin_html_head {
-    ~*^text/html '<script type="module" src="/__sailfin/boot.js"></script></head>';
+const openRestyMapPrefix = `map $upstream_http_content_type $sailfin_html_head {
+    ~*^text/html '`
+const openRestyMapSuffix = `';
     default '</head>';
 }
 `
+const openRestyMap = openRestyMapPrefix + sailfinHTML + openRestyMapSuffix
+const previousOpenRestyMap = openRestyMapPrefix + previousSailfinHTML + openRestyMapSuffix
 const openRestySDK = "sub_filter '</head>' $sailfin_html_head;"
 
 var containerName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
@@ -122,7 +125,9 @@ func (p *openRestyNginx) Scan(ctx context.Context) (core.NginxPreview, error) {
 	if err != nil {
 		return core.NginxPreview{}, err
 	}
-	if !within(common.path, mounts[openRestyHTTPDir]) || (common.exists && strings.TrimSpace(string(common.before)) != strings.TrimSpace(openRestyMap)) {
+	currentMap := strings.TrimSpace(string(common.before))
+	knownMap := currentMap == strings.TrimSpace(openRestyMap) || currentMap == strings.TrimSpace(previousOpenRestyMap)
+	if !within(common.path, mounts[openRestyHTTPDir]) || (common.exists && !knownMap) {
 		return core.NginxPreview{}, errors.New("已有不同的 Sailfin 公共注入配置")
 	}
 	common.after = []byte(openRestyMap)
