@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -25,6 +27,69 @@ func (s *Server) collectedSites(w http.ResponseWriter, r *http.Request) error {
 		FROM projects p
 		WHERE p.id GLOB 'site_*' OR EXISTS(SELECT 1 FROM events e WHERE e.project_id=p.id)
 		ORDER BY last_event DESC,p.created_at DESC LIMIT 500`)
+}
+
+func (s *Server) siteElements(w http.ResponseWriter, r *http.Request) error {
+	var selectors []byte
+	var browserConfigured bool
+	err := s.DB.QueryRowContext(r.Context(), `SELECT
+		COALESCE(json_extract(p.collection,'$.clickSelectors'),'[]'),
+		CASE WHEN ? THEN COALESCE(a.browser_origin,'')<>'' ELSE p.browser_enabled END
+		FROM projects p LEFT JOIN site_registry a ON a.project_id=p.id
+		WHERE p.id=? AND (?=0 OR a.project_id IS NOT NULL)`,
+		s.cfg.LocalOnly, r.PathValue("id"), s.cfg.LocalOnly).Scan(&selectors, &browserConfigured)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fail(404, "站点不存在")
+	}
+	if err != nil {
+		return err
+	}
+	jsonOut(w, 200, map[string]any{"clickSelectors": json.RawMessage(selectors), "browserConfigured": browserConfigured})
+	return nil
+}
+
+func (s *Server) saveSiteElements(w http.ResponseWriter, r *http.Request) error {
+	var settings struct {
+		ClickSelectors []string `json:"clickSelectors"`
+	}
+	if err := decode(r, &settings); err != nil {
+		return err
+	}
+	if settings.ClickSelectors == nil || len(settings.ClickSelectors) > 50 {
+		return fail(400, "请提供点击选择器列表，最多 50 条")
+	}
+	for i, selector := range settings.ClickSelectors {
+		selector = strings.TrimSpace(selector)
+		if !validClickSelector(selector) {
+			return fail(400, fmt.Sprintf("第 %d 条选择器无效，必须为单行且不超过 200 字节", i+1))
+		}
+		settings.ClickSelectors[i] = selector
+	}
+	selectors, err := json.Marshal(settings.ClickSelectors)
+	if err != nil {
+		return err
+	}
+	id := r.PathValue("id")
+	result, err := s.DB.ExecContext(r.Context(), `UPDATE projects SET collection=json_set(
+		CASE WHEN json_type(collection)='object' THEN collection ELSE '{}' END,
+		'$.clickSelectors',json(?)) WHERE id=?
+		AND (?=0 OR EXISTS(SELECT 1 FROM site_registry WHERE project_id=projects.id))`,
+		string(selectors), id, s.cfg.LocalOnly)
+	if err != nil {
+		return err
+	}
+	if count, err := result.RowsAffected(); err != nil {
+		return err
+	} else if count == 0 {
+		return fail(404, "站点不存在")
+	}
+	s.audit("site.elements.save", id)
+	jsonOut(w, 200, settings)
+	return nil
+}
+
+func validClickSelector(selector string) bool {
+	return strings.TrimSpace(selector) != "" && len(selector) <= 200 && !strings.ContainsAny(selector, "\r\n\x00")
 }
 
 func (s *Server) siteEvents(w http.ResponseWriter, r *http.Request) error {

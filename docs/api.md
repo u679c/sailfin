@@ -9,6 +9,8 @@
 | 方法和路径 | 用途 |
 |---|---|
 | GET /sites | 站点目录，按最近收到数据排序，最多 500 条 |
+| GET /sites/{id}/elements | 读取站点的 `{clickSelectors,browserConfigured}` |
+| PUT /sites/{id}/elements | 保存 `{clickSelectors: string[]}`，空数组恢复默认自动点击采集 |
 | GET /system/probe | 本机探针 ID、名称、状态、主机、版本、心跳和指标 |
 | PATCH /system/probe | `{enabled}`，暂停或恢复全部采集 |
 | POST /system/nginx/scan | Nginx 接入预览，页面进入时自动调用 |
@@ -58,7 +60,7 @@
 
 项目写入字段：`name, description, domains: string[], status: active|paused|archived, retentionDays, dailyQuota, browserEnabled, collection`。PATCH 当前按完整表单保存，不能仅传一个字段。域名列表实际为精确 Origin，含 scheme 与可选端口，不带尾斜线/路径。暂停和归档均拒绝新采集，已有数据保留至保留期。
 
-`collection` 支持：`eventTypes:string[], sampleRate:0..1, excludePaths:string[], excludeElements:string[], batchSize:1..100, intervalSeconds:1..100`。
+`collection` 支持：`eventTypes:string[], sampleRate:0..1, excludePaths:string[], excludeElements:string[], clickSelectors:string[], batchSize:1..100, intervalSeconds:1..100`。点击选择器最多 50 条，每条最多 200 UTF-8 字节。
 
 Host 配置：
 ```json

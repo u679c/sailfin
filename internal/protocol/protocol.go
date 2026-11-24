@@ -25,14 +25,15 @@ type Source struct {
 	Fields map[string]string `json:"fields,omitempty"`
 }
 type Config struct {
-	Version         int             `json:"version"`
-	Enabled         bool            `json:"enabled"`
-	Sources         []Source        `json:"sources"`
-	DockerTargets   []string        `json:"dockerTargets"`
-	BatchSize       int             `json:"batchSize"`
-	IntervalSeconds int             `json:"intervalSeconds"`
-	LocalSites      []Site          `json:"localSites,omitempty"`
-	SiteEnabled     map[string]bool `json:"siteEnabled"`
+	Version            int                 `json:"version"`
+	Enabled            bool                `json:"enabled"`
+	Sources            []Source            `json:"sources"`
+	DockerTargets      []string            `json:"dockerTargets"`
+	BatchSize          int                 `json:"batchSize"`
+	IntervalSeconds    int                 `json:"intervalSeconds"`
+	LocalSites         []Site              `json:"localSites,omitempty"`
+	SiteEnabled        map[string]bool     `json:"siteEnabled"`
+	SiteClickSelectors map[string][]string `json:"siteClickSelectors,omitempty"`
 }
 
 type Site struct {

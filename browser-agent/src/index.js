@@ -256,6 +256,16 @@ export function init(options) {
       const el = target.closest(clickTargets);
       if (!el || (config.excludeElements || []).some((s) => target.closest(s)))
         return;
+      if (
+        config.clickSelectors?.length &&
+        !config.clickSelectors.some((selector) => {
+          try {
+            return el.matches(selector);
+          } catch {
+            return false;
+          }
+        })
+      ) return;
       track("click", clickProperties(el));
     } catch {
       // Instrumentation must never interrupt the site's own click handler.

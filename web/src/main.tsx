@@ -37,6 +37,7 @@ const sections = [
   { id: "overview", name: "概览" },
   { id: "pages", name: "页面" },
   { id: "clicks", name: "点击行为" },
+  { id: "elements", name: "元素管理" },
   { id: "sessions", name: "访问轨迹" },
   { id: "events", name: "事件记录" },
   { id: "devices", name: "设备" },
@@ -46,7 +47,7 @@ const sections = [
   { id: "system-info", name: "系统信息" },
 ];
 const siteSections = sections.filter((s) =>
-  ["overview", "pages", "clicks", "sessions", "events", "devices"].includes(s.id),
+  ["overview", "pages", "clicks", "elements", "sessions", "events", "devices"].includes(s.id),
 );
 const eventLabels: Record<string, string> = {
   http_request: "HTTP 请求", page_view: "页面浏览", route_change: "页面切换",
@@ -560,7 +561,7 @@ function App() {
           )}
           </div>}
           <div className={`detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}`}>
-          {siteView && (
+          {siteView && section !== "elements" && (
               <div className="filterbar">
                 <div className="filters">
                   <Select label="时间" ariaLabel="时间范围" value={range}
@@ -593,6 +594,9 @@ function App() {
           ]} />}
           {section === "events" && <Events key="events" query={query} revision={revision} eventType={eventType} />}
           {section === "clicks" && <Clicks query={query} revision={revision} />}
+          {section === "elements" && (project
+            ? <SiteElements key={project} project={project} revision={revision} />
+            : <Empty>请从左侧选择要管理的站点</Empty>)}
           {section === "sessions" && <Sessions query={query} revision={revision} />}
           {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
@@ -808,6 +812,106 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
         ]} />
         <Pager page={page} setPage={setPage} total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize} />
       </AsyncPanel>
+    </section>
+  );
+}
+type SiteElementSettings = {
+  clickSelectors: string[];
+  browserConfigured: boolean;
+};
+
+function SiteElements({ project, revision }: { project: string; revision: number }) {
+  const path = `/sites/${encodeURIComponent(project)}/elements`;
+  const state = useData(() => api<SiteElementSettings>(path), [path, revision]);
+  return (
+    <AsyncPanel state={state}>
+      {state.data && <SiteElementForm key={JSON.stringify(state.data.clickSelectors)}
+        path={path} settings={state.data} />}
+    </AsyncPanel>
+  );
+}
+
+function SiteElementForm({ path, settings }: { path: string; settings: SiteElementSettings }) {
+  const [saved, setSaved] = useState(() => settings.clickSelectors.join("\n"));
+  const [draft, setDraft] = useState(saved);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [invalidSelector, setInvalidSelector] = useState(false);
+  const [feedback, setFeedback] = useState("");
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || draft === saved) return;
+    const selectors = new Set<string>();
+    const encoder = new TextEncoder();
+    const button = document.createElement("button");
+    setError("");
+    setInvalidSelector(false);
+    setFeedback("");
+    for (const [index, line] of draft.split(/\r?\n/).entries()) {
+      const selector = line.trim();
+      if (!selector) continue;
+      try {
+        if (encoder.encode(selector).length > 200 || /[\r\0]/.test(selector))
+          throw new Error();
+        button.matches(selector);
+      } catch {
+        setError(`第 ${index + 1} 行选择器无效，请检查 CSS 语法和长度（最多 200 字节）`);
+        setInvalidSelector(true);
+        return;
+      }
+      selectors.add(selector);
+    }
+    if (selectors.size > 50) {
+      setError("最多可保存 50 条选择器");
+      setInvalidSelector(true);
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await api<Pick<SiteElementSettings, "clickSelectors">>(path, {
+        method: "PUT",
+        body: JSON.stringify({ clickSelectors: [...selectors] }),
+      });
+      const text = result.clickSelectors.join("\n");
+      setSaved(text);
+      setDraft(text);
+      setFeedback("已保存，SDK 将在下次刷新配置时应用");
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="panel form-panel">
+      <form onSubmit={save}>
+        {!settings.browserConfigured && <span className="selector-help">此站点尚未配置浏览器采集，接入 SDK 后规则才会生效。</span>}
+        <label htmlFor="click-selectors">点击采集的 CSS 选择器
+          <textarea id="click-selectors" className="click-selectors" rows={7}
+            placeholder={"#checkout\nbutton[data-action=\"submit\"]"}
+            aria-describedby={error ? "click-selectors-help click-selectors-error" : "click-selectors-help"}
+            aria-invalid={invalidSelector || undefined}
+            spellCheck={false} value={draft} disabled={saving}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setError("");
+              setInvalidSelector(false);
+              setFeedback("");
+            }} />
+          <span id="click-selectors-help" className="selector-help">
+            每行一条。填写后只记录匹配控件的点击，留空使用默认自动采集。
+          </span>
+        </label>
+        {error && <div id="click-selectors-error" className="error" role="alert">{error}</div>}
+        <div className="actions">
+          <button className="primary" type="submit" disabled={saving || draft === saved}>
+            {saving ? "保存中…" : "保存规则"}
+          </button>
+        </div>
+        <div role="status" hidden={!feedback} className="notice">{feedback}</div>
+      </form>
     </section>
   );
 }

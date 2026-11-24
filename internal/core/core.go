@@ -393,6 +393,8 @@ func (s *Server) routes() {
 		return e
 	})
 	s.route("GET /api/v1/sites", true, s.collectedSites)
+	s.route("GET /api/v1/sites/{id}/elements", true, s.siteElements)
+	s.route("PUT /api/v1/sites/{id}/elements", true, s.saveSiteElements)
 	if s.cfg.LocalOnly {
 		s.route("GET /api/v1/system/sites", true, s.managedSites)
 		s.route("GET /api/v1/system/site-logs", true, s.siteLogPaths)
@@ -575,7 +577,7 @@ func (s *Server) saveProject(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 func validateCollection(m map[string]any) error {
-	allowed := map[string]bool{"eventTypes": true, "sampleRate": true, "excludePaths": true, "excludeElements": true, "batchSize": true, "intervalSeconds": true}
+	allowed := map[string]bool{"eventTypes": true, "sampleRate": true, "excludePaths": true, "excludeElements": true, "clickSelectors": true, "batchSize": true, "intervalSeconds": true}
 	for k, v := range m {
 		if !allowed[k] {
 			return fail(400, "unsupported collection field: "+k)
@@ -600,6 +602,9 @@ func validateCollection(m map[string]any) error {
 				t, ok := x.(string)
 				if !ok || len(t) > 200 {
 					return fail(400, "invalid collection list entry")
+				}
+				if k == "clickSelectors" && !validClickSelector(t) {
+					return fail(400, "invalid click selector")
 				}
 			}
 		}

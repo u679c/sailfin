@@ -729,6 +729,14 @@ tbody tr:hover {
   display: grid;
   gap: 20px;
 }
+.click-selectors {
+  font-family: ui-monospace, monospace;
+}
+.selector-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

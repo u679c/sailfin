@@ -64,8 +64,9 @@ type Agent struct {
 }
 
 type relaySites struct {
-	sites   map[string]Site
-	enabled map[string]bool
+	sites          map[string]Site
+	enabled        map[string]bool
+	clickSelectors map[string][]string
 }
 type HTTPError struct {
 	Status int
@@ -358,7 +359,7 @@ func (a *Agent) syncConfig(ctx context.Context) {
 			}
 			a.opt.Sites = c.LocalSites
 			a.sites = sites
-			a.relaySites.Store(&relaySites{sites: sites, enabled: c.SiteEnabled})
+			a.relaySites.Store(&relaySites{sites: sites, enabled: c.SiteEnabled, clickSelectors: c.SiteClickSelectors})
 		}
 		return
 	}

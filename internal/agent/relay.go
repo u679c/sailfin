@@ -68,7 +68,8 @@ func (a *Agent) relayHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		sites := a.relaySites.Load().sites
+		state := a.relaySites.Load()
+		sites := state.sites
 		site, ok := sites[branding.Header(r, "Site")]
 		if branding.Header(r, "Auto") != "" && a.opt.AutoBrowserSite != nil {
 			site, ok = a.opt.AutoBrowserSite(r)
@@ -99,7 +100,11 @@ func (a *Agent) relayHandler() http.Handler {
 			_, _ = w.Write(raw)
 		case "GET " + relayPrefix + "config":
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"enabled": a.siteEnabled(site.ID), "batchSize": 20, "intervalSeconds": 5})
+			projectID := protocol.SiteProjectID(site.ID)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"enabled": state.enabled == nil || state.enabled[projectID], "batchSize": 20, "intervalSeconds": 5,
+				"clickSelectors": state.clickSelectors[projectID],
+			})
 		case "POST " + relayPrefix + "events":
 			if !a.siteEnabled(site.ID) {
 				w.WriteHeader(http.StatusNoContent)

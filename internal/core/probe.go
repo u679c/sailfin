@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -40,9 +41,13 @@ func (s *Server) ProbeHandler() http.Handler {
 		if err != nil {
 			return err
 		}
-		config := protocol.Config{Version: 1, Enabled: enabled, BatchSize: 50, IntervalSeconds: 5, SiteEnabled: make(map[string]bool)}
+		config := protocol.Config{
+			Version: 1, Enabled: enabled, BatchSize: 50, IntervalSeconds: 5,
+			SiteEnabled: make(map[string]bool), SiteClickSelectors: make(map[string][]string),
+		}
 		rows, err := s.DB.QueryContext(r.Context(), `SELECT a.project_id,a.site_id,p.name,
-			a.enabled,a.access_log,a.browser_origin,a.require_consent,a.source
+			a.enabled,a.access_log,a.browser_origin,a.require_consent,a.source,
+			COALESCE(json_extract(p.collection,'$.clickSelectors'),'[]')
 			FROM site_registry a JOIN projects p ON p.id=a.project_id`)
 		if err != nil {
 			return err
@@ -52,10 +57,18 @@ func (s *Server) ProbeHandler() http.Handler {
 			var site protocol.Site
 			var projectID, source string
 			var active bool
-			if err := rows.Scan(&projectID, &site.ID, &site.Name, &active, &site.AccessLog, &site.BrowserOrigin, &site.RequireConsent, &source); err != nil {
+			var clickSelectors []byte
+			if err := rows.Scan(&projectID, &site.ID, &site.Name, &active, &site.AccessLog, &site.BrowserOrigin, &site.RequireConsent, &source, &clickSelectors); err != nil {
 				return err
 			}
 			config.SiteEnabled[projectID] = active
+			var selectors []string
+			if err := json.Unmarshal(clickSelectors, &selectors); err != nil {
+				return err
+			}
+			if len(selectors) > 0 {
+				config.SiteClickSelectors[projectID] = selectors
+			}
 			if site.ID != "" && source != "scan" {
 				config.LocalSites = append(config.LocalSites, site)
 			}
