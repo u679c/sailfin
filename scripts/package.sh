@@ -103,11 +103,18 @@ fi
 release_notes=$(printf '%s' "$release_notes" | base64 | tr -d '\r\n')
 sign_script="$PWD/scripts/sign-package.mjs"
 sign_key=${SAILFIN_UPDATE_SIGNING_KEY:-}
-public_key=''
-if [[ -n $sign_key ]]; then
-    if [[ $sign_key != /* ]]; then sign_key="$PWD/$sign_key"; fi
-    public_key=$(node "$sign_script" --public-key "$sign_key")
+key_mode=--public-key
+if [[ -z $sign_key ]]; then
+    config_dir=${XDG_CONFIG_HOME:-${HOME:+$HOME/.config}}
+    if [[ -z $config_dir ]]; then
+        printf 'Set SAILFIN_UPDATE_SIGNING_KEY to an Ed25519 private key file.\n' >&2
+        exit 2
+    fi
+    sign_key="$config_dir/sailfin/update-signing-key.pem"
+    key_mode=--ensure-public-key
 fi
+if [[ $sign_key != /* ]]; then sign_key="$PWD/$sign_key"; fi
+public_key=$(node "$sign_script" "$key_mode" "$sign_key")
 output="$PWD/dist"
 release="$output/$name"
 package_prefix=Sailfin-installer
@@ -135,7 +142,7 @@ mkdir -p "$bundle/bin" "$bundle/examples"
 if [[ -n $git_history ]]; then
     printf '%s\n' "$git_history" > "$bundle/git-history.txt"
 fi
-if [[ $kind == install && -n $public_key ]]; then
+if [[ $kind == install ]]; then
     printf '%s\n' "$public_key" > "$bundle/update-public.pem"
 fi
 # The Linux host process runs Aqua and the probe. SQLite runs inside the image.
@@ -177,7 +184,7 @@ sed -e "s|@PACKAGE@|$name|g" -e "s|@PLATFORM@|$os/$arch|g" \
     -e "s|@RELEASE_NOTES@|$release_notes|g" \
     -e "s|@PAYLOAD_LINE@|$payload_line|g" "$installer_template" > installer.bin
 COPYFILE_DISABLE=1 tar -czf - -C "$stage" "$name" >> installer.bin
-if [[ $kind == update && -n $sign_key ]]; then
+if [[ $kind == update ]]; then
     node "$sign_script" installer.bin "$sign_key"
 fi
 if command -v md5sum >/dev/null 2>&1; then
