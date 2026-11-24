@@ -145,24 +145,31 @@ fi
 if [[ $kind == install ]]; then
     printf '%s\n' "$public_key" > "$bundle/update-public.pem"
 fi
-# The Linux host process runs Aqua and the probe. SQLite runs inside the image.
-host_cgo=0
-if [[ $os == darwin ]]; then
-    host_cgo=1
-fi
-CGO_ENABLED="$host_cgo" GOOS="$os" GOARCH="$arch" \
-    go build -ldflags="$ldflags" -trimpath -o "$bundle/bin/sailfin-core" ./cmd/core
-if [[ $os == darwin ]]; then
-    codesign --force --sign - "$bundle/bin/sailfin-core"
-    codesign --verify --strict "$bundle/bin/sailfin-core"
-fi
+
+# Embed the same minified SDK in the host binary and the Docker image.
 image_context="$stage/image"
 mkdir -p "$image_context/cmd" "$image_context/browser-agent"
 cp go.mod go.sum "$image_context/"
 cp -R cmd/core "$image_context/cmd/"
 cp -R internal "$image_context/"
 cp browser-agent/embed.go "$image_context/browser-agent/"
-cp -R browser-agent/src "$image_context/browser-agent/"
+./node_modules/.bin/esbuild browser-agent/src/index.js browser-agent/src/policy.js \
+    --format=esm --minify --outdir="$image_context/browser-agent/src"
+
+# The Linux host process runs Aqua and the probe. SQLite runs inside the image.
+host_cgo=0
+if [[ $os == darwin ]]; then
+    host_cgo=1
+fi
+(
+    cd "$image_context"
+    CGO_ENABLED="$host_cgo" GOOS="$os" GOARCH="$arch" \
+        go build -ldflags="$ldflags" -trimpath -o "$bundle/bin/sailfin-core" ./cmd/core
+)
+if [[ $os == darwin ]]; then
+    codesign --force --sign - "$bundle/bin/sailfin-core"
+    codesign --verify --strict "$bundle/bin/sailfin-core"
+fi
 npm run build -w web -- --outDir "$image_context/web"
 test -s "$image_context/web/index.html"
 image_tag="sailfin-package:$os-$arch-${stage##*.}"

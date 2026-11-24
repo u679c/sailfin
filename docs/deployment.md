@@ -21,6 +21,8 @@ npm ci
 
 签名更新包继续使用原有的 `SAILFIN_UPDATE_SIGNING_KEY`。
 
+新装包和更新包都会在临时构建目录压缩 SDK、缩短内部变量名，再将同一份 SDK 嵌入宿主机探针和 Docker 镜像。发布包中的 SDK 不附带源映射文件。
+
 打包命令传入的版本号会写入 Core 和宿主机探针。打包成功后，脚本会将该值保存到 `internal/branding/VERSION`。省略版本参数时沿用此文件的值。
 
 以 Linux amd64 为例，新装包是 `dist/sailfin-0.1.1-linux-amd64/Sailfin-installer-<md5>.bin`，更新包是 `dist/sailfin-update-0.1.2-linux-amd64/Sailfin-update-<md5>.bin`。`--from` 可指定起始 Git 提交或标签，打包时把从该引用到当前 HEAD 的提交摘要加入说明。两种包均包含当前工作区构建的程序和镜像。命令会打印 SHA-256，可随发布说明提供给下载者。原有 `./scripts/package.sh 0.1.1` 和 `make package VERSION=0.1.1` 仍可生成新装包。
