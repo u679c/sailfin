@@ -455,14 +455,7 @@ func (s *Server) routes() {
 	s.route("GET /api/v1/system/status", true, s.system)
 	s.route("PATCH /api/v1/system/timezone", true, s.setSystemTimezone)
 	s.route("POST /api/v1/system/backup", true, s.backup)
-	s.route("GET /api/v1/system/update/history", true, func(w http.ResponseWriter, r *http.Request) error {
-		if err := s.importWebUpdates(r.Context()); err != nil {
-			return err
-		}
-		return s.pagedQuery(w, r, `SELECT id, created_at, action FROM audit_logs
-			WHERE action IN ('system.update.started', 'system.update.succeeded', 'system.update.failed', 'system.update.rolled_back')
-			ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
-	})
+	s.route("GET /api/v1/system/update/history", true, s.webUpdateHistory)
 	if s.cfg.WebDir != "" {
 		s.mux.Handle("/", dashboardFiles(s.cfg.WebDir))
 	}

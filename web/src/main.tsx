@@ -1562,8 +1562,10 @@ function SystemInfo({ state, revision, onChange }: {
           <h2>更新日志</h2>
           <DataTable bare path="/system/update/history" query="?" revision={revision}
             emptyLabel="暂无更新记录" columns={[
-              { key: "created_at", label: "更新时间", render: (row) => when(row.created_at) },
-              { key: "action", label: "状态", render: (row) => {
+              { key: "package_name", label: "更新包", render: (row) => row.package_name || "未知更新包" },
+              { key: "created_at", label: "最近更新", render: (row) => when(row.created_at) },
+              { key: "attempts", label: "尝试次数", render: (row) => number(row.attempts) },
+              { key: "action", label: "最近状态", render: (row) => {
                 const status = updateHistoryStatuses[row.action];
                 return status ? <span className={`badge ${status.tone}`}>{status.label}</span> : "—";
               } },
@@ -1620,7 +1622,7 @@ function TimezoneSettings({ timezone, onChange }: { timezone: string; onChange: 
 }
 
 const updateHistoryStatuses: Record<string, { label: string; tone: string }> = {
-  "system.update.started": { label: "开始更新", tone: "neutral" },
+  "system.update.started": { label: "更新中", tone: "neutral" },
   "system.update.succeeded": { label: "更新成功", tone: "good" },
   "system.update.failed": { label: "更新失败", tone: "warn" },
   "system.update.rolled_back": { label: "已回退", tone: "neutral" },

@@ -107,6 +107,37 @@ func (s *Server) webUpdateStatus(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+func (s *Server) webUpdateHistory(w http.ResponseWriter, r *http.Request) error {
+	if err := s.importWebUpdates(r.Context()); err != nil {
+		return err
+	}
+	return s.pagedQuery(w, r, `WITH job_events AS (
+		SELECT id, target, created_at, action,
+			row_number() OVER (PARTITION BY target ORDER BY created_at DESC, id DESC) AS latest
+		FROM audit_logs
+		WHERE action IN ('system.update.started', 'system.update.succeeded', 'system.update.failed', 'system.update.rolled_back')
+	), jobs AS (
+		SELECT e.id, e.created_at, e.action, p.name AS package_name,
+			COALESCE(p.name, e.target) AS package_key
+		FROM job_events e LEFT JOIN web_update_packages p ON p.job_id=e.target
+		WHERE e.latest=1
+	), packages AS (
+		SELECT *, count(*) OVER (PARTITION BY package_key) AS attempts,
+			row_number() OVER (PARTITION BY package_key ORDER BY created_at DESC, id DESC) AS latest
+		FROM jobs
+	)
+	SELECT id, package_name, attempts, created_at, action FROM packages
+	WHERE latest=1 ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
+}
+
+func (s *Server) rememberUpdatePackage(ctx context.Context, job update.Job) error {
+	if !update.ID.MatchString(job.ID) || !update.PackageName.MatchString(job.Name) {
+		return nil
+	}
+	_, err := s.DB.ExecContext(ctx, "INSERT OR IGNORE INTO web_update_packages(job_id,name) VALUES(?,?)", job.ID, job.Name)
+	return err
+}
+
 func (s *Server) importWebUpdates(ctx context.Context) error {
 	dir := update.Dir(s.cfg.DBPath)
 	entries, err := os.ReadDir(dir)
@@ -116,6 +147,14 @@ func (s *Server) importWebUpdates(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	active, err := update.ReadJob(filepath.Join(dir, "active", "job.json"))
+	if err == nil {
+		if err := s.rememberUpdatePackage(ctx, active); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	for _, entry := range entries {
 		name := entry.Name()
 		id, ok := cutJobResult(name)
@@ -123,11 +162,17 @@ func (s *Server) importWebUpdates(ctx context.Context) error {
 			continue
 		}
 		job, err := update.ReadJob(filepath.Join(dir, name))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
 		if job.ID != id || (job.Status != "succeeded" && job.Status != "failed") {
 			continue
+		}
+		if err := s.rememberUpdatePackage(ctx, job); err != nil {
+			return err
 		}
 		action := "system.update." + job.Status
 		if _, err := s.DB.ExecContext(ctx, `INSERT INTO audit_logs(action,target,created_at)

@@ -31,6 +31,7 @@
 | GET /security/summary | 限流/拒绝计数、UTC 今日配额、管理审计 |
 | GET /security/audit | 分页管理审计 |
 | GET /system/status | 服务与数据库状态 |
+| GET /system/update/history | 更新包分页列表，返回包名、尝试次数和最近状态 |
 | POST /system/backup | 下载 SQLite 一致性快照 |
 
 ## 点击统计

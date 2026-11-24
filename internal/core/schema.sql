@@ -28,3 +28,8 @@ CREATE TABLE IF NOT EXISTS site_registry (
 INSERT OR IGNORE INTO site_registry(project_id,source,enabled)
   SELECT id,'legacy',1 FROM projects WHERE id GLOB 'site_*' AND status='active';
 INSERT OR IGNORE INTO migrations VALUES(2,unixepoch()*1000);
+
+CREATE TABLE IF NOT EXISTS web_update_packages (
+  job_id TEXT PRIMARY KEY, name TEXT NOT NULL
+);
+INSERT OR IGNORE INTO migrations VALUES(3,unixepoch()*1000);
