@@ -6,6 +6,8 @@
 
 在 macOS 或 Linux 的 amd64、arm64 构建机上准备 Go ≥1.22、Node ≥20.19、npm 和能够构建目标架构 Linux 镜像的 Docker。默认按构建机平台打包。Linux 包可用 `--platform` 指定目标系统和架构，宿主机程序不依赖 glibc，SQLite 在镜像内运行。macOS 包仍在同架构的 macOS 上构建，需要 C 工具链和 `codesign`。
 
+以下命令中的版本号和 Git 引用是示例。
+
 ```sh
 npm ci
 ./aqua build install 0.1.1
@@ -19,7 +21,7 @@ npm ci
 ./aqua build update 0.1.2 --platform linux/amd64 --from 99806fc
 ```
 
-签名更新包继续使用原有的 `SAILFIN_UPDATE_SIGNING_KEY`。
+已有安装需要网页更新时，构建更新包沿用其公钥对应的私钥。默认密钥位置与覆盖方式见下文。
 
 新装包和更新包都会在临时构建目录压缩 SDK、缩短内部变量名，再将同一份 SDK 嵌入宿主机探针和 Docker 镜像。发布包中的 SDK 不附带源映射文件。
 
@@ -36,7 +38,7 @@ npm ci
 - Docker CLI 和已启动的 Docker 服务。安装检查验证当前 context 使用本机 Unix socket，并且支持 Linux 容器。 [Docker 官方下载](https://docs.docker.com/get-docker/)
 - Bash、`tar`、`gzip`、`ps` 等系统工具，以及创建 `/data/sailfin` 的权限。
 
-宿主机自动注入需要 `PATH` 中可用的 `nginx`、`http_sub_module` 以及配置写入和重载权限。使用 1Panel OpenResty 或其他容器化 Web 服务时，可手动指定挂载到宿主机的日志文件路径。 [Nginx 模块文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html) · [手动日志接入](host-nginx.md#手动指定容器日志路径)
+宿主机自动注入需要 `PATH` 中可用的 `nginx`、`http_sub_module` 以及配置写入和重载权限。符合条件的 1Panel OpenResty 可在启动时指定目标容器后自动接入。容器化 Web 服务也可手动指定挂载到宿主机的日志文件路径。 [1Panel 自动接入与手动日志接入](host-nginx.md) · [Nginx 模块文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html)
 
 将下例中的 MD5 替换为下载文件名中的实际值。安装前可用 `sha256sum "$installer"`（macOS 使用 `shasum -a 256 "$installer"`）计算摘要，并与发布说明中的 SHA-256 核对。
 
@@ -50,7 +52,7 @@ chmod +x "$installer" &&
 
 安装过程显示三个阶段：系统校验、解压安装文件、验证安装文件。新装固定写入 `/data/sailfin`，完成后打印 `aqua` 启动命令。可运行 `"./$installer" --check` 单独执行系统校验。已有目标目录时校验失败。
 
-所有 `aqua` 命令都在安装目录下执行。`./aqua start` 会把内嵌镜像导入本机 Docker，启动当前安装专用的 Core 容器和宿主机探针。停止和重启仅操作当前安装创建的容器。日志写入安装目录中的 `.aqua/sailfin.log`。
+以下运行管理命令在安装目录下执行。`./aqua start` 会把内嵌镜像导入本机 Docker，启动当前安装专用的 Core 容器和宿主机探针。停止和重启仅操作当前安装创建的容器。日志写入安装目录中的 `.aqua/sailfin.log`。
 
 ```sh
 ./aqua --help
@@ -66,7 +68,7 @@ chmod +x "$installer" &&
 curl --fail --silent --show-error http://127.0.0.1:8080/api/v1/health
 ```
 
-首次启动生成的管理员凭据位于数据库同级的 `bootstrap-admin.txt`，默认路径为 `var/bootstrap-admin.txt`。使用该凭据登录后可修改密码。`./aqua restart` 沿用最近成功启动的参数和环境配置。要更改启动配置，可用 `./aqua stop` 后以新的环境变量或参数执行 `./aqua start`。
+首次启动未配置管理员密码时，生成的凭据位于数据库同级的 `bootstrap-admin.txt`，默认路径为 `var/bootstrap-admin.txt`。使用该凭据登录后可修改密码。`./aqua restart` 沿用最近成功启动的参数和环境配置。要更改启动配置，可用 `./aqua stop` 后以新的环境变量或参数执行 `./aqua start`。
 
 ## 持久化与访问配置
 
@@ -85,7 +87,7 @@ SAILFIN_PUBLIC_URL=http://localhost:8080 \
 
 通过 `SAILFIN_ADDR` 配置宿主机的回环发布地址和端口。管理界面经 HTTPS 反向代理访问时，将 `SAILFIN_PUBLIC_URL` 设为浏览器实际访问的 Origin，例如 `https://sailfin.example.com`，并将代理上游指向宿主机的发布地址。探针通信路径 `/_sailfin_host/` 只用于本机部署，可在管理端反向代理上拦截。
 
-读取站点日志时，通过 `SAILFIN_LOG_ROOTS` 授权实际日志目录。自动扫描要求 Nginx master 与宿主机探针使用同一 UID，并且该用户有权限读取和写入站点配置、通知对应 master 重载。登录后在 **探针管理 → 站点接入** 查看预览并确认应用。手动接入时，发布目录中的 `examples/sites.example.json` 可作为起点。 [本机探针与 Nginx 接入](host-nginx.md)
+读取站点日志时，通过 `SAILFIN_LOG_ROOTS` 授权实际日志目录。扫描宿主机 Nginx 要求 master 与宿主机探针使用同一 UID，并且该用户有权限读取和写入站点配置、通知对应 master 重载。登录后在 **探针管理 → 站点接入 → 添加站点 → 一键扫描** 点击「扫描站点」，再勾选并确认应用。手动接入时，发布目录中的 `examples/sites.example.json` 可作为起点。 [本机探针与 Nginx 接入](host-nginx.md)
 
 ## 原位更新
 
@@ -105,7 +107,9 @@ chmod +x ./Sailfin-update-实际MD5.bin
 
 ### 从管理端更新
 
-网页更新使用发布机生成的 Ed25519 密钥。私钥始终留在打包机。使用 `SAILFIN_UPDATE_SIGNING_KEY` 构建新装包时，打包脚本从私钥导出公钥，并把公钥放入包内。`aqua start` 自动读取安装目录的 `update-public.pem`。多台服务器使用同一把私钥生成的可信新装包，即可自动配置相同的公钥。
+打包使用 Ed25519 密钥。未设置 `SAILFIN_UPDATE_SIGNING_KEY` 时，脚本使用 `$XDG_CONFIG_HOME/sailfin/update-signing-key.pem`，未设置 `XDG_CONFIG_HOME` 时使用 `$HOME/.config/sailfin/update-signing-key.pem`。默认路径没有密钥时会自动生成，后续打包复用。指定 `SAILFIN_UPDATE_SIGNING_KEY` 时，脚本读取该路径下已有的私钥。
+
+新装包附带从该私钥导出的 `update-public.pem`，`aqua start` 会自动读取。更新包用该私钥签名。换打包机或构建账号时，沿用原私钥签名的新包才能通过已有安装的公钥验证。发布包只包含公钥或签名。
 
 ```sh
 release_keys="$HOME/.config/sailfin-release"
@@ -122,4 +126,4 @@ SAILFIN_UPDATE_SIGNING_KEY="$release_keys/sailfin-update-private.pem" ./aqua bui
 
 反向代理要允许此上传接口接收更新包，请求体上限至少能容纳实际包大小和表单开销，Sailfin 支持最多 256 MiB 的包。OpenResty 可以为 `/api/v1/system/update/install` 设置 `client_max_body_size 257m`。
 
-在「系统信息 → 软件更新」选择签名后的 `.bin`，验证管理员密码并点击「确认安装」。宿主机重新验证签名，执行更新包的 `--check` 和 `--apply`。管理页面会在重启后查询更新结果。未启用公钥或未签名的包可沿用命令行更新流程。
+在「系统信息 → 软件更新」选择签名后的 `.bin`，验证管理员密码并点击「确认安装」。宿主机重新验证签名，执行更新包的 `--check` 和 `--apply`。管理页面会在重启后查询更新结果。尚未配置网页更新公钥的旧安装可使用上面的命令行更新流程。

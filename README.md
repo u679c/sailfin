@@ -13,9 +13,9 @@ make setup
 make dev
 ```
 
-默认管理界面：[http://localhost:5173](http://localhost:5173)，Core：[http://127.0.0.1:8080/api/v1/health](http://127.0.0.1:8080/api/v1/health)。Core 首次启动自动创建数据库、迁移与随机管理员密码。
+默认管理界面：[http://localhost:5173](http://localhost:5173)，Core：[http://127.0.0.1:8080/api/v1/health](http://127.0.0.1:8080/api/v1/health)。Core 首次启动时创建数据库并执行迁移。未预设管理员密码时，Core 会生成随机密码。
 
-查看 **`var/bootstrap-admin.txt`** 获取登录凭据。文件权限 0600，不是公开默认密码。不要提交、分享此文件。登录后可在“系统设置 → 运行设置”修改密码。可在首次启动前设置 `SAILFIN_ADMIN_NAME` / `SAILFIN_ADMIN_PASSWORD`（至少 12 字符）。已有数据库不会被这些变量重置。
+随机生成的登录凭据保存在数据库同级的 `bootstrap-admin.txt`，默认路径为 `var/bootstrap-admin.txt`，文件权限为 0600。不要提交或分享此文件。登录后可在「系统设置 → 运行设置」修改密码。首次初始化可通过 `SAILFIN_ADMIN_NAME` 和 `SAILFIN_ADMIN_PASSWORD` 设置凭据，初始密码至少 12 字节。已有数据库不会被这些变量重置。
 
 `make dev` 同时启动：
 
@@ -43,19 +43,19 @@ cp .env.example .env
 
 ## 接入站点
 
-在 macOS 或 Linux 宿主机启动 Core 时会自动启动本机探针。在「探针管理 → 探针管理」可以查看心跳、配置站点数及暂停或恢复采集。探针支持读取授权的 Nginx 日志，以及接收 Nginx 注入的浏览器事件。两种来源使用同一站点 ID 时归入同一站点。
+在 macOS 或 Linux 上直接运行 `serve` 时，Core 启动内置探针。安装版由 Aqua 启动容器内的 Core 和宿主机探针。在「探针管理 → 探针管理」可以查看心跳、配置站点数及暂停或恢复采集。探针支持读取授权的 Nginx 日志，以及接收 Nginx 注入的浏览器事件。两种来源使用同一站点 ID 时归入同一站点。
 
 首页只展示已启用的站点，尚无事件的站点显示「等待首批数据」。关闭站点会停止写入事件并保留已有数据。完整配置见 [本机探针与 Nginx 接入](docs/host-nginx.md)。
 
-本地开发时启动 `make dev`，登录后打开 **探针管理 → 站点接入**。可以扫描本机 Nginx、批量勾选接入，也可以从「手动添加站点」配置已授权的访问日志。扫描和手动保存会先登记站点；启用采集后站点才会出现在首页。 [本机 Nginx 接入说明](docs/host-nginx.md)
+本地开发时启动 `make dev`，登录后打开 **探针管理 → 站点接入**。打开「添加站点 → 一键扫描」，点击「扫描站点」，勾选后点击「接入并启用」。也可以用「手动添加」配置授权日志或已有同源 SDK 路由，保存后在站点接入表中开启采集。 [本机 Nginx 接入说明](docs/host-nginx.md)
 
-管理界面统一使用顶部导航和左右分栏：站点左侧搜索、选择站点，右侧查看概览、页面、点击行为、访问轨迹、事件记录和设备；探针管理左侧为站点接入和探针管理；系统设置左侧为运行设置和安全审计。右侧数据列表默认每页 20 条，左侧站点列表不分页。
+管理界面统一使用顶部导航和左右分栏：站点左侧搜索、选择站点，右侧查看概览、页面、点击行为、元素管理、访问轨迹、事件记录和设备。探针管理左侧为站点接入和探针管理，系统设置左侧为系统信息、运行设置和安全审计。右侧数据列表默认每页 20 条，左侧站点列表不分页。
 
 当前 `serve` 使用本机内置探针，不需要创建项目或注册远程 Agent。旧版项目与远程 Agent 接口保留在兼容模式，见 [API](docs/api.md)。
 
 ## 单机打包与部署
 
-在与目标系统和架构匹配的构建机上执行 `npm ci`。在源码根目录用 `./aqua build install 0.1.1` 生成新装包，或用 `./aqua build update 0.1.2` 生成原位更新包。产物位于 `dist/`，内嵌 Docker 镜像和宿主机探针。安装需要 Docker，安装目录为 `/data/sailfin`。进入该目录执行 `./aqua start` 后，Core 和管理端在 Sailfin 专用 Docker 容器中运行，探针在宿主机运行。宿主机 Nginx 用于自动注入，容器里的 OpenResty 可手动指定宿主机日志路径。 [部署步骤](docs/deployment.md)
+在构建机上执行 `npm ci`。在源码根目录用 `./aqua build install` 生成新装包，或用 `./aqua build update` 生成原位更新包。产物位于 `dist/`，内嵌 Docker 镜像和宿主机探针。安装需要 Docker，安装目录为 `/data/sailfin`。进入该目录执行 `./aqua start` 后，Core 和管理端在 Sailfin 专用 Docker 容器中运行，探针在宿主机运行。支持宿主机 Nginx 自动注入和符合条件的 1Panel OpenResty 自动接入。容器化站点也可以手动指定挂载到宿主机的日志路径。 [部署步骤与目标平台](docs/deployment.md)
 
 ### 部署后续工作
 
@@ -68,7 +68,7 @@ make check   # TypeScript 无产物检查 + 编排脚本语法检查
 make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态文件
 ```
 
-`make build` 输出 `bin/sailfin-core` 和 `web/dist`，需要本机 C 工具链。`make package VERSION=0.1.1` 生成自解压安装文件，Linux 安装包的宿主机程序禁用 CGO，Docker 镜像内的 Core 保留 SQLite 支持。
+`make build` 输出 `bin/sailfin-core` 和 `web/dist`，需要本机 C 工具链。`make package` 生成自解压安装文件，Linux 安装包的宿主机程序禁用 CGO，Docker 镜像内的 Core 保留 SQLite 支持。
 
 用户自行构建后，可以不运行 Node 服务：
 
@@ -85,4 +85,4 @@ make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态�
 - SQLite WAL 自动迁移；每小时数据保留清理；分页与查询范围上限。
 - 「系统设置 → 运行设置」提供一致性在线数据库备份，不直接复制活跃 SQLite 主文件。
 
-更多：[API](docs/api.md) · [架构与顺序](docs/architecture.md) · [安全与恢复](docs/security.md) · [验收报告](docs/testing.md) · [交付状态](docs/status.md)。
+更多：[API](docs/api.md) · [架构与顺序](docs/architecture.md) · [安全与恢复](docs/security.md) · [手动验收流程](docs/testing.md) · [交付状态](docs/status.md)。

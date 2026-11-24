@@ -1,20 +1,24 @@
 # API v1
 
-当前部署为单机模式，Core 随启动初始化内置探针。部署版公开站点、统计与本机管理接口。旧版远程 Agent、注册令牌和直连 Browser 采集路由仅保留在兼容测试模式。
+当前为单机模式。开发时 Core 启动内置探针，安装版由 Aqua 启动宿主机探针。旧版远程 Agent、注册令牌和浏览器直连采集路由保留在兼容模式。
 
-下文 Core API 路径以 `/api/v1` 开头；浏览器同源中继使用 `/__sailfin/`。JSON 成功响应；失败为 `{ "error": "..." }`，HTTP 400/401/403/404/413/415/429/500/503。管理 API 用会话 Cookie；修改操作需 `X-CSRF-Token`。登录响应或 `GET /auth/me` 获取 CSRF 值；浏览器在同源调用时自动携带 Cookie。
+下文 Core API 路径以 `/api/v1` 开头，浏览器同源中继使用 `/__sailfin/`。管理接口通常返回 JSON，备份接口返回 SQLite 文件。Core 业务错误使用 `{ "error": "..." }`。管理接口使用会话 Cookie，已认证的修改操作需要 `X-CSRF-Token`。登录响应或 `GET /auth/me` 提供 CSRF 值。
 
 ## 当前本机管理 API
 
 | 方法和路径 | 用途 |
 |---|---|
-| GET /sites | 站点目录，按最近收到数据排序，最多 500 条 |
+| GET /sites | 已启用的站点目录，按最近收到数据排序，最多 500 条。未收到数据的站点仍会返回 |
 | GET /sites/{id}/elements | 读取站点的 `{clickSelectors,browserConfigured}` |
 | PUT /sites/{id}/elements | 保存 `{clickSelectors: string[]}`，空数组恢复默认自动点击采集 |
+| GET /system/sites | 站点登记、采集来源、启用状态和 SDK 检查结果 |
+| GET /system/site-logs | 探针发现的已授权访问日志路径 |
+| POST /system/sites | 以 `{id,name,accessLog?,browserOrigin?,requireConsent?}` 新增或编辑站点。新站点默认关闭采集 |
+| PATCH /system/sites/{id} | 以 `{enabled}` 启停已接入的站点，路径 ID 取登记响应的 `id` |
 | GET /system/probe | 本机探针 ID、名称、状态、主机、版本、心跳和指标 |
 | PATCH /system/probe | `{enabled}`，暂停或恢复全部采集 |
-| POST /system/nginx/scan | Nginx 接入预览，页面进入时自动调用 |
-| POST /system/nginx/apply | `{id}`，确认当前预览，备份、校验并请求重载 |
+| POST /system/nginx/scan | 点击「扫描站点」获取预览，并登记可接入的候选站点 |
+| POST /system/nginx/apply | `{id,siteIds}`，其中 `id` 为预览 ID，`siteIds` 为结果中选中的 1–50 个 `siteId`。应用时备份、校验并请求重载 |
 | GET /health | Core + SQLite 健康 |
 | POST /auth/login | `{name,password}` |
 | POST /auth/password | `{currentPassword,newPassword}`，撤销其他会话 |
@@ -30,8 +34,12 @@
 | GET /stats/clicks | 按站点、页面和元素聚合点击，按点击次数降序分页 |
 | GET /security/summary | 限流/拒绝计数、UTC 今日配额、管理审计 |
 | GET /security/audit | 分页管理审计 |
-| GET /system/status | 服务与数据库状态 |
-| GET /system/update/history | 每个更新任务一条，返回任务时间、更新包名和当前状态 |
+| GET /system/status | 服务与数据库状态、统计时区、网页更新开关 |
+| PATCH /system/timezone | 以 `{timezone}` 设置统计时区，如 `UTC` 或 `Asia/Shanghai` |
+| POST /system/update/verify-password | 以 `{password}` 验证当前管理员密码 |
+| POST /system/update/install | 按 `password`、`package` 的顺序上传 multipart 表单，包最大 256 MiB。验签通过后返回 HTTP 202 和更新任务 |
+| GET /system/update/status/{id} | 查询更新任务，返回 `id,name,status,time,message?` |
+| GET /system/update/history | 分页更新记录，每个任务一条，返回 `id,created_at,package_name,action` |
 | POST /system/backup | 下载 SQLite 一致性快照 |
 
 ## 点击统计
@@ -78,12 +86,14 @@ Browser API：POST `/collect/browser?projectId=...`，`{events:[...]}`；GET `/c
 
 ## 事件与分页
 
-事件字段：`eventId, projectId, sessionId, visitorId, eventType, timestamp(Unix ms), path, properties, ua?`。本机中继将站点 siteId/name/source 与 events 组成 SiteBatch，经内部 /api/v1/agent/sites/batch 提交；该内部 Handler 不挂载到本机公开 HTTP 服务。Browser UA 使用 HTTP Header 覆盖，Host UA 来自访问日志。服务端维护 received_at/source_type/agent_id，不接受客户端声明。
+事件字段：`eventId, projectId, sessionId, visitorId, eventType, timestamp(Unix ms), path, properties, ua?`。本机中继将站点 siteId/name/source 与 events 组成 SiteBatch。开发版提交给进程内的 `/api/v1/agent/sites/batch`，安装版通过带安装密钥的 `/_sailfin_host/` 桥接提交。Browser UA 使用 HTTP Header 覆盖，Host UA 来自访问日志。服务端维护 received_at/source_type/agent_id，不接受客户端声明。
 
 事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB，禁止嵌套属性、路径中的查询参数与任意字段。eventId 按项目去重。接受最多 31 天前至未来 5 分钟事件；统计只纳入查询范围。
 
 自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, region, pagePath, pageTitle`，其中 label 是自动读取的按钮名称；properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。新字段直接存入现有 properties JSON，无需数据库迁移；现有事件详情 API 可原样读取。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
 
-查询支持 `projectId,agentId,eventType,from,to,page,limit`，from/to 为 Unix ms；默认最近 24 小时、最多 366 天，page 从 1 开始、limit 默认 20 最大 200。会话详情仅按项目和会话标识分页，不套用列表的时间过滤。事件、会话、时间线、页面/设备/点击统计和审计分页接口保留数组响应，通过 X-Total-Count 返回总条数、X-Has-More 返回是否还有下一页。趋势接口保持完整数据供图表使用，明细表在前端分页。
+事件、会话列表和统计查询支持 `projectId,agentId,eventType,from,to`。其中 `from/to` 为 Unix 毫秒，也可使用 `fromLocal/toLocal`，格式为 `YYYY-MM-DDTHH:mm`，按系统统计时区解析并覆盖对应的毫秒边界。默认查询最近 24 小时，范围最多 366 天。本机模式省略 `projectId` 时只统计已启用站点。趋势按 UTC 小时分桶，管理端按统计时区显示，写入配额仍按 UTC 日计算。
+
+分页接口使用 `page/limit`，从第 1 页开始，每页默认 20 条，合法上限为 200 条。会话详情按项目和会话标识查找，不套用列表的时间过滤。事件、会话、时间线、页面/设备/点击统计、审计和更新记录返回数组，通过 `X-Total-Count` 和 `X-Has-More` 提供总条数与下一页状态。趋势接口一次返回所选范围内的小时分桶，趋势明细在前端分页。
 
 PV 只计 browser page_view/route_change；日志 HTTP 请求不会提升 PV；UV 是项目内匿名 visitorId 去重；活跃会话是最近 30 分钟且在查询范围内观测到活动的会话。均不表示真实自然人数。

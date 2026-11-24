@@ -4,19 +4,19 @@ Sailfin 采用单机部署。开发时 Core 启动内置探针。安装版由安
 
 ## 从 Web 批量启用现有站点
 
-登录后台，进入 **探针管理 → 站点接入 → 添加站点 → 一键扫描**，点击「扫描站点」。扫描读取运行中的 Nginx 和实际加载的配置。已经添加的站点会在结果中标记，新站点可以勾选。点击「接入并启用」后，探针会备份修改的配置、校验受影响实例并请求重载。校验或发送重载失败时尝试恢复原配置。
+登录后台，进入 **探针管理 → 站点接入 → 添加站点 → 一键扫描**，点击「扫描站点」。扫描读取运行中的 Nginx 和实际加载的配置。扫描会登记可接入的候选站点，并标记已添加的站点。完成勾选并应用后，新接入的站点才启用采集。点击「接入并启用」后，探针会备份修改的配置、校验受影响实例并请求重载。校验或发送重载失败时尝试恢复原配置。
 
 「手动添加」支持填写访问日志路径或关联已配置同源 SDK 路由的浏览器站点。已授权日志目录中的常见访问日志可以从列表选择。所有添加的站点都在站点接入表格中管理采集开关。配置由本机探针定期同步；关闭后，服务端停止接受新事件，历史记录保留。
 
-站点继续使用原域名和端口。默认站点按实际访问的主机名归类，非默认端口也参与站点识别。正常页面加载同源 SDK 后才会产生浏览器数据。回环测试站点可直接采集，对外站点仍需取得同意。在探针列表点击「暂停全部采集」可以停止探针入库，已经应用到 Nginx 的配置仍保留。
+站点继续使用原域名和端口。默认站点按实际访问的主机名归类，非默认端口也参与站点识别。正常页面加载同源 SDK 后才会产生浏览器数据。新扫描接入的回环站点可直接采集，对外站点默认等待同意信号。在探针列表点击「暂停全部采集」可以停止探针入库，已经应用到 Nginx 的配置仍保留。
 
 本地开发版支持与 Core 同一用户运行的现有 Nginx，需要当前用户有站点配置目录写入权限和重载权限。其他用户启动的 Nginx、无法验证的实例、共享配置文件和有继承冲突的路由会列出跳过原因。自动模式优先接入常见的代理和静态 HTML 路由，压缩、CSP 或自定义响应替换可能需要手动处理。
 
-1Panel 部署时在安装目录通过 `./aqua start --openresty-container 容器名 --log-roots 宿主机已授权日志目录` 一次性指定目标容器和可读范围，并保留原有管理域名等参数。探针读取该容器的 1Panel 挂载目录，支持宿主机网络下带标准 `proxy/root.conf` 的 HTTPS 反向代理站点。后续扫描、勾选、配置和启停通过探针管理页面完成。
+1Panel 部署时在安装目录通过 `./aqua start --openresty-container 容器名 --log-roots 宿主机已授权日志目录` 一次性指定目标容器和可读范围，并保留原有管理域名等参数。探针读取该容器的 1Panel 挂载目录，支持宿主机网络下带标准 `proxy/root.conf` 的 HTTPS 反向代理站点。确认应用时，探针修改绑定挂载里的配置，并在目标容器内执行 OpenResty 配置校验和重载。后续站点采集启停在探针管理页面操作。
 
 IP 站点可通过 `server_name` 或 `listen` 中明确的 IP 识别。默认站点只监听通配地址时，扫描可使用管理地址中的 IP，同时采用站点的监听端口。无法确定唯一地址，或多个站点使用同一访问地址时，扫描会提示补充站点配置。
 
-已接入访问日志且站点标识与域名一致的 OpenResty 站点，可在一键扫描中勾选「可补装 SDK」，点击「应用所选配置」。探针自动配置同源路由、注入 SDK、校验并重载 OpenResty，浏览器采集地址写入原站点。站点已有的访问日志、采集开关和同意设置继续沿用。
+已接入访问日志且站点标识与域名一致的 OpenResty 站点，可在一键扫描中勾选「可补装 SDK」，点击「应用所选配置」。探针自动配置同源路由、注入 SDK、校验并重载 OpenResty，浏览器采集地址写入原站点。站点已有的访问日志、采集开关和 `requireConsent` 继续沿用。纯日志站点若通过 `sites.json` 导入时省略了 `requireConsent`，补装会沿用其默认值 `false`。需要等待同意信号时，可在站点接入表中编辑该选项。
 
 ## 自动为现有站点加 JS 注入
 
@@ -49,7 +49,7 @@ IP 站点可通过 `server_name` 或 `listen` 中明确的 IP 识别。默认站
   --sites-file "$PWD/var/sites.json"
 ```
 
-如果注入时传了 `--relay-addr`，Core 启动时也传同一个值。客户端继续访问原网站，在原域名下加载 `/__sailfin/sailfin-boot.js`。后台收到有效事件后才会出现站点。
+如果注入时传了 `--relay-addr`，Core 启动时也传同一个值。客户端继续访问原网站，在原域名下加载 `/__sailfin/sailfin-boot.js`。新站点由探针启动时登记并启用，首页在收到数据前显示「等待首批数据」。
 
 ## 可选：启动独立的本地测试入口
 
@@ -61,7 +61,7 @@ IP 站点可通过 `server_name` 或 `listen` 中明确的 IP 识别。默认站
 npm run dev -- --nginx-upstream http://127.0.0.1:8888 --nginx-require-consent 0
 ```
 
-独立部署时把这些参数传给 `./bin/sailfin-core serve`。访问 `http://localhost:9080`，HTML 将加载 `/__sailfin/sailfin-boot.js`，随后通过同源地址上报。Core 自动为探针配置这个站点，后台收到有效事件后才会展示。
+独立部署时把这些参数传给 `./bin/sailfin-core serve`。访问 `http://localhost:9080`，HTML 将加载 `/__sailfin/sailfin-boot.js`，随后通过同源地址上报。Core 自动为探针配置这个站点，新站点登记并启用后出现在首页。
 
 - `--nginx-port` 默认 9080，指定空闲端口以避开已有服务。
 - `--nginx-site-id` 默认 `local-web`。不同网站使用不同 ID，避免合并采集数据。可用 `--nginx-site-name` 指定显示名称。
@@ -82,7 +82,7 @@ SAILFIN_RELAY_ADDR=127.0.0.1:8091
 
 探针状态默认写入数据库同级的 `local-probe` 目录。若需要移动位置，设置 `SAILFIN_PROBE_STATE` 并保留原有状态文件，使日志偏移和待发数据能继续使用。
 
-站点 `id` 是这个 Core 内的稳定标识，只能使用小写字母、数字、点、下划线和短横线，首字符必须是字母或数字。日志和 JS 采集使用同一 ID。独立站点使用不同 ID。首次上报时的 `name` 作为初始显示名称，后续符合条件的首页 title 可更新它，规则见下文。
+站点 `id` 是这个 Core 内的稳定标识，只能使用小写字母、数字、点、下划线和短横线，首字符必须是字母或数字。日志和 JS 采集使用同一 ID。独立站点使用不同 ID。登记时的 `name` 作为初始显示名称，后续符合条件的首页 title 可更新它，规则见下文。
 
 ## 方式一：读取 Nginx 访问日志
 
@@ -115,14 +115,14 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
   --log-roots /data/1panel/1panel/www/sites/example.com/log
 ```
 
-多个站点的授权目录可用逗号分隔。首批有效日志入库后，站点会出现在管理端。此方式采集 HTTP 请求和设备统计。点击和停留事件由浏览器 SDK 上报。
+多个站点的授权目录可用逗号分隔。通过文件导入的新站点在探针启动时登记并启用，首批有效日志入库前显示「等待首批数据」。此方式采集 HTTP 请求和设备统计。点击和停留事件由浏览器 SDK 上报。
 
 ## 方式二：Nginx 注入 JS 并转发
 
 把 [Nginx 示例](../examples/nginx/site.conf) 中的相关指令合并到**宿主机 Nginx** 的站点配置。示例入口是 `http://localhost:9080`，站点上游是 `http://127.0.0.1:8888`。用 Nginx 入口访问网站，`browserOrigin` 填入口的实际协议、主机和端口，末尾不带斜杠。
 
 - 通过 `sub_filter` 在 HTML 的 `</head>` 前加入同源 SDK。执行 `nginx -V` 检查当前 Nginx 是否包含 `http_sub_module`，该模块需要构建时启用。上游 HTML 要能返回未压缩内容，站点 CSP 需要允许加载和连接同源采集路由。[Nginx sub_filter 文档](https://nginx.org/en/docs/http/ngx_http_sub_module.html)
-- `/__sailfin/` 代理到同机 Agent 的回环监听地址，默认 `127.0.0.1:8091`，通过 `SAILFIN_RELAY_ADDR` 修改。Nginx 固定覆盖 `X-Sailfin-Site`，值与站点 ID 一致。浏览器沿同源路径上报，探针把事件在本机进程内交给 Core。日志文件可按需省略。[Nginx proxy_pass 文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)
+- `/__sailfin/` 代理到同机 Agent 的回环监听地址，默认 `127.0.0.1:8091`，通过 `SAILFIN_RELAY_ADDR` 修改。Nginx 固定覆盖 `X-Sailfin-Site`，值与站点 ID 一致。浏览器沿同源路径上报。开发模式下探针通过进程内接口交给 Core，安装模式下探针通过带安装密钥的宿主机桥接接口上报。日志文件可按需省略。[Nginx proxy_pass 文档](https://nginx.org/en/docs/http/ngx_http_proxy_module.html)
 - 示例启用了 `requireConsent`。网站已有同意组件时，可在同意后设置 `window.SAILFIN_CONSENT = true` 并派发 `new Event("sailfin:consent")`，撤回时把该值置为 `false` 并派发 `new Event("sailfin:revoke")`。在自有本机测试环境可以设为 `false`，用于页面打开后直接采集。
 - 在手动启用配置前执行 `nginx -t`。根据宿主机原有方式重载 Nginx。若原页面返回错误或没有可匹配的 HTML，先检查业务上游。常规网页继续由业务服务返回。
 
@@ -136,7 +136,7 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 
 ## 同意与启动条件
 
-自动注入负责加载 SDK，不要求业务编写点击埋点。对外站点默认等待 `SAILFIN_CONSENT` 或 `sailfin:consent`；已有同意组件需要衔接该信号。只有受支持的本机测试配置可以跳过同意等待。因此“无需手工埋点”不等同于所有对外站点均可不经任何配置立即采集。
+自动注入负责加载 SDK，业务可通过 `SAILFIN_CONSENT` 或 `sailfin:consent` 接入现有同意组件。新扫描接入的对外站点默认等待同意信号，回环站点默认直接启动。手动添加默认勾选「等待站点同意信号」，保存后使用所选值。`sites.json` 省略 `requireConsent` 时取 `false`。已接入的 OpenResty 站点补装 SDK 时沿用原值。
 
 ## 自动行为采集字段
 

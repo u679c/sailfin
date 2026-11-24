@@ -1,2 +1,2 @@
 # SQLite migrations
-V1 schema lives in `internal/core/schema.sql`, embedded in Core. It is applied transactionally at startup and tracked in `migrations`. Future migrations must get a new version and upgrade statements; do not edit historical schema for existing databases. WAL + foreign_keys + busy_timeout are enabled on every connection. Current first release has one migration.
+The [schema and migrations](../internal/core/schema.sql) are embedded in Core and applied transactionally at startup. The `migrations` table records applied versions. Add new upgrade statements with a new version to preserve existing databases. Core enables WAL, foreign keys, and a busy timeout when opening SQLite.
