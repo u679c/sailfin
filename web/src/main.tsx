@@ -420,8 +420,7 @@ function SiteAssets({ state, selected, siteHref, onNavigate }: {
 }
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null),
-    [revision, setRevision] = useState(0),
-    [error, setError] = useState("");
+    [revision, setRevision] = useState(0);
   const { current, params, href, navigate } = useDashboardLocation();
   const section = current.id === "sites" ? "overview" : current.id;
   const project = params.get("projectId") ?? "";
@@ -483,7 +482,6 @@ function App() {
     event.preventDefault();
     const link = event.currentTarget;
     navigate(link.pathname + link.search);
-    setError("");
   }
   const siteView = siteSections.some((item) => item.id === section);
   const settingsView = section === "system-info" || section === "system" || section === "security";
@@ -513,13 +511,6 @@ function App() {
         </nav>
         <div className="header-actions">
           <button onClick={refresh} aria-label="刷新数据" title="刷新"><RefreshCw size={16} /></button>
-          <button onClick={async () => {
-            try {
-              await api("/auth/logout", { method: "POST" });
-              setAuthenticated(false);
-              setCSRF("");
-            } catch (e) { setError((e as Error).message); }
-          }}><LogOut size={16} />退出</button>
         </div>
       </header>
       <main className="site-main" aria-label={siteView ? selectedSite?.name || "全部站点" : current.name}>
@@ -582,7 +573,6 @@ function App() {
                 </div>
               </div>
           )}
-          <ErrorBox message={error} />
           {section === "overview" && <Overview query={query} revision={revision} />}
           {section === "pages" && <DataTable path="/stats/pages" query={query} revision={revision} columns={[
             { key: "path", label: "页面 / 请求路径" }, { key: "pv", label: "浏览量" },
@@ -601,7 +591,10 @@ function App() {
           {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
           {section === "system-info" && <SystemInfo state={system} revision={revision} onChange={refresh} />}
-          {section === "system" && <SystemSettings />}
+          {section === "system" && <SystemSettings onLogout={() => {
+            setCSRF("");
+            setAuthenticated(false);
+          }} />}
           </div>
           </div>
         </div>
@@ -1892,7 +1885,7 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
   );
 }
 
-function SystemSettings() {
+function SystemSettings({ onLogout }: { onLogout: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   return (
@@ -1915,7 +1908,38 @@ function SystemSettings() {
         {busy ? "生成备份中…" : "下载备份"}
       </button>
       <PasswordSettings />
+      <LogoutSettings onLogout={onLogout} />
     </section>
+  );
+}
+
+function LogoutSettings({ onLogout }: { onLogout: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function logout() {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/auth/logout", { method: "POST" });
+      onLogout();
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <details className="logout-settings">
+      <summary>退出登录</summary>
+      <p className="muted">退出后需要重新登录。</p>
+      <ErrorBox message={error} />
+      <button type="button" className="danger" disabled={busy} onClick={logout}>
+        <LogOut size={16} aria-hidden="true" />
+        {busy ? "正在退出…" : "确认退出"}
+      </button>
+    </details>
   );
 }
 
