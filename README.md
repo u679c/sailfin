@@ -83,6 +83,6 @@ make build   # 生成包含探针和 SDK 源码的 Core 二进制及 Web 静态�
 - 浏览器通过站点同源 Nginx 路由上报，本机中继检查 Origin、批次大小和并发，Core 校验事件、去重并执行写入配额；不向浏览器发放管理员或探针凭据。公开采集入口仍需部署层防滥用策略。
 - 日志目录通过主机配置显式授权。浏览器事件入口由同机 Nginx 转发至探针的回环端口。
 - SQLite WAL 自动迁移；每小时数据保留清理；分页与查询范围上限。
-- 「备份管理」提供 SQLite 一致性快照和自动备份。
+- 「备份管理」提供 SQLite 一致性快照、自动备份和事件保留策略。
 
 更多：[API](docs/api.md) · [架构与顺序](docs/architecture.md) · [安全与恢复](docs/security.md) · [手动验收流程](docs/testing.md) · [交付状态](docs/status.md)。

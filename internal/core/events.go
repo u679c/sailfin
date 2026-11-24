@@ -546,25 +546,3 @@ func (s *Server) setSystemTimezone(w http.ResponseWriter, r *http.Request) error
 	jsonOut(w, 200, input)
 	return nil
 }
-
-func (s *Server) cleanup(ctx context.Context) error {
-	tx, e := s.DB.BeginTx(ctx, nil)
-	if e != nil {
-		return e
-	}
-	defer tx.Rollback()
-	queries := []string{`DELETE FROM events WHERE EXISTS(SELECT 1 FROM projects p WHERE p.id=events.project_id AND events.timestamp < ? - p.retention_days*86400000)`, `DELETE FROM auth_sessions WHERE expires<?`, `DELETE FROM enrollments WHERE expires<?`, `DELETE FROM daily_usage WHERE day<date('now','-366 days')`, `DELETE FROM agent_logs WHERE id NOT IN (SELECT id FROM agent_logs ORDER BY id DESC LIMIT 2000)`, `DELETE FROM audit_logs WHERE id NOT IN (SELECT id FROM audit_logs ORDER BY id DESC LIMIT 10000)`, `DELETE FROM agent_configs WHERE version < (SELECT max(a.version)-19 FROM agent_configs a WHERE a.agent_id=agent_configs.agent_id)`,
-		`DELETE FROM project_configs WHERE version < (SELECT max(p.version)-19 FROM project_configs p WHERE p.project_id=project_configs.project_id)`}
-	for i, q := range queries {
-		var err error
-		if i < 3 {
-			_, err = tx.ExecContext(ctx, q, Now())
-		} else {
-			_, err = tx.ExecContext(ctx, q)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}

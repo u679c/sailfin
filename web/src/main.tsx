@@ -490,6 +490,7 @@ function App() {
   const settingsView = section === "system-info" || section === "system" || section === "security";
   const probeView = section === "collection";
   const backupView = section === "backups";
+  const backupPane = params.get("view") === "retention" ? "retention" : "files";
   const probePane = params.get("view") === "probes" ? "probes" : "sites";
   const selectedSite = projects.data?.find((item) => item.id === project);
   const primarySection = settingsView ? "system-info" : probeView || backupView ? section : "sites";
@@ -546,9 +547,13 @@ function App() {
           </aside>}
           {backupView && <aside className="site-assets module-menu" aria-label="备份导航">
             <nav>
-              <a className="asset-item selected" href={href("backups", { view: "" })} onClick={followLink} aria-current="page">
-                <DatabaseBackup size={16} aria-hidden="true" /><span>备份文件</span>
-              </a>
+              {[{ id: "files", name: "备份文件", icon: DatabaseBackup }, { id: "retention", name: "数据保留", icon: Settings }].map((item) => (
+                <a key={item.id} className={`asset-item ${backupPane === item.id ? "selected" : ""}`}
+                  href={href("backups", { view: item.id })} onClick={followLink}
+                  aria-current={backupPane === item.id ? "page" : undefined}>
+                  <item.icon size={16} aria-hidden="true" /><span>{item.name}</span>
+                </a>
+              ))}
             </nav>
           </aside>}
           <div className="detail-workspace">
@@ -563,7 +568,7 @@ function App() {
               </nav>
           )}
           </div>}
-          <div className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}${backupView ? " backup-workspace" : ""}`}>
+          <div className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}${backupView && backupPane === "files" ? " backup-workspace" : ""}`}>
           {siteView && section !== "elements" && (
               <div className="filterbar">
                 <div className="filters">
@@ -603,7 +608,7 @@ function App() {
           {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
           {section === "system-info" && <SystemInfo state={system} revision={revision} onChange={refresh} />}
-          {backupView && <BackupManagement revision={revision} />}
+          {backupView && (backupPane === "files" ? <BackupManagement revision={revision} /> : <DataRetention revision={revision} />)}
           {section === "system" && <SystemSettings onLogout={() => {
             setCSRF("");
             setAuthenticated(false);
@@ -1994,6 +1999,7 @@ type BackupSchedule = {
   lastError: string;
 };
 type BackupEntry = { name: string; kind: "manual" | "auto"; createdAt: number; bytes: number };
+type RetentionSettings = { retentionDays: number | null; maxEventMiB: number; eventBytes: number; events: number };
 
 function mib(bytes: number) {
   return `${(bytes / 1_048_576).toLocaleString("zh-CN", { maximumFractionDigits: 2 })} MiB`;
@@ -2106,6 +2112,77 @@ function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; o
         <button type="submit" className="primary" disabled={saving || !changed}>{saving ? "保存中…" : "保存设置"}</button>
       </div>
       <ErrorBox message={error} />
+    </form>
+  );
+}
+
+function DataRetention({ revision }: { revision: number }) {
+  const [refresh, setRefresh] = useState(0);
+  const state = useData(() => api<RetentionSettings>("/system/data-retention"), [revision, refresh]);
+  return (
+    <section className="panel form-panel">
+      <h2>事件保留策略</h2>
+      <AsyncPanel state={state}>
+        {state.data && <>
+          <dl className="facts">
+            <dt>已保存事件</dt><dd>{number(state.data.events)} 条</dd>
+            <dt>事件数据估算</dt><dd>{mib(state.data.eventBytes)}</dd>
+          </dl>
+          <RetentionForm settings={state.data} onSaved={() => setRefresh((value) => value + 1)} />
+        </>}
+      </AsyncPanel>
+    </section>
+  );
+}
+
+function RetentionForm({ settings, onSaved }: { settings: RetentionSettings; onSaved: () => void }) {
+  const [days, setDays] = useState(settings.retentionDays === null ? "" : String(settings.retentionDays));
+  const [size, setSize] = useState(String(settings.maxEventMiB));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const retentionDays = days === "" ? null : Number(days);
+  const maxEventMiB = Number(size);
+  const changed = retentionDays !== settings.retentionDays || maxEventMiB !== settings.maxEventMiB;
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !changed) return;
+    const mayDelete = (retentionDays !== settings.retentionDays && retentionDays !== 0) ||
+      (maxEventMiB > 0 && (settings.maxEventMiB === 0 || maxEventMiB < settings.maxEventMiB));
+    if (mayDelete && !window.confirm("保存后，达到清理条件的旧事件会在后台自动删除。确认保存？")) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api("/system/data-retention", {
+        method: "PUT", body: JSON.stringify({ retentionDays, maxEventMiB }),
+      });
+      onSaved();
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={save}>
+      <div className="form-grid">
+        <label>保留天数
+          <input type="number" min={0} max={3650} placeholder="沿用站点保留期"
+            value={days} disabled={saving} onChange={(event) => setDays(event.target.value)} />
+          <span className="selector-help">留空沿用站点保留期（默认 30 天），填 0 关闭按时间清理。</span>
+        </label>
+        <label>事件容量上限（MiB）
+          <input type="number" min={0} max={1048576} required value={size}
+            disabled={saving} onChange={(event) => setSize(event.target.value)} />
+          <span className="selector-help">填 0 关闭容量限制。超限时从最旧的事件开始删除。</span>
+        </label>
+      </div>
+      <p className="site-drawer-hint">所有站点共用此策略，每小时检查一次。容量按事件数据估算，SQLite 文件大小还受索引、日志和可复用空间影响。</p>
+      <ErrorBox message={error} />
+      <div className="actions">
+        <button type="submit" className="primary" disabled={saving || !changed}>{saving ? "保存中…" : "保存策略"}</button>
+      </div>
     </form>
   );
 }

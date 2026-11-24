@@ -465,6 +465,8 @@ func (s *Server) routes() {
 	s.route("DELETE /api/v1/system/backups/{name}", true, s.deleteManagedBackup)
 	s.route("GET /api/v1/system/backup/schedule", true, s.getBackupSchedule)
 	s.route("PUT /api/v1/system/backup/schedule", true, s.setBackupSchedule)
+	s.route("GET /api/v1/system/data-retention", true, s.getDataRetention)
+	s.route("PUT /api/v1/system/data-retention", true, s.setDataRetention)
 	s.route("GET /api/v1/system/update/history", true, s.webUpdateHistory)
 	if s.cfg.WebDir != "" {
 		s.mux.Handle("/", dashboardFiles(s.cfg.WebDir))

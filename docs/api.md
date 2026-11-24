@@ -47,6 +47,8 @@
 | DELETE /system/backups/{name} | 删除指定备份 |
 | GET /system/backup/schedule | 读取自动备份策略和最近执行结果 |
 | PUT /system/backup/schedule | 保存 `{enabled,intervalHours,keep}`，默认关闭，缺省间隔 24 小时及保留 7 份 |
+| GET /system/data-retention | 读取事件保留配置、事件条数和估算数据字节数 |
+| PUT /system/data-retention | 保存 `{retentionDays,maxEventMiB}`，`null` 天数沿用站点策略，两项均可用 0 停用对应清理 |
 
 元素规则的 `clickSelectors` 为字符串数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
 
