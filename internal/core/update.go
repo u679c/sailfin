@@ -112,22 +112,16 @@ func (s *Server) webUpdateHistory(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	return s.pagedQuery(w, r, `WITH job_events AS (
-		SELECT id, target, created_at, action,
-			row_number() OVER (PARTITION BY target ORDER BY created_at DESC, id DESC) AS latest
+		SELECT target, action,
+			min(created_at) OVER (PARTITION BY target) AS started_at,
+			row_number() OVER (PARTITION BY target
+				ORDER BY (action='system.update.started'), created_at DESC, id DESC) AS latest
 		FROM audit_logs
 		WHERE action IN ('system.update.started', 'system.update.succeeded', 'system.update.failed', 'system.update.rolled_back')
-	), jobs AS (
-		SELECT e.id, e.created_at, e.action, p.name AS package_name,
-			COALESCE(p.name, e.target) AS package_key
-		FROM job_events e LEFT JOIN web_update_packages p ON p.job_id=e.target
-		WHERE e.latest=1
-	), packages AS (
-		SELECT *, count(*) OVER (PARTITION BY package_key) AS attempts,
-			row_number() OVER (PARTITION BY package_key ORDER BY created_at DESC, id DESC) AS latest
-		FROM jobs
 	)
-	SELECT id, package_name, attempts, created_at, action FROM packages
-	WHERE latest=1 ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
+	SELECT e.target AS id, e.started_at AS created_at, p.name AS package_name, e.action
+	FROM job_events e LEFT JOIN web_update_packages p ON p.job_id=e.target
+	WHERE e.latest=1 ORDER BY e.started_at DESC, e.target DESC LIMIT ? OFFSET ?`)
 }
 
 func (s *Server) rememberUpdatePackage(ctx context.Context, job update.Job) error {

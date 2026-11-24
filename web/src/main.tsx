@@ -760,13 +760,14 @@ function Trend({ rows }: { rows: Row[] }) {
     </div>
   );
 }
-function DataTable({ path, query, revision, columns, bare = false, emptyLabel }: {
+function DataTable({ path, query, revision, columns, bare = false, emptyLabel, pollMs = 0 }: {
   path: string;
   query: string;
   revision: number;
   columns: Parameters<typeof Table>[0]["columns"];
   bare?: boolean;
   emptyLabel?: string;
+  pollMs?: number;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
@@ -774,6 +775,7 @@ function DataTable({ path, query, revision, columns, bare = false, emptyLabel }:
   const state = useData(
     () => api(path + query + `&page=${page}&limit=${pageSize}`),
     [path, query, page, pageSize, revision],
+    pollMs,
   );
   const content = <AsyncPanel state={state}>
     <Table manual rows={state.data || []} columns={columns} emptyLabel={emptyLabel} />
@@ -1560,12 +1562,11 @@ function SystemInfo({ state, revision, onChange }: {
         <UpdatePackage enabled={Boolean(d?.webUpdateEnabled)} onChange={onChange} />
         <section className="panel list-panel">
           <h2>更新日志</h2>
-          <DataTable bare path="/system/update/history" query="?" revision={revision}
+          <DataTable bare path="/system/update/history" query="?" revision={revision} pollMs={2500}
             emptyLabel="暂无更新记录" columns={[
-              { key: "package_name", label: "更新包", render: (row) => row.package_name || "未知更新包" },
-              { key: "created_at", label: "最近更新", render: (row) => when(row.created_at) },
-              { key: "attempts", label: "尝试次数", render: (row) => number(row.attempts) },
-              { key: "action", label: "最近状态", render: (row) => {
+              { key: "created_at", label: "时间", render: (row) => when(row.created_at) },
+              { key: "package_name", label: "包名", render: (row) => row.package_name || "未知更新包" },
+              { key: "action", label: "状态", render: (row) => {
                 const status = updateHistoryStatuses[row.action];
                 return status ? <span className={`badge ${status.tone}`}>{status.label}</span> : "—";
               } },
