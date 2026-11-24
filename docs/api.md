@@ -9,8 +9,8 @@
 | 方法和路径 | 用途 |
 |---|---|
 | GET /sites | 已启用的站点目录，按最近收到数据排序，最多 500 条。未收到数据的站点仍会返回 |
-| GET /sites/{id}/elements | 读取站点的 `{clickSelectors,browserConfigured}` |
-| PUT /sites/{id}/elements | 保存 `{clickSelectors: string[]}`，空数组恢复默认自动点击采集 |
+| GET /sites/{id}/elements | 读取站点的 `{clickSelectors,clickDescriptions,browserConfigured}` |
+| PUT /sites/{id}/elements | 保存 `{clickSelectors,clickDescriptions?,previous?}`，空数组恢复默认自动点击采集 |
 | GET /system/sites | 站点登记、采集来源、启用状态和 SDK 检查结果 |
 | GET /system/site-logs | 探针发现的已授权访问日志路径 |
 | POST /system/sites | 以 `{id,name,accessLog?,browserOrigin?,requireConsent?}` 新增或编辑站点。新站点默认关闭采集 |
@@ -42,9 +42,11 @@
 | GET /system/update/history | 分页更新记录，每个任务一条，返回 `id,created_at,package_name,action` |
 | POST /system/backup | 下载 SQLite 一致性快照 |
 
+元素规则的 `clickSelectors` 为字符串数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
+
 ## 点击统计
 
-`/stats/clicks` 使用 `projectId/from/to` 筛选和 `page/limit` 分页，返回 `project_id, site_name, path, element_key, label, region, element_id, selector, clicks, visitors, last_click`。仅统计浏览器 click 事件，页面优先使用 properties.pagePath（包含 Hash 路由），元素优先使用 elementId，其次 selector。历史事件缺少定位信息时按元素类型、名称和区域归并。名称、区域及定位信息取组内最近一次点击，匿名访客按 visitor_id 去重；不同站点和页面不合并。旧数据可能无法区分同名同类型元素。
+`/stats/clicks` 使用 `projectId/from/to` 筛选和 `page/limit` 分页，返回 `project_id, site_name, path, element_key, label, description, region, element_id, selector, clicks, visitors, last_click`。仅统计浏览器 click 事件，页面优先使用 properties.pagePath（包含 Hash 路由），元素优先使用 elementId，其次 selector。历史事件缺少定位信息时按元素类型、名称和区域归并。名称、区域及定位信息取组内最近一次点击。说明根据该次点击的 `ruleSelector` 读取站点当前配置。匿名访客按 visitor_id 去重；不同站点和页面不合并。旧数据可能无法区分同名同类型元素。
 
 ## 兼容模式 API
 
@@ -69,7 +71,7 @@
 
 项目写入字段：`name, description, domains: string[], status: active|paused|archived, retentionDays, dailyQuota, browserEnabled, collection`。PATCH 当前按完整表单保存，不能仅传一个字段。域名列表实际为精确 Origin，含 scheme 与可选端口，不带尾斜线/路径。暂停和归档均拒绝新采集，已有数据保留至保留期。
 
-`collection` 支持：`eventTypes:string[], sampleRate:0..1, excludePaths:string[], excludeElements:string[], clickSelectors:string[], batchSize:1..100, intervalSeconds:1..100`。点击选择器最多 50 条，每条最多 200 UTF-8 字节。
+`collection` 支持 `eventTypes:string[], sampleRate:0..1, excludePaths:string[], excludeElements:string[], clickSelectors:string[], clickDescriptions:Record<string,string>, batchSize:1..100, intervalSeconds:1..100`。点击选择器最多 50 条，每条最多 200 UTF-8 字节。
 
 Host 配置：
 ```json
@@ -90,7 +92,7 @@ Browser API：POST `/collect/browser?projectId=...`，`{events:[...]}`；GET `/c
 
 事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB，禁止嵌套属性、路径中的查询参数与任意字段。eventId 按项目去重。接受最多 31 天前至未来 5 分钟事件；统计只纳入查询范围。
 
-自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, region, pagePath, pageTitle`，其中 label 是自动读取的按钮名称；properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。新字段直接存入现有 properties JSON，无需数据库迁移；现有事件详情 API 可原样读取。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
+自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, ruleSelector, region, pagePath, pageTitle`。label 是自动读取的元素名称，selector 是 DOM 结构定位，ruleSelector 是实际命中的站点 CSS 规则，默认自动采集时省略。properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。新字段直接存入现有 properties JSON，无需数据库迁移。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
 
 事件、会话列表和统计查询支持 `projectId,agentId,eventType,from,to`。其中 `from/to` 为 Unix 毫秒，也可使用 `fromLocal/toLocal`，格式为 `YYYY-MM-DDTHH:mm`，按系统统计时区解析并覆盖对应的毫秒边界。默认查询最近 24 小时，范围最多 366 天。本机模式省略 `projectId` 时只统计已启用站点。趋势按 UTC 小时分桶，管理端按统计时区显示，写入配额仍按 UTC 日计算。
 

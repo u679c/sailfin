@@ -27,8 +27,10 @@ export function configuredClickTarget(target, selectors) {
   for (const selector of selectors) {
     try {
       const match = target.closest(selector);
-      if (match === target) return match;
-      if (match && (!closest || closest.contains(match))) closest = match;
+      if (match === target) return { element: match, selector };
+      if (match && (!closest || (closest.element !== match && closest.element.contains(match)))) {
+        closest = { element: match, selector };
+      }
     } catch {
       // A selector can be valid in the dashboard browser but unsupported here.
     }
@@ -89,7 +91,7 @@ export function clickProperties(el, { includeText = true } = {}) {
 export function safeProps(properties = {}) {
   const out = {};
   for (const [k, v] of Object.entries(properties)) {
-    if (!["element", "elementId", "label", "selector", "region", "pagePath", "pageTitle", "durationMs", "metric", "value"].includes(k))
+    if (!["element", "elementId", "label", "selector", "ruleSelector", "region", "pagePath", "pageTitle", "durationMs", "metric", "value"].includes(k))
       continue;
     if (typeof v === "string") {
       // Core limits strings in UTF-8 bytes; Chinese labels must fit that limit too.

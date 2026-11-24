@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { api, backup, setCSRF, parse, when as formatTime, number, Row } from "./api";
 import { Select } from "./components/Select";
+import { SelectorRulePreview } from "./components/SelectorRulePreview";
+import { analyzeSelector } from "./selector-rule.mjs";
 import "./style.css";
 const PAGE_SIZE = 20;
 const TimezoneContext = createContext("UTC");
@@ -245,7 +247,7 @@ function Table({
       <div className="table-refresh-frame" aria-busy={loading}>
         {grid}
         {loading && (
-          <div className="table-refresh-overlay" role="status" aria-label="正在刷新站点">
+          <div className="table-refresh-overlay" role="status" aria-label="正在刷新列表">
             <LoaderCircle size={20} aria-hidden="true" />
           </div>
         )}
@@ -551,7 +553,7 @@ function App() {
               </nav>
           )}
           </div>}
-          <div className={`detail-scroll ${["pages", "devices", "clicks", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}`}>
+          <div className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}`}>
           {siteView && section !== "elements" && (
               <div className="filterbar">
                 <div className="filters">
@@ -800,6 +802,7 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
           ...(allSites ? [{ key: "site_name", label: "站点" }] : []),
           { key: "path", label: "页面" },
           { key: "label", label: "元素名称", render: (row) => row.label || "未命名元素" },
+          { key: "description", label: "说明", render: (row) => row.description || "—" },
           { key: "region", label: "区域", render: (row) => row.region || "—" },
           { key: "clicks", label: "点击次数", render: (row) => number(row.clicks) },
           { key: "visitors", label: "匿名访客", render: (row) => number(row.visitors) },
@@ -812,101 +815,184 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
 }
 type SiteElementSettings = {
   clickSelectors: string[];
+  clickDescriptions?: Record<string, string>;
   browserConfigured: boolean;
+};
+
+type ElementDrawer = {
+  mode: "add" | "edit" | "remove";
+  index: number;
+  snapshot: SiteElementSettings;
+  selector: string;
+  description: string;
 };
 
 function SiteElements({ project, revision }: { project: string; revision: number }) {
   const path = `/sites/${encodeURIComponent(project)}/elements`;
-  const state = useData(() => api<SiteElementSettings>(path), [path, revision]);
-  return (
-    <AsyncPanel state={state}>
-      {state.data && <SiteElementForm key={JSON.stringify(state.data.clickSelectors)}
-        path={path} settings={state.data} />}
-    </AsyncPanel>
-  );
-}
-
-function SiteElementForm({ path, settings }: { path: string; settings: SiteElementSettings }) {
-  const [saved, setSaved] = useState(() => settings.clickSelectors.join("\n"));
-  const [draft, setDraft] = useState(saved);
+  const [refresh, setRefresh] = useState(0);
+  const state = useData(() => api<SiteElementSettings>(path), [path, revision, refresh]);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [drawer, setDrawer] = useState<ElementDrawer | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [invalidSelector, setInvalidSelector] = useState(false);
-  const [feedback, setFeedback] = useState("");
+  const [saved, setSaved] = useState(false);
+  const rows = useMemo(() => {
+    const descriptions = state.data?.clickDescriptions ?? {};
+    return (state.data?.clickSelectors ?? []).map((selector, index) => ({
+      id: index + 1, index, selector, description: Object.hasOwn(descriptions, selector) ? descriptions[selector] : "",
+    }));
+  }, [state.data]);
+  const drawerOpen = drawer !== null;
+  const removing = drawer?.mode === "remove";
+  const disabled = saving || state.loading || !state.data;
+  const selectorInput = removing ? "" : (drawer?.selector ?? "").trim();
+  const selectorAnalysis = useMemo(() => {
+    if (new TextEncoder().encode(selectorInput).length > 200 || /[\r\n\0]/.test(selectorInput)) {
+      return { description: null, error: "选择器必须为单行，最多 200 字节", warnings: [] };
+    }
+    return analyzeSelector(selectorInput, (source) => { document.createElement("div").closest(source); });
+  }, [selectorInput]);
+
+  useEffect(() => {
+    const panel = dialog.current;
+    if (drawerOpen && !panel?.open) panel?.showModal();
+    if (!drawerOpen && panel?.open) panel.close();
+  }, [drawerOpen]);
+
+  function openDrawer(mode: ElementDrawer["mode"], index = -1) {
+    if (!state.data) return;
+    const row = rows[index];
+    setError("");
+    setInvalidSelector(false);
+    setSaved(false);
+    setDrawer({ mode, index, snapshot: state.data, selector: row?.selector ?? "", description: row?.description ?? "" });
+  }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving || draft === saved) return;
-    const selectors = new Set<string>();
-    const encoder = new TextEncoder();
-    const button = document.createElement("button");
+    if (saving || !drawer) return;
     setError("");
     setInvalidSelector(false);
-    setFeedback("");
-    for (const [index, line] of draft.split(/\r?\n/).entries()) {
-      const selector = line.trim();
-      if (!selector) continue;
-      try {
-        if (encoder.encode(selector).length > 200 || /[\r\0]/.test(selector))
-          throw new Error();
-        button.matches(selector);
-      } catch {
-        setError(`第 ${index + 1} 行选择器无效，请检查 CSS 语法和长度（最多 200 字节）`);
+    const { clickSelectors, clickDescriptions } = drawer.snapshot;
+    const selectors = [...clickSelectors];
+    const descriptions = new Map(Object.entries(clickDescriptions ?? {}));
+    const original = selectors[drawer.index];
+    if (drawer.mode === "remove") {
+      selectors.splice(drawer.index, 1);
+      if (!selectors.includes(original)) descriptions.delete(original);
+    } else {
+      if (!selectorInput || selectorAnalysis.error) return;
+      const selector = selectorInput;
+      if (selector !== original && selectors.includes(selector)) {
+        setError("此选择器已存在");
         setInvalidSelector(true);
         return;
       }
-      selectors.add(selector);
-    }
-    if (selectors.size > 50) {
-      setError("最多可保存 50 条选择器");
-      setInvalidSelector(true);
-      return;
+      if (drawer.mode === "add") {
+        selectors.push(selector);
+      } else {
+        selectors[drawer.index] = selector;
+        if (selector !== original && !selectors.includes(original)) descriptions.delete(original);
+      }
+      const description = drawer.description.trim();
+      if (description) descriptions.set(selector, description);
+      else descriptions.delete(selector);
     }
     setSaving(true);
     try {
-      const result = await api<Pick<SiteElementSettings, "clickSelectors">>(path, {
+      await api(path, {
         method: "PUT",
-        body: JSON.stringify({ clickSelectors: [...selectors] }),
+        body: JSON.stringify({
+          clickSelectors: selectors,
+          clickDescriptions: Object.fromEntries(descriptions),
+          previous: { clickSelectors, clickDescriptions },
+        }),
       });
-      const text = result.clickSelectors.join("\n");
-      setSaved(text);
-      setDraft(text);
-      setFeedback("已保存，SDK 将在下次刷新配置时应用");
+      setDrawer(null);
+      setSaved(true);
     } catch (error) {
       setError((error as Error).message);
     } finally {
+      setRefresh((value) => value + 1);
       setSaving(false);
     }
   }
 
   return (
-    <section className="panel form-panel">
-      <form onSubmit={save}>
-        {!settings.browserConfigured && <span className="selector-help">此站点尚未配置浏览器采集，接入 SDK 后规则才会生效。</span>}
-        <label htmlFor="click-selectors">点击采集的 CSS 选择器
-          <textarea id="click-selectors" className="click-selectors" rows={7}
-            placeholder={"#checkout\nbutton[data-action=\"submit\"]"}
-            aria-describedby={error ? "click-selectors-help click-selectors-error" : "click-selectors-help"}
-            aria-invalid={invalidSelector || undefined}
-            spellCheck={false} value={draft} disabled={saving}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setError("");
-              setInvalidSelector(false);
-              setFeedback("");
-            }} />
-          <span id="click-selectors-help" className="selector-help">
-            每行一条。填写后只记录匹配控件的点击，留空使用默认自动采集。
-          </span>
-        </label>
-        {error && <div id="click-selectors-error" className="error" role="alert">{error}</div>}
-        <div className="actions">
-          <button className="primary" type="submit" disabled={saving || draft === saved}>
-            {saving ? "保存中…" : "保存规则"}
-          </button>
-        </div>
-        <div role="status" hidden={!feedback} className="notice">{feedback}</div>
-      </form>
+    <section className="panel list-panel site-element-list" aria-label="元素管理">
+      <div className="panel-title site-management-toolbar">
+        <span role="status">{state.data && (
+          !state.data.browserConfigured ? "此站点尚未配置浏览器采集"
+            : rows.length >= 50 ? "已达 50 条规则上限"
+            : saved ? "规则已更新" : rows.length ? "仅采集匹配元素的点击" : "当前使用默认自动采集"
+        )}</span>
+        <button className="primary" type="button" disabled={disabled || rows.length >= 50} onClick={() => openDrawer("add")}>
+          <Plus size={16} aria-hidden="true" />新增元素
+        </button>
+      </div>
+      <ErrorBox message={state.error} />
+      <Table rows={rows} loading={state.loading} keepPage
+        emptyLabel={state.data ? "暂无元素规则" : ""}
+        columns={[
+          { key: "selector", label: "CSS 选择器", render: (row) => <code>{row.selector}</code> },
+          { key: "description", label: "说明", render: (row) => row.description || "—" },
+          { key: "actions", label: "操作", width: "150px", render: (row) => (
+            <div className="actions">
+              <button type="button" disabled={disabled} onClick={() => openDrawer("edit", row.index)}>编辑</button>
+              <button type="button" disabled={disabled} onClick={() => openDrawer("remove", row.index)}>移除</button>
+            </div>
+          ) },
+        ]} />
+      <dialog ref={dialog} className="site-drawer" aria-labelledby="element-drawer-title"
+        onCancel={(event) => { event.preventDefault(); if (!saving) setDrawer(null); }}>
+        {drawer && (
+          <form className="site-drawer-layout" onSubmit={save}>
+            <header className="site-drawer-header">
+              <h2 id="element-drawer-title">{removing ? "移除元素" : drawer.mode === "edit" ? "编辑元素" : "新增元素"}</h2>
+              <button type="button" aria-label="关闭" className="site-drawer-close" disabled={saving}
+                onClick={() => setDrawer(null)}><X size={20} aria-hidden="true" /></button>
+            </header>
+            <div className="site-drawer-body">
+              {removing ? (
+                <>
+                  <code>{drawer.selector}</code>
+                  <p className="site-drawer-hint">
+                    {drawer.snapshot.clickSelectors.length === 1 ? "移除最后一条规则后，将恢复默认自动采集。" : "移除后，SDK 将按其余规则采集点击。"}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <label>CSS 选择器
+                    <input className="click-selectors" placeholder=".timeline-item" required spellCheck={false}
+                      value={drawer.selector} disabled={saving} aria-describedby="element-selector-preview"
+                      aria-invalid={(invalidSelector || Boolean(selectorAnalysis.error)) || undefined}
+                      onChange={(event) => {
+                        setError("");
+                        setInvalidSelector(false);
+                        setDrawer({ ...drawer, selector: event.target.value });
+                      }} />
+                  </label>
+                  <SelectorRulePreview analysis={selectorAnalysis} />
+                  <label>说明
+                    <input value={drawer.description} disabled={saving} aria-describedby="element-description-hint"
+                      onChange={(event) => setDrawer({ ...drawer, description: event.target.value })} />
+                    <span id="element-description-hint" className="selector-help">选填，建议不超过 10 个字符。说明会显示在「点击行为」。</span>
+                  </label>
+                </>
+              )}
+              <ErrorBox message={error} />
+            </div>
+            <footer className="site-drawer-footer">
+              <button type="button" disabled={saving} onClick={() => setDrawer(null)}>取消</button>
+              <button type="submit" className={removing ? "danger" : "primary"}
+                disabled={saving || (!removing && (!selectorInput || Boolean(selectorAnalysis.error)))}>
+                {saving ? "保存中…" : removing ? "确认移除" : "保存元素"}
+              </button>
+            </footer>
+          </form>
+        )}
+      </dialog>
     </section>
   );
 }

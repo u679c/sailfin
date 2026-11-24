@@ -20,7 +20,7 @@ import (
 )
 
 var browserTypes = map[string]bool{"page_view": true, "route_change": true, "click": true, "session_start": true, "page_hidden": true, "js_error": true, "unhandled_rejection": true, "performance_event": true}
-var propertyTypes = map[string]bool{"element": true, "elementId": true, "label": true, "selector": true, "region": true, "pagePath": true, "pageTitle": true, "status": true, "method": true, "bytes": true, "durationMs": true, "message": true, "metric": true, "value": true, "referrer": true}
+var propertyTypes = map[string]bool{"element": true, "elementId": true, "label": true, "selector": true, "ruleSelector": true, "region": true, "pagePath": true, "pageTitle": true, "status": true, "method": true, "bytes": true, "durationMs": true, "message": true, "metric": true, "value": true, "referrer": true}
 
 func (s *Server) browserProject(r *http.Request, p string) (map[string]any, error) {
 	rows, e := s.rows(r.Context(), "SELECT * FROM projects WHERE id=? AND status='active' AND browser_enabled=1", p)
@@ -66,6 +66,7 @@ func (s *Server) browserConfig(w http.ResponseWriter, r *http.Request) error {
 	if c == nil {
 		c = map[string]any{}
 	}
+	delete(c, "clickDescriptions")
 	c["enabled"] = true
 	jsonOut(w, 200, c)
 	return nil
@@ -441,7 +442,8 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) erro
 				json_extract(properties,'$.label') AS label,
 				json_extract(properties,'$.region') AS region,
 				json_extract(properties,'$.elementId') AS element_id,
-				json_extract(properties,'$.selector') AS selector
+				json_extract(properties,'$.selector') AS selector,
+				json_extract(properties,'$.ruleSelector') AS rule_selector
 			FROM events WHERE type='click' AND source_type='browser' AND `+q+`
 		), ranked AS (
 			SELECT *,row_number() OVER (
@@ -453,6 +455,9 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request, kind string) erro
 			max(CASE WHEN position=1 THEN region END) AS region,
 			max(CASE WHEN position=1 THEN element_id END) AS element_id,
 			max(CASE WHEN position=1 THEN selector END) AS selector,
+			max(CASE WHEN position=1 THEN (
+				SELECT d.value FROM json_each(p.collection,'$.clickDescriptions') d WHERE d.key=r.rule_selector
+			) END) AS description,
 			count(*) AS clicks,count(DISTINCT NULLIF(visitor_id,'')) AS visitors,
 			max(timestamp) AS last_click
 		FROM ranked r JOIN projects p ON p.id=r.project_id

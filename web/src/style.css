@@ -737,6 +737,37 @@ tbody tr:hover {
   font-size: 12px;
   font-weight: 400;
 }
+.site-element-list .table-refresh-frame table {
+  min-width: 420px;
+}
+.selector-rule-preview {
+  margin-top: -7px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #f6f8fb;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.selector-rule-title {
+  color: var(--ink);
+  font-weight: 550;
+}
+.selector-rule-preview p {
+  margin: 4px 0 0;
+}
+.selector-rule-preview ul {
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+}
+.selector-rule-preview .selector-rule-error {
+  color: #a22d3a;
+}
+.selector-rule-preview .selector-rule-warning {
+  color: #765115;
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

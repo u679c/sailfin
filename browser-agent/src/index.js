@@ -253,11 +253,15 @@ export function init(options) {
     if (!config.enabled || !(target instanceof Element)) return;
     try {
       if (target.closest(ignoredClickTargets)) return;
-      const el = config.clickSelectors?.length
+      const match = config.clickSelectors?.length
         ? configuredClickTarget(target, config.clickSelectors)
-        : target.closest(clickTargets);
+        : { element: target.closest(clickTargets) };
+      const el = match?.element;
       if (!el || (config.excludeElements || []).some((s) => target.closest(s))) return;
-      track("click", clickProperties(el, { includeText: el.matches(clickTargets) }));
+      track("click", {
+        ...clickProperties(el, { includeText: el.matches(clickTargets) }),
+        ruleSelector: match.selector,
+      });
     } catch {
       // Instrumentation must never interrupt the site's own click handler.
     }

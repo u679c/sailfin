@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,28 +31,38 @@ func (s *Server) collectedSites(w http.ResponseWriter, r *http.Request) error {
 		ORDER BY last_event DESC,p.created_at DESC LIMIT 500`)
 }
 
+type siteElementConfig struct {
+	ClickSelectors    []string          `json:"clickSelectors"`
+	ClickDescriptions map[string]string `json:"clickDescriptions"`
+}
+
 func (s *Server) siteElements(w http.ResponseWriter, r *http.Request) error {
-	var selectors []byte
+	var selectors, descriptions []byte
 	var browserConfigured bool
 	err := s.DB.QueryRowContext(r.Context(), `SELECT
 		COALESCE(json_extract(p.collection,'$.clickSelectors'),'[]'),
+		COALESCE(json_extract(p.collection,'$.clickDescriptions'),'{}'),
 		CASE WHEN ? THEN COALESCE(a.browser_origin,'')<>'' ELSE p.browser_enabled END
 		FROM projects p LEFT JOIN site_registry a ON a.project_id=p.id
 		WHERE p.id=? AND (?=0 OR a.project_id IS NOT NULL)`,
-		s.cfg.LocalOnly, r.PathValue("id"), s.cfg.LocalOnly).Scan(&selectors, &browserConfigured)
+		s.cfg.LocalOnly, r.PathValue("id"), s.cfg.LocalOnly).Scan(&selectors, &descriptions, &browserConfigured)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fail(404, "站点不存在")
 	}
 	if err != nil {
 		return err
 	}
-	jsonOut(w, 200, map[string]any{"clickSelectors": json.RawMessage(selectors), "browserConfigured": browserConfigured})
+	jsonOut(w, 200, map[string]any{
+		"clickSelectors": json.RawMessage(selectors), "clickDescriptions": json.RawMessage(descriptions),
+		"browserConfigured": browserConfigured,
+	})
 	return nil
 }
 
 func (s *Server) saveSiteElements(w http.ResponseWriter, r *http.Request) error {
 	var settings struct {
-		ClickSelectors []string `json:"clickSelectors"`
+		siteElementConfig
+		Previous *siteElementConfig `json:"previous"`
 	}
 	if err := decode(r, &settings); err != nil {
 		return err
@@ -65,26 +77,59 @@ func (s *Server) saveSiteElements(w http.ResponseWriter, r *http.Request) error 
 		}
 		settings.ClickSelectors[i] = selector
 	}
-	selectors, err := json.Marshal(settings.ClickSelectors)
+	tx, err := s.DB.BeginTx(r.Context(), nil)
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 	id := r.PathValue("id")
-	result, err := s.DB.ExecContext(r.Context(), `UPDATE projects SET collection=json_set(
-		CASE WHEN json_type(collection)='object' THEN collection ELSE '{}' END,
-		'$.clickSelectors',json(?)) WHERE id=?
+	var collection string
+	err = tx.QueryRowContext(r.Context(), `SELECT collection FROM projects WHERE id=?
 		AND (?=0 OR EXISTS(SELECT 1 FROM site_registry WHERE project_id=projects.id))`,
-		string(selectors), id, s.cfg.LocalOnly)
-	if err != nil {
-		return err
-	}
-	if count, err := result.RowsAffected(); err != nil {
-		return err
-	} else if count == 0 {
+		id, s.cfg.LocalOnly).Scan(&collection)
+	if errors.Is(err, sql.ErrNoRows) {
 		return fail(404, "站点不存在")
 	}
+	if err != nil {
+		return err
+	}
+	var current siteElementConfig
+	if err := json.Unmarshal([]byte(collection), &current); err != nil {
+		return err
+	}
+	if previous := settings.Previous; previous != nil &&
+		(!slices.Equal(previous.ClickSelectors, current.ClickSelectors) || !maps.Equal(previous.ClickDescriptions, current.ClickDescriptions)) {
+		return fail(409, "元素规则已更新，请关闭抽屉后重新编辑")
+	}
+	descriptions := settings.ClickDescriptions
+	if descriptions == nil {
+		descriptions = current.ClickDescriptions
+	}
+	settings.ClickDescriptions = make(map[string]string)
+	for _, selector := range settings.ClickSelectors {
+		if description := strings.TrimSpace(descriptions[selector]); description != "" {
+			settings.ClickDescriptions[selector] = description
+		}
+	}
+	selectorsJSON, err := json.Marshal(settings.ClickSelectors)
+	if err != nil {
+		return err
+	}
+	descriptionsJSON, err := json.Marshal(settings.ClickDescriptions)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(r.Context(), `UPDATE projects SET collection=json_set(
+		CASE WHEN json_type(collection)='object' THEN collection ELSE '{}' END,
+		'$.clickSelectors',json(?),'$.clickDescriptions',json(?)) WHERE id=?`,
+		string(selectorsJSON), string(descriptionsJSON), id); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 	s.audit("site.elements.save", id)
-	jsonOut(w, 200, settings)
+	jsonOut(w, 200, settings.siteElementConfig)
 	return nil
 }
 

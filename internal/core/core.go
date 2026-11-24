@@ -570,7 +570,7 @@ func (s *Server) saveProject(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 func validateCollection(m map[string]any) error {
-	allowed := map[string]bool{"eventTypes": true, "sampleRate": true, "excludePaths": true, "excludeElements": true, "clickSelectors": true, "batchSize": true, "intervalSeconds": true}
+	allowed := map[string]bool{"eventTypes": true, "sampleRate": true, "excludePaths": true, "excludeElements": true, "clickSelectors": true, "clickDescriptions": true, "batchSize": true, "intervalSeconds": true}
 	for k, v := range m {
 		if !allowed[k] {
 			return fail(400, "unsupported collection field: "+k)
@@ -585,6 +585,16 @@ func validateCollection(m map[string]any) error {
 			n, ok := v.(float64)
 			if !ok || n < 1 || n > 100 {
 				return fail(400, "batch size and interval must be 1..100")
+			}
+		case "clickDescriptions":
+			descriptions, ok := v.(map[string]any)
+			if !ok || len(descriptions) > 50 {
+				return fail(400, "clickDescriptions must map selectors to descriptions")
+			}
+			for selector, description := range descriptions {
+				if _, ok := description.(string); !ok || !validClickSelector(selector) {
+					return fail(400, "invalid click description")
+				}
 			}
 		default:
 			a, ok := v.([]any)
