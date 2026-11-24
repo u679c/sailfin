@@ -134,9 +134,9 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 
 ## 自动行为采集字段
 
-注入 SDK 后，无需修改业务代码即可记录普通按钮、链接、role=button/link、自带按钮类型的 input，以及动态新增元素的点击。点击使用捕获阶段监听，在业务处理器改动文字或切换页面前获取名称和页面位置。
+注入 SDK 后，会自动记录按钮、链接、按钮型 input、原生折叠控件的 summary、ARIA 标签页和菜单项的点击，也支持动态新增的元素。自定义控件可以用 `data-sailfin-id` 标记。点击使用捕获阶段监听，在业务处理器改动文字或切换页面前获取名称和页面位置。元素排除规则从实际点到的元素向上匹配，因此也可以排除控件内部的区域。
 
-事件继续使用现有的 page_view、route_change、click、page_hidden 类型。所有浏览器事件在 properties.pagePath 中保留页面标识；支持 /#/route 和 /#!/route，去除查询参数和普通锚点。顶层 path 仍是 pathname，兼容现有后台统计。页面隐藏或路由切换时，停留时间记到原页面，只累计前台可见时间。
+SDK 采集页面浏览、路由切换、点击、会话开始、前台停留、JS 异常、未处理的 Promise 拒绝和页面加载性能。所有浏览器事件在 properties.pagePath 中保留页面标识，支持 /#/route 和 /#!/route，去除查询参数和普通锚点。顶层 path 仍是 pathname，兼容现有后台统计。页面隐藏或路由切换时，停留时间记到原页面，只累计前台可见时间。
 
 click 的 properties 新增 label（按钮名称）、selector（结构定位）、region（最近的语义区域），elementId 优先使用现有 data-sailfin-id，否则对页面与 DOM 结构生成自动 ID。相同结构下按钮文字变化不会改变自动 ID；DOM 层级、同类兄弟元素顺序变化仍可能改变它，不能保证跨站点改版稳定。点击行为已按站点、页面和元素标识聚合，显示点击次数、匿名访客及最近点击；原始记录仍可查询。页面归并规则、不同元素的人工合并与后台命名后续实现。
 

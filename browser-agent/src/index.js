@@ -1,4 +1,24 @@
 import { clickProperties, pagePath, safePath, safeProps, shouldCollect } from "./policy.js";
+
+const clickTargets = [
+  "button",
+  "a",
+  "details > summary:first-of-type",
+  '[role="button"]',
+  '[role="link"]',
+  '[role="tab"]',
+  '[role="menuitem"]',
+  '[role="menuitemcheckbox"]',
+  '[role="menuitemradio"]',
+  'input[type="button"]',
+  'input[type="submit"]',
+  'input[type="reset"]',
+  "[data-sailfin-id]",
+  "[data-tracelite-id]",
+].join(",");
+const ignoredClickTargets =
+  'input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],[hidden],[aria-hidden="true"]';
+
 export function init(options) {
   if (typeof window === "undefined")
     throw new Error("Sailfin requires a browser");
@@ -229,27 +249,13 @@ export function init(options) {
   on(window, "popstate", route);
   on(window, "hashchange", route);
   on(document, "click", (e) => {
-    if (!config.enabled || !(e.target instanceof Element)) return;
-    if (e.target.closest('input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],[hidden],[aria-hidden="true"]')) return;
-    const el = e.target.closest('button,a,[role="button"],[role="link"],input[type="button"],input[type="submit"],input[type="reset"],[data-sailfin-id],[data-tracelite-id]');
-    if (
-      !el ||
-      el.closest(
-        'input:not([type="button"]):not([type="submit"]):not([type="reset"]),textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore]',
-      )
-    )
-      return;
+    const target = e.target;
+    if (!config.enabled || !(target instanceof Element)) return;
     try {
-      if (
-        (config.excludeElements || []).some(
-          (s) => el.matches(s) || el.closest(s),
-        )
-      )
+      if (target.closest(ignoredClickTargets)) return;
+      const el = target.closest(clickTargets);
+      if (!el || (config.excludeElements || []).some((s) => target.closest(s)))
         return;
-    } catch {
-      return;
-    }
-    try {
       track("click", clickProperties(el));
     } catch {
       // Instrumentation must never interrupt the site's own click handler.
