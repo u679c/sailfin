@@ -142,7 +142,7 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 
 注入 SDK 后，会自动记录按钮、链接、按钮型 input、原生折叠控件的 summary、ARIA 标签页和菜单项的点击，也支持动态新增的元素。自定义控件可以用 `data-sailfin-id` 标记。点击使用捕获阶段监听，在业务处理器改动文字或切换页面前获取名称和页面位置。元素排除规则从实际点到的元素向上匹配，因此也可以排除控件内部的区域。
 
-在「站点 → 元素管理」选中站点后，可每行配置一条 CSS 选择器，例如 `#checkout` 或 `button[data-action="submit"]`。SDK 将规则匹配到实际点击的控件，命中任意一条就记录该次点击。清空规则并保存，可恢复默认自动点击采集。SDK 定期刷新站点规则，已有点击仍可在历史记录中查询。
+在「站点 → 元素管理」选中站点后，可每行配置一条 CSS 选择器，例如 `#checkout` 或 `button[data-action="submit"]`。点击匹配的元素或其内部区域时，SDK 记录最近的匹配元素。规则也可匹配普通 DOM 元素，这类元素的名称读取 `aria-label` 或 `title`。清空规则并保存，可恢复默认自动点击采集。SDK 定期刷新站点规则，已有点击仍可在历史记录中查询。
 
 SDK 采集页面浏览、路由切换、点击、会话开始、前台停留、JS 异常、未处理的 Promise 拒绝和页面加载性能。所有浏览器事件在 properties.pagePath 中保留页面标识，支持 /#/route 和 /#!/route，去除查询参数和普通锚点。顶层 path 仍是 pathname，兼容现有后台统计。页面隐藏或路由切换时，停留时间记到原页面，只累计前台可见时间。
 

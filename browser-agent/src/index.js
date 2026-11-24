@@ -1,4 +1,4 @@
-import { clickProperties, pagePath, safePath, safeProps, shouldCollect } from "./policy.js";
+import { clickProperties, configuredClickTarget, pagePath, safePath, safeProps, shouldCollect } from "./policy.js";
 
 const clickTargets = [
   "button",
@@ -253,20 +253,11 @@ export function init(options) {
     if (!config.enabled || !(target instanceof Element)) return;
     try {
       if (target.closest(ignoredClickTargets)) return;
-      const el = target.closest(clickTargets);
-      if (!el || (config.excludeElements || []).some((s) => target.closest(s)))
-        return;
-      if (
-        config.clickSelectors?.length &&
-        !config.clickSelectors.some((selector) => {
-          try {
-            return el.matches(selector);
-          } catch {
-            return false;
-          }
-        })
-      ) return;
-      track("click", clickProperties(el));
+      const el = config.clickSelectors?.length
+        ? configuredClickTarget(target, config.clickSelectors)
+        : target.closest(clickTargets);
+      if (!el || (config.excludeElements || []).some((s) => target.closest(s))) return;
+      track("click", clickProperties(el, { includeText: el.matches(clickTargets) }));
     } catch {
       // Instrumentation must never interrupt the site's own click handler.
     }

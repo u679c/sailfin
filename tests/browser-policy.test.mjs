@@ -1,10 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  configuredClickTarget,
   safePath,
   safeProps,
   shouldCollect,
 } from "../browser-agent/src/policy.js";
+
+test("configured clicks use the nearest matching element, including custom elements", () => {
+  const marker = { contains: (element) => element === marker };
+  const timeline = { contains: (element) => element === marker || element === timeline };
+  const target = {
+    closest(selector) {
+      if (selector === "#timeline-item") return timeline;
+      if (selector === "#amap-marker") return marker;
+      if (selector === "[") throw new SyntaxError("Invalid selector");
+      return null;
+    },
+  };
+  assert.equal(configuredClickTarget(target, ["#timeline-item", "[", "#amap-marker"]), marker);
+  assert.equal(configuredClickTarget(target, ["#amap-marker", "#timeline-item"]), marker);
+  assert.equal(configuredClickTarget(target, ["#other"]), null);
+});
+
 test("URLs drop credentials, query and fragment", () => {
   assert.equal(
     safePath("https://name:password@example.com/a?token=secret#private"),

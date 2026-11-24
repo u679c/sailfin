@@ -22,7 +22,20 @@ export function pagePath(value) {
   return (url.pathname + (route.startsWith("/") ? "#" + route.split(/[?#]/)[0] : "")).slice(0, 200);
 }
 const privateElements = "input,textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],script,style,[hidden],[aria-hidden='true']";
-export function clickProperties(el) {
+export function configuredClickTarget(target, selectors) {
+  let closest = null;
+  for (const selector of selectors) {
+    try {
+      const match = target.closest(selector);
+      if (match === target) return match;
+      if (match && (!closest || closest.contains(match))) closest = match;
+    } catch {
+      // A selector can be valid in the dashboard browser but unsupported here.
+    }
+  }
+  return closest;
+}
+export function clickProperties(el, { includeText = true } = {}) {
   const clean = (value) => (value || "").replace(/\s+/g, " ").trim().slice(0, 200);
   function text(node) {
     const copy = node.cloneNode(true);
@@ -30,7 +43,7 @@ export function clickProperties(el) {
     return clean(node.querySelector(privateElements) ? copy.textContent : (node.innerText || copy.textContent));
   }
   let label = clean(el.getAttribute("aria-label"));
-  if (!label) {
+  if (includeText && !label) {
     const refs = (el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean).slice(0, 5);
     label = clean(refs.map((ref) => {
       const node = el.ownerDocument.getElementById(ref);
@@ -38,9 +51,9 @@ export function clickProperties(el) {
     }).join(" "));
   }
   const isInput = el.tagName.toLowerCase() === "input";
-  label ||= isInput ? clean(el.value) : text(el);
+  if (includeText) label ||= isInput ? clean(el.value) : text(el);
   label ||= clean(el.getAttribute("title"));
-  if (!label) {
+  if (includeText && !label) {
     label = clean(Array.from(el.querySelectorAll("img[alt]")).filter((img) => !img.closest(privateElements)).map((img) => img.getAttribute("alt")).join(" "));
   }
   const parts = [];
