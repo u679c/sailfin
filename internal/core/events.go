@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -547,42 +546,11 @@ func (s *Server) setSystemTimezone(w http.ResponseWriter, r *http.Request) error
 	jsonOut(w, 200, input)
 	return nil
 }
-func (s *Server) backup(w http.ResponseWriter, r *http.Request) error {
-	dir := filepath.Join(filepath.Dir(s.cfg.DBPath), "backups")
-	if e := os.MkdirAll(dir, 0700); e != nil {
-		return e
-	}
-	name := "sailfin-" + time.Now().UTC().Format("20060102T150405") + "-" + Random()[:6] + ".db"
-	path := filepath.Join(dir, name)
-	defer os.Remove(path)
-	if _, e := s.DB.ExecContext(r.Context(), "VACUUM INTO ?", path); e != nil {
-		return e
-	}
-	if e := os.Chmod(path, 0600); e != nil {
-		return e
-	}
-	s.audit("database.backup", name)
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
-	http.ServeFile(w, r, path)
-	return nil
-}
-func (s *Server) Maintain(ctxDone <-chan struct{}) {
-	t := time.NewTicker(time.Hour)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctxDone:
-			return
-		case <-t.C:
-			s.cleanup()
-		}
-	}
-}
-func (s *Server) cleanup() {
-	tx, e := s.DB.Begin()
+
+func (s *Server) cleanup(ctx context.Context) error {
+	tx, e := s.DB.BeginTx(ctx, nil)
 	if e != nil {
-		return
+		return e
 	}
 	defer tx.Rollback()
 	queries := []string{`DELETE FROM events WHERE EXISTS(SELECT 1 FROM projects p WHERE p.id=events.project_id AND events.timestamp < ? - p.retention_days*86400000)`, `DELETE FROM auth_sessions WHERE expires<?`, `DELETE FROM enrollments WHERE expires<?`, `DELETE FROM daily_usage WHERE day<date('now','-366 days')`, `DELETE FROM agent_logs WHERE id NOT IN (SELECT id FROM agent_logs ORDER BY id DESC LIMIT 2000)`, `DELETE FROM audit_logs WHERE id NOT IN (SELECT id FROM audit_logs ORDER BY id DESC LIMIT 10000)`, `DELETE FROM agent_configs WHERE version < (SELECT max(a.version)-19 FROM agent_configs a WHERE a.agent_id=agent_configs.agent_id)`,
@@ -590,13 +558,13 @@ func (s *Server) cleanup() {
 	for i, q := range queries {
 		var err error
 		if i < 3 {
-			_, err = tx.Exec(q, Now())
+			_, err = tx.ExecContext(ctx, q, Now())
 		} else {
-			_, err = tx.Exec(q)
+			_, err = tx.ExecContext(ctx, q)
 		}
 		if err != nil {
-			return
+			return err
 		}
 	}
-	_ = tx.Commit()
+	return tx.Commit()
 }

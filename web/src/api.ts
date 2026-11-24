@@ -33,20 +33,6 @@ export async function api<T = Row[]>(
   }
   return data;
 }
-export async function backup() {
-  const res = await fetch("/api/v1/system/backup", {
-    method: "POST",
-    headers: { "X-CSRF-Token": csrf },
-    credentials: "same-origin",
-  });
-  if (!res.ok) throw new Error("备份失败，请检查 Core 日志");
-  const url = URL.createObjectURL(await res.blob());
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "sailfin-backup.db";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 export function parse<T = any>(value: unknown, fallback: T): T {
   if (typeof value !== "string") return fallback;
   try {

@@ -95,7 +95,7 @@ SAILFIN_PUBLIC_URL=http://localhost:8080 \
 
 也可通过 `SAILFIN_RELEASE_NOTES_FILE` 指定一份最多 8 KiB 的 UTF-8 更新说明，自定义内容显示在提交摘要前面。管理端预览最多显示 8 KiB，完整的所选提交摘要随包放在 `git-history.txt`。
 
-先在 **系统设置 → 运行设置 → 下载备份** 保存数据库快照，并核对更新包的 SHA-256。更新包要求 Sailfin 已安装到 `/data/sailfin`。在旧版没有启动配置记录时，用原启动配置执行更新，并显式设置 `SAILFIN_DB` 指向实际使用的数据库文件。
+先在 **备份管理 → 备份文件** 创建并下载数据库快照，再核对更新包的 SHA-256。更新包要求 Sailfin 已安装到 `/data/sailfin`。在旧版没有启动配置记录时，用原启动配置执行更新，并显式设置 `SAILFIN_DB` 指向实际使用的数据库文件。
 
 ```sh
 chmod +x ./Sailfin-update-实际MD5.bin

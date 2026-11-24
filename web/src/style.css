@@ -348,6 +348,38 @@ a {
   flex-direction: column;
   overflow: hidden;
 }
+.backup-workspace {
+  display: flex;
+  flex-direction: column;
+}
+.backup-workspace .list-panel {
+  min-height: 240px;
+}
+.backup-schedule-panel {
+  flex-shrink: 0;
+}
+.backup-policy-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+.backup-policy-controls .checkbox {
+  align-self: center;
+}
+.backup-policy-controls input[type="number"] {
+  width: 138px;
+}
+.backup-schedule-panel .site-drawer-hint,
+.backup-schedule-panel .error {
+  margin-top: 12px;
+}
+.backup-actions {
+  align-items: center;
+}
+.account-settings .password-settings {
+  margin-top: 0;
+}
 .list-workspace > .filterbar,
 .list-view > .toolbar { flex-shrink: 0; }
 .panel.list-panel {

@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useState, useEffect, use
 import { createRoot } from "react-dom/client";
 import {
   Activity,
+  DatabaseBackup,
   Globe,
   Search,
   Settings,
@@ -11,14 +12,13 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  Download,
   Info,
   Upload,
   LoaderCircle,
   Plus,
   X,
 } from "lucide-react";
-import { api, backup, setCSRF, parse, when as formatTime, number, Row } from "./api";
+import { api, setCSRF, parse, when as formatTime, number, Row } from "./api";
 import { Select } from "./components/Select";
 import { SelectorRulePreview } from "./components/SelectorRulePreview";
 import { analyzeSelector } from "./selector-rule.mjs";
@@ -47,6 +47,7 @@ const sections = [
   { id: "security", name: "安全审计" },
   { id: "system", name: "运行设置" },
   { id: "system-info", name: "系统信息" },
+  { id: "backups", name: "备份管理" },
 ];
 const siteSections = sections.filter((s) =>
   ["overview", "pages", "clicks", "elements", "sessions", "events", "devices"].includes(s.id),
@@ -488,9 +489,10 @@ function App() {
   const siteView = siteSections.some((item) => item.id === section);
   const settingsView = section === "system-info" || section === "system" || section === "security";
   const probeView = section === "collection";
+  const backupView = section === "backups";
   const probePane = params.get("view") === "probes" ? "probes" : "sites";
   const selectedSite = projects.data?.find((item) => item.id === project);
-  const primarySection = settingsView ? "system-info" : section === "collection" ? "collection" : "sites";
+  const primarySection = settingsView ? "system-info" : probeView || backupView ? section : "sites";
   return (
     <TimezoneContext.Provider value={timezone}>
     <div className="shell site-shell">
@@ -503,6 +505,7 @@ function App() {
             { id: "sites", name: "站点" },
             { id: "collection", name: "探针管理" },
             { id: "system-info", name: "系统设置" },
+            { id: "backups", name: "备份管理" },
           ].map((item) => (
             <a key={item.id} href={href(item.id, item.id === "sites" ? { projectId: "" } : {})}
               className={primarySection === item.id ? "selected" : ""}
@@ -541,6 +544,13 @@ function App() {
               ))}
             </nav>
           </aside>}
+          {backupView && <aside className="site-assets module-menu" aria-label="备份导航">
+            <nav>
+              <a className="asset-item selected" href={href("backups", { view: "" })} onClick={followLink} aria-current="page">
+                <DatabaseBackup size={16} aria-hidden="true" /><span>备份文件</span>
+              </a>
+            </nav>
+          </aside>}
           <div className="detail-workspace">
           {siteView && <div className="site-sticky-header">
           {siteView && (
@@ -553,7 +563,7 @@ function App() {
               </nav>
           )}
           </div>}
-          <div className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}`}>
+          <div className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}${backupView ? " backup-workspace" : ""}`}>
           {siteView && section !== "elements" && (
               <div className="filterbar">
                 <div className="filters">
@@ -593,6 +603,7 @@ function App() {
           {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
           {section === "security" && <Security revision={revision} />}
           {section === "system-info" && <SystemInfo state={system} revision={revision} onChange={refresh} />}
+          {backupView && <BackupManagement revision={revision} />}
           {section === "system" && <SystemSettings onLogout={() => {
             setCSRF("");
             setAuthenticated(false);
@@ -1974,28 +1985,134 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
   );
 }
 
-function SystemSettings({ onLogout }: { onLogout: () => void }) {
+type BackupSchedule = {
+  enabled: boolean;
+  intervalHours: number;
+  keep: number;
+  lastAttempt: number;
+  lastSuccess: number;
+  lastError: string;
+};
+type BackupEntry = { name: string; kind: "manual" | "auto"; createdAt: number; bytes: number };
+
+function mib(bytes: number) {
+  return `${(bytes / 1_048_576).toLocaleString("zh-CN", { maximumFractionDigits: 2 })} MiB`;
+}
+
+function BackupManagement({ revision }: { revision: number }) {
+  const when = useTimeFormatter();
+  const [refresh, setRefresh] = useState(0);
+  const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const schedule = useData(() => api<BackupSchedule>("/system/backup/schedule"), [revision, refresh], 15000);
+  const files = useData(() => api<BackupEntry[]>("/system/backups"), [revision, refresh], 15000);
+  const rows = useMemo(() => (files.data ?? []).map((entry) => ({ ...entry, id: entry.name })), [files.data]);
+
+  async function changeBackup(name?: string) {
+    if (busy || (name && !window.confirm(`删除服务器上的备份「${name}」？`))) return;
+    setBusy(name ?? "create");
+    setError("");
+    try {
+      await api(name ? `/system/backups/${encodeURIComponent(name)}` : "/system/backups",
+        { method: name ? "DELETE" : "POST" });
+      setRefresh((value) => value + 1);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
-    <section className="panel">
-      <h2>数据备份</h2>
-      <p className="muted">备份包含账户与采集数据，请妥善保存。</p>
+    <>
+      <section className="panel backup-schedule-panel">
+        <h2>自动备份</h2>
+        <ErrorBox message={schedule.error} />
+        {schedule.data ? (
+          <>
+            <BackupScheduleForm key={JSON.stringify([schedule.data.enabled, schedule.data.intervalHours, schedule.data.keep])}
+              schedule={schedule.data} onSaved={() => setRefresh((value) => value + 1)} />
+            {schedule.data.lastSuccess > 0 && <p className="site-drawer-hint">上次成功备份 {when(schedule.data.lastSuccess)}</p>}
+            <ErrorBox message={schedule.data.lastError} />
+          </>
+        ) : schedule.loading && <p className="site-drawer-hint" role="status">正在读取配置…</p>}
+      </section>
+      <section className="panel list-panel">
+        <div className="panel-title site-management-toolbar">
+          <span>备份包含账户及采集数据，请妥善保存。</span>
+          <button type="button" className="primary" disabled={Boolean(busy)} onClick={() => void changeBackup()}>
+            <Plus size={16} aria-hidden="true" />{busy === "create" ? "正在创建…" : "创建备份"}
+          </button>
+        </div>
+        <ErrorBox message={error || files.error} />
+        <Table rows={rows} loading={files.loading} keepPage emptyLabel={files.data ? "暂无备份" : ""}
+          columns={[
+            { key: "name", label: "备份文件", width: "40%" },
+            { key: "kind", label: "类型", width: "10%", render: (row) => row.kind === "auto" ? "自动" : "手动" },
+            { key: "createdAt", label: "创建时间", width: "20%", render: (row) => when(row.createdAt) },
+            { key: "bytes", label: "大小", width: "12%", render: (row) => mib(row.bytes) },
+            { key: "actions", label: "操作", width: "18%", render: (row) => (
+              <div className="actions backup-actions">
+                <a href={`/api/v1/system/backups/${encodeURIComponent(row.name)}`} download>下载</a>
+                <button type="button" className="text-button" disabled={Boolean(busy)}
+                  onClick={() => void changeBackup(row.name)}>{busy === row.name ? "删除中…" : "删除"}</button>
+              </div>
+            ) },
+          ]} />
+      </section>
+    </>
+  );
+}
+
+function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; onSaved: () => void }) {
+  const [enabled, setEnabled] = useState(schedule.enabled);
+  const [intervalHours, setIntervalHours] = useState(String(schedule.intervalHours));
+  const [keep, setKeep] = useState(String(schedule.keep));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const changed = enabled !== schedule.enabled || Number(intervalHours) !== schedule.intervalHours || Number(keep) !== schedule.keep;
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !changed) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api("/system/backup/schedule", {
+        method: "PUT",
+        body: JSON.stringify({ enabled, intervalHours: Number(intervalHours), keep: Number(keep) }),
+      });
+      onSaved();
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={save}>
+      <div className="backup-policy-controls">
+        <label className="checkbox"><input type="checkbox" checked={enabled} disabled={saving}
+          onChange={(event) => setEnabled(event.target.checked)} />启用自动备份</label>
+        <label>备份间隔（小时）
+          <input type="number" min={1} max={720} required value={intervalHours} disabled={saving}
+            onChange={(event) => setIntervalHours(event.target.value)} />
+        </label>
+        <label>保留自动备份（份）
+          <input type="number" min={1} max={30} required value={keep} disabled={saving}
+            onChange={(event) => setKeep(event.target.value)} />
+        </label>
+        <button type="submit" className="primary" disabled={saving || !changed}>{saving ? "保存中…" : "保存设置"}</button>
+      </div>
       <ErrorBox message={error} />
-      <button disabled={busy} onClick={async () => {
-        setBusy(true);
-        setError("");
-        try {
-          await backup();
-        } catch (error) {
-          setError((error as Error).message);
-        } finally {
-          setBusy(false);
-        }
-      }}>
-        <Download size={16} />
-        {busy ? "生成备份中…" : "下载备份"}
-      </button>
+    </form>
+  );
+}
+
+function SystemSettings({ onLogout }: { onLogout: () => void }) {
+  return (
+    <section className="panel account-settings">
       <PasswordSettings />
       <LogoutSettings onLogout={onLogout} />
     </section>

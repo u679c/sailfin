@@ -52,6 +52,7 @@ type Server struct {
 	mu       sync.Mutex
 	siteMu   sync.Mutex
 	updateMu sync.Mutex
+	backupMu sync.Mutex
 	siteLogs []string
 	siteSDK  map[string]protocol.SiteSDKCheck
 	nginxSDK nginxSDKPlan
@@ -230,6 +231,9 @@ func (s *Server) Handler() http.Handler {
 			controller := http.NewResponseController(w)
 			_ = controller.SetReadDeadline(time.Now().Add(timeout))
 			_ = controller.SetWriteDeadline(time.Now().Add(timeout))
+		} else if isBackupTransfer(r) {
+			timeout = 10 * time.Minute
+			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(timeout))
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limitBytes)
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
@@ -455,6 +459,12 @@ func (s *Server) routes() {
 	s.route("GET /api/v1/system/status", true, s.system)
 	s.route("PATCH /api/v1/system/timezone", true, s.setSystemTimezone)
 	s.route("POST /api/v1/system/backup", true, s.backup)
+	s.route("GET /api/v1/system/backups", true, s.managedBackups)
+	s.route("POST /api/v1/system/backups", true, s.saveManualBackup)
+	s.route("GET /api/v1/system/backups/{name}", true, s.downloadManagedBackup)
+	s.route("DELETE /api/v1/system/backups/{name}", true, s.deleteManagedBackup)
+	s.route("GET /api/v1/system/backup/schedule", true, s.getBackupSchedule)
+	s.route("PUT /api/v1/system/backup/schedule", true, s.setBackupSchedule)
 	s.route("GET /api/v1/system/update/history", true, s.webUpdateHistory)
 	if s.cfg.WebDir != "" {
 		s.mux.Handle("/", dashboardFiles(s.cfg.WebDir))

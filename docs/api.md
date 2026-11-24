@@ -41,6 +41,12 @@
 | GET /system/update/status/{id} | 查询更新任务，返回 `id,name,status,time,message?` |
 | GET /system/update/history | 分页更新记录，每个任务一条，返回 `id,created_at,package_name,action` |
 | POST /system/backup | 下载 SQLite 一致性快照 |
+| GET /system/backups | 服务器备份列表，返回 `name,kind,createdAt,bytes` |
+| POST /system/backups | 创建手动备份，返回 HTTP 201 和备份记录 |
+| GET /system/backups/{name} | 下载服务器上的备份 |
+| DELETE /system/backups/{name} | 删除指定备份 |
+| GET /system/backup/schedule | 读取自动备份策略和最近执行结果 |
+| PUT /system/backup/schedule | 保存 `{enabled,intervalHours,keep}`，默认关闭，缺省间隔 24 小时及保留 7 份 |
 
 元素规则的 `clickSelectors` 为字符串数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
 

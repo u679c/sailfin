@@ -173,7 +173,7 @@ func run(ctx context.Context, options serveOptions, hostKey string) error {
 	maintenanceDone := make(chan struct{})
 	go func() {
 		defer close(maintenanceDone)
-		s.Maintain(ctx.Done())
+		s.Maintain(ctx)
 	}()
 	var probeErr error
 	probeDone := make(chan struct{})
