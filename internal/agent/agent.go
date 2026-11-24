@@ -255,6 +255,18 @@ func (a *Agent) Run(ctx context.Context) error {
 			defer a.opt.RelayState(false)
 		}
 	}
+	if a.local {
+		checkCtx, cancel := context.WithCancel(ctx)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			a.runSiteSDKChecks(checkCtx)
+		}()
+		defer func() {
+			cancel()
+			<-done
+		}()
+	}
 	slog.Info("Sailfin probe started", "agentId", a.state.AgentID)
 	return a.collect(ctx)
 }
@@ -609,10 +621,10 @@ func (a *Agent) readForSite(src protocol.Source, projectID string) error {
 			a.state.Dropped++
 			continue
 		}
-		id := eventID(fmt.Sprintf("%s:%s:%d:%d:%s", a.state.AgentID, key, inode, start, line))
-		if a.state.ProjectID == "" && strings.HasPrefix(r.Path, relayPrefix) {
+		if a.state.ProjectID == "" && (strings.HasPrefix(r.Path, relayPrefix) || r.UA == sdkCheckUserAgent) {
 			continue
 		}
+		id := eventID(fmt.Sprintf("%s:%s:%d:%d:%s", a.state.AgentID, key, inode, start, line))
 		a.state.Pending = append(a.state.Pending, parser.Event(r, projectID, id))
 	}
 	a.state.Cursors[key] = c

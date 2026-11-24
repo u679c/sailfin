@@ -1154,6 +1154,15 @@ const emptySite: SiteDraft = {
   id: "", name: "", accessLog: "", browserOrigin: "", requireConsent: true,
 };
 
+const siteSDKStatuses: Record<string, { label: string; tone: string }> = {
+  unconfigured: { label: "未配置", tone: "neutral" },
+  pending: { label: "待检查", tone: "neutral" },
+  injected: { label: "已注入", tone: "good" },
+  not_injected: { label: "未注入", tone: "warn" },
+  script_unavailable: { label: "脚本不可用", tone: "warn" },
+  check_failed: { label: "检查失败", tone: "warn" },
+};
+
 function NginxCollection({ revision, onChange }: { revision: number; onChange: () => void }) {
   const when = useTimeFormatter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -1279,9 +1288,16 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
           columns={[
           { key: "name", label: "站点", width: "18%" },
           { key: "source", label: "采集来源", width: "17%", render: (row) => [row.accessLog && "访问日志", row.browserOrigin && "浏览器事件"].filter(Boolean).join("、") || "已有采集" },
-          { key: "last_event", label: "最近上报", width: "35%", render: (row) => row.enabled && !row.last_event ? "等待首批数据" : when(row.last_event) },
           {
-            key: "enabled", label: "采集状态", width: "20%", render: (row) => (
+            key: "sdkStatus", label: "SDK 状态", width: "16%", render: (row) => {
+              const status = siteSDKStatuses[row.sdkStatus] || siteSDKStatuses[row.browserOrigin ? "pending" : "unconfigured"];
+              const detail = [row.sdkDetail, row.sdkCheckedAt && `检查时间 ${when(row.sdkCheckedAt)}`].filter(Boolean).join(" · ");
+              return <span className={`badge ${status.tone}`} title={detail || undefined}>{status.label}</span>;
+            },
+          },
+          { key: "last_event", label: "最近上报", width: "24%", render: (row) => row.enabled && !row.last_event ? "等待首批数据" : when(row.last_event) },
+          {
+            key: "enabled", label: "采集状态", width: "15%", render: (row) => (
               <button className="site-collection-switch" type="button" role="switch"
                 aria-checked={Boolean(row.enabled)} aria-label={`${row.name} 采集状态`}
                 aria-busy={pending === row.id} disabled={pending !== null}

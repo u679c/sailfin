@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"sailfin/internal/agent"
 	"sailfin/internal/protocol"
@@ -67,11 +68,36 @@ func (s *Server) ingestSiteEvents(w http.ResponseWriter, r *http.Request, agentI
 }
 
 func (s *Server) managedSites(w http.ResponseWriter, r *http.Request) error {
-	return s.query(w, r, `SELECT p.id,p.name,a.site_id AS siteId,a.source,
+	rows, err := s.rows(r.Context(), `SELECT p.id,p.name,a.site_id AS siteId,a.source,
 		a.enabled,a.access_log AS accessLog,a.browser_origin AS browserOrigin,
 		a.require_consent AS requireConsent,
 		(SELECT max(e.received_at) FROM events e WHERE e.project_id=p.id) AS last_event
 		FROM site_registry a JOIN projects p ON p.id=a.project_id ORDER BY p.name,p.id`)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	checks := s.siteSDK
+	s.mu.Unlock()
+	staleBefore := time.Now().Add(-3 * time.Minute).UnixMilli()
+	for _, row := range rows {
+		origin, _ := row["browserOrigin"].(string)
+		if origin == "" {
+			row["sdkStatus"] = "unconfigured"
+			continue
+		}
+		siteID, _ := row["siteId"].(string)
+		check := checks[siteID]
+		if check.Origin != origin || check.CheckedAt < staleBefore {
+			row["sdkStatus"] = "pending"
+			continue
+		}
+		row["sdkStatus"] = check.Status
+		row["sdkDetail"] = check.Detail
+		row["sdkCheckedAt"] = check.CheckedAt
+	}
+	jsonOut(w, 200, rows)
+	return nil
 }
 
 func (s *Server) saveSite(w http.ResponseWriter, r *http.Request) error {

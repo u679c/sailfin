@@ -43,6 +43,13 @@ type Site struct {
 	RequireConsent bool   `json:"requireConsent,omitempty"`
 }
 
+type SiteSDKCheck struct {
+	Origin    string `json:"origin"`
+	Status    string `json:"status"`
+	Detail    string `json:"detail,omitempty"`
+	CheckedAt int64  `json:"checkedAt"`
+}
+
 func SiteProjectID(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	return fmt.Sprintf("site_%x", sum[:16])

@@ -94,6 +94,20 @@ func (s *Server) ProbeHandler() http.Handler {
 		jsonOut(w, 200, map[string]bool{"ok": true})
 		return nil
 	})
+	handle("POST /api/v1/agent/site-sdk-status", func(w http.ResponseWriter, r *http.Request) error {
+		var checks map[string]protocol.SiteSDKCheck
+		if err := decode(r, &checks); err != nil {
+			return err
+		}
+		if len(checks) > 50 {
+			return fail(400, "too many site SDK checks")
+		}
+		s.mu.Lock()
+		s.siteSDK = checks
+		s.mu.Unlock()
+		jsonOut(w, 200, map[string]bool{"ok": true})
+		return nil
+	})
 	handle("POST /api/v1/agent/heartbeat", func(w http.ResponseWriter, r *http.Request) error {
 		return s.recordHeartbeat(w, r, LocalProbeID)
 	})
