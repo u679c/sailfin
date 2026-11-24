@@ -194,7 +194,7 @@ func editNginxSite(text, serverName, listen, location, id, relay string) (string
 		nginxHasArg(page.children, "sub_filter", previousSailfinHTML)
 	if relayFound || injected {
 		relayBlock := nginxRelayBlock(id, relay)
-		if injected && strings.Contains(text[server.start:server.end], relayBlock) {
+		if injected && hasSailfinRelay(text[server.start:server.end], relayBlock) {
 			return text, false, nil
 		}
 		return "", false, fmt.Errorf("existing Sailfin route or injection conflicts with this configuration")
@@ -238,6 +238,11 @@ const (
 	previousSailfinHTML = `<script type="module" src="` + branding.PreviousBrowserBootPath + `"></script></head>`
 )
 
+func hasSailfinRelay(text, relay string) bool {
+	return strings.Contains(text, relay) ||
+		strings.Contains(text, strings.Replace(relay, "        proxy_cache off;\n", "", 1))
+}
+
 func nginxRelayBlock(id, relay string) string {
 	return fmt.Sprintf(`
     # Sailfin: serve the SDK and relay same-origin events.
@@ -248,6 +253,7 @@ func nginxRelayBlock(id, relay string) string {
         proxy_set_header X-Sailfin-Site %s;
         proxy_set_header Authorization "";
         proxy_set_header Cookie "";
+        proxy_cache off;
         proxy_read_timeout 10s;
     }
 `, relay, id)

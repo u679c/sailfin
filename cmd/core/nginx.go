@@ -207,6 +207,7 @@ http {
             proxy_set_header X-Sailfin-Site %[3]s;
             proxy_set_header Authorization "";
             proxy_set_header Cookie "";
+            proxy_cache off;
             proxy_read_timeout 10s;
         }
 

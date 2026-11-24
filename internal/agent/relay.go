@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,6 +66,18 @@ func (a *Agent) listenRelay() (*http.Server, error) {
 
 func (a *Agent) relayHandler() http.Handler {
 	slots := make(chan struct{}, 16)
+	// The two modules share a version so a policy-only change also moves the entry URL.
+	fingerprint := md5.New()
+	fmt.Fprintf(fingerprint, "index.js:%d:", len(browsersdk.Index))
+	_, _ = fingerprint.Write(browsersdk.Index)
+	fmt.Fprintf(fingerprint, "policy.js:%d:", len(browsersdk.Policy))
+	_, _ = fingerprint.Write(browsersdk.Policy)
+	version := fmt.Sprintf("%x", fingerprint.Sum(nil))
+	moduleDir := "sdk/" + version + "/"
+	modules := map[string][]byte{
+		relayPrefix + moduleDir + "index.js":  browsersdk.Index,
+		relayPrefix + moduleDir + "policy.js": browsersdk.Policy,
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -88,16 +101,15 @@ func (a *Agent) relayHandler() http.Handler {
 		}
 		path := relayPrefix + strings.TrimPrefix(r.URL.Path, prefix)
 		switch r.Method + " " + path {
-		case "GET " + branding.BrowserBootPath, "GET " + branding.PreviousBrowserBootPath:
-			a.serveBoot(w, site, prefix)
-		case "GET " + relayPrefix + "index.js", "GET " + relayPrefix + "policy.js":
-			raw, err := browsersdk.Files.ReadFile("src/" + strings.TrimPrefix(r.URL.Path, prefix))
-			if err != nil {
-				http.Error(w, "SDK unavailable", http.StatusInternalServerError)
-				return
-			}
+		case "GET " + branding.PreviousBrowserBootPath:
+			http.Redirect(w, r, prefix+strings.TrimPrefix(branding.BrowserBootPath, relayPrefix), http.StatusTemporaryRedirect)
+		case "GET " + branding.BrowserBootPath:
+			w.Header().Set("X-Sailfin-SDK-Version", version)
+			a.serveBoot(w, site, prefix, moduleDir)
+		case "GET " + relayPrefix + moduleDir + "index.js", "GET " + relayPrefix + moduleDir + "policy.js":
+			w.Header().Set("X-Sailfin-SDK-Version", version)
 			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-			_, _ = w.Write(raw)
+			_, _ = w.Write(modules[path])
 		case "GET " + relayPrefix + "config":
 			w.Header().Set("Content-Type", "application/json")
 			projectID := protocol.SiteProjectID(site.ID)
@@ -123,13 +135,13 @@ func (a *Agent) relayHandler() http.Handler {
 	})
 }
 
-func (a *Agent) serveBoot(w http.ResponseWriter, site Site, prefix string) {
+func (a *Agent) serveBoot(w http.ResponseWriter, site Site, prefix, moduleDir string) {
 	options, _ := json.Marshal(map[string]string{
 		"projectId": site.ID, "endpoint": prefix + "events",
 		"configEndpoint": prefix + "config",
 	})
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `import { init } from "./index.js";
+	_, _ = fmt.Fprintf(w, `import { init } from %q;
 let sdk;
 function start() { if (!sdk) sdk = init(%s); }
 if (!%t || window.SAILFIN_CONSENT === true || window.TRACELITE_CONSENT === true) start();
@@ -138,7 +150,7 @@ window.addEventListener("tracelite:consent", start);
 function revoke() { sdk?.stop(); sdk = undefined; }
 window.addEventListener("sailfin:revoke", revoke);
 window.addEventListener("tracelite:revoke", revoke);
-`, options, site.RequireConsent)
+`, prefix+moduleDir+"index.js", options, site.RequireConsent)
 }
 
 func (a *Agent) forwardBrowserEvents(w http.ResponseWriter, r *http.Request, site Site) {

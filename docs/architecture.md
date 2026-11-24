@@ -39,7 +39,7 @@ SQLite 单连接串行写入，WAL 和 busy timeout 保护并发；无需外部�
 
 Docker 只读采集客户端保留在独立 Host Agent 中，Socket 和容器允许名单需在 Agent 本机显式配置。兼容配置接口支持 dockerTargets。安装目录中的 `aqua` 通过本机 Docker 管理带有当前安装标识的 Core 容器。
 
-Browser SDK 主要由 Nginx 注入 boot.js 自动初始化，配置和事件均走同源中继。对外站点默认等待同意信号，回环测试站点可按配置直接启动。中继检查站点 Origin，自动模式还验证代理元数据密钥；Core 执行大小、类型、时间、去重和配额校验。浏览器不持有管理员或 Agent 长期密钥。手动 init、项目浏览器开关及跨域 Origin 白名单属于兼容模式。
+Browser SDK 由 Nginx 注入 `sailfin-boot.js` 自动初始化，入口按内容指纹加载模块，配置和事件均走同源中继。对外站点默认等待同意信号，回环测试站点可按配置直接启动。中继检查站点 Origin，自动模式还验证代理元数据密钥；Core 执行大小、类型、时间、去重和配额校验。浏览器不持有管理员或 Agent 长期密钥。手动 init、项目浏览器开关及跨域 Origin 白名单属于兼容模式。
 
 当前本机中继返回固定的 enabled=true、batchSize=20、intervalSeconds=5；暂停探针会阻止入库，不代表 SDK 端已停止监听。SDK 支持的采样和排除能力尚未通过当前管理界面下发。
 

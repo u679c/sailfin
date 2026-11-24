@@ -49,7 +49,7 @@ IP 站点可通过 `server_name` 或 `listen` 中明确的 IP 识别。默认站
   --sites-file "$PWD/var/sites.json"
 ```
 
-如果注入时传了 `--relay-addr`，Core 启动时也传同一个值。客户端继续访问原网站，在原域名下加载 `/__sailfin/boot.js`。后台收到有效事件后才会出现站点。
+如果注入时传了 `--relay-addr`，Core 启动时也传同一个值。客户端继续访问原网站，在原域名下加载 `/__sailfin/sailfin-boot.js`。后台收到有效事件后才会出现站点。
 
 ## 可选：启动独立的本地测试入口
 
@@ -61,7 +61,7 @@ IP 站点可通过 `server_name` 或 `listen` 中明确的 IP 识别。默认站
 npm run dev -- --nginx-upstream http://127.0.0.1:8888 --nginx-require-consent 0
 ```
 
-独立部署时把这些参数传给 `./bin/sailfin-core serve`。访问 `http://localhost:9080`，HTML 将加载 `/__sailfin/boot.js`，随后通过同源地址上报。Core 自动为探针配置这个站点，后台收到有效事件后才会展示。
+独立部署时把这些参数传给 `./bin/sailfin-core serve`。访问 `http://localhost:9080`，HTML 将加载 `/__sailfin/sailfin-boot.js`，随后通过同源地址上报。Core 自动为探针配置这个站点，后台收到有效事件后才会展示。
 
 - `--nginx-port` 默认 9080，指定空闲端口以避开已有服务。
 - `--nginx-site-id` 默认 `local-web`。不同网站使用不同 ID，避免合并采集数据。可用 `--nginx-site-name` 指定显示名称。
@@ -127,6 +127,12 @@ access_log /absolute/path/to/nginx-logs/local-web.access.log combined;
 - 在手动启用配置前执行 `nginx -t`。根据宿主机原有方式重载 Nginx。若原页面返回错误或没有可匹配的 HTML，先检查业务上游。常规网页继续由业务服务返回。
 
 浏览器事件和 Nginx 日志分别计数。同一个页面可能同时产生 HTTP 请求和浏览器 PV。浏览器转发遇到暂时性错误时由 SDK 的有界队列重试，关页后内存队列会消失。Nginx 日志待发队列保存在 Agent 状态目录。
+
+## SDK 更新
+
+`/__sailfin/sailfin-boot.js` 每次加载都向服务端获取，响应使用 `Cache-Control: no-store`。探针根据实际内嵌的 `index.js` 和 `policy.js` 计算 MD5，两个文件共用 `/__sailfin/sdk/<md5>/` 路径。任一文件变化，下次打开或刷新页面就会请求新的模块地址。可在网络面板查看 `X-Sailfin-SDK-Version` 响应头。旧的 `boot.js` 地址临时跳转到标准入口。
+
+如果站点的 CDN 或 Service Worker 自行缓存了 SDK，请将 `/__sailfin/` 配置为直接走网络，并清理已缓存的入口。已打开的页面在下一次刷新时加载新版本。
 
 ## 同意与启动条件
 

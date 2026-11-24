@@ -162,7 +162,7 @@ func nginxSiteLabel(server nginxNode) string {
 func autoServerChanges(text string, server nginxNode, address, authPath string) ([]nginxInsertion, string) {
 	relay := nginxAutoRelay(address, authPath)
 	serverText := text[server.start:server.end]
-	if strings.Contains(serverText, relay) {
+	if hasSailfinRelay(serverText, relay) {
 		return nil, "已接入"
 	}
 	if strings.Contains(serverText, branding.LegacyHTML) {
@@ -256,6 +256,7 @@ func nginxAutoRelay(relay, authPath string) string {
         proxy_set_header X-Sailfin-Origin "$scheme://$http_host";
         proxy_set_header Authorization "";
         proxy_set_header Cookie "";
+        proxy_cache off;
         proxy_read_timeout 10s;
     }
 `, relay, strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(authPath))
