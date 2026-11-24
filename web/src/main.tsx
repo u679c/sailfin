@@ -505,8 +505,8 @@ function App() {
           {[
             { id: "sites", name: "站点" },
             { id: "collection", name: "探针管理" },
-            { id: "system-info", name: "系统设置" },
             { id: "backups", name: "备份管理" },
+            { id: "system-info", name: "系统设置" },
           ].map((item) => (
             <a key={item.id} href={href(item.id, item.id === "sites" ? { projectId: "" } : {})}
               className={primarySection === item.id ? "selected" : ""}
@@ -2031,17 +2031,17 @@ function BackupManagement({ revision }: { revision: number }) {
 
   return (
     <>
-      <section className="panel backup-schedule-panel">
-        <h2>自动备份</h2>
-        <ErrorBox message={schedule.error} />
+      <section className="panel backup-schedule-panel" aria-labelledby="backup-schedule-title">
         {schedule.data ? (
-          <>
-            <BackupScheduleForm key={JSON.stringify([schedule.data.enabled, schedule.data.intervalHours, schedule.data.keep])}
-              schedule={schedule.data} onSaved={() => setRefresh((value) => value + 1)} />
-            {schedule.data.lastSuccess > 0 && <p className="site-drawer-hint">上次成功备份 {when(schedule.data.lastSuccess)}</p>}
-            <ErrorBox message={schedule.data.lastError} />
-          </>
-        ) : schedule.loading && <p className="site-drawer-hint" role="status">正在读取配置…</p>}
+          <BackupScheduleForm key={JSON.stringify([schedule.data.enabled, schedule.data.intervalHours, schedule.data.keep])}
+            schedule={schedule.data} onSaved={() => setRefresh((value) => value + 1)} />
+        ) : (
+          <div className="backup-schedule-header">
+            <h2 id="backup-schedule-title">自动备份</h2>
+            {schedule.loading && <span className="backup-schedule-meta" role="status">正在读取配置…</span>}
+          </div>
+        )}
+        <ErrorBox message={schedule.error} />
       </section>
       <section className="panel list-panel">
         <div className="panel-title site-management-toolbar">
@@ -2071,6 +2071,7 @@ function BackupManagement({ revision }: { revision: number }) {
 }
 
 function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; onSaved: () => void }) {
+  const when = useTimeFormatter();
   const [enabled, setEnabled] = useState(schedule.enabled);
   const [intervalHours, setIntervalHours] = useState(String(schedule.intervalHours));
   const [keep, setKeep] = useState(String(schedule.keep));
@@ -2098,20 +2099,42 @@ function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; o
 
   return (
     <form onSubmit={save}>
-      <div className="backup-policy-controls">
-        <label className="checkbox"><input type="checkbox" checked={enabled} disabled={saving}
-          onChange={(event) => setEnabled(event.target.checked)} />启用自动备份</label>
-        <label>备份间隔（小时）
-          <input type="number" min={1} max={720} required value={intervalHours} disabled={saving}
-            onChange={(event) => setIntervalHours(event.target.value)} />
-        </label>
-        <label>保留自动备份（份）
-          <input type="number" min={1} max={30} required value={keep} disabled={saving}
-            onChange={(event) => setKeep(event.target.value)} />
-        </label>
-        <button type="submit" className="primary" disabled={saving || !changed}>{saving ? "保存中…" : "保存设置"}</button>
+      <div className="backup-schedule-header">
+        <div>
+          <h2 id="backup-schedule-title">自动备份</h2>
+          {schedule.lastSuccess > 0 ? (
+            <p className="backup-schedule-meta">上次成功备份 {when(schedule.lastSuccess)}</p>
+          ) : schedule.enabled && <p className="backup-schedule-meta">等待首次备份</p>}
+        </div>
+        <div className="backup-schedule-toggle">
+          <span aria-hidden="true">{enabled ? "开启" : "关闭"}</span>
+          <button className="site-collection-switch" type="button" role="switch"
+            aria-labelledby="backup-schedule-title" aria-checked={enabled}
+            disabled={saving} onClick={() => setEnabled(!enabled)}>
+            <span aria-hidden="true" />
+          </button>
+        </div>
       </div>
-      <ErrorBox message={error} />
+      <div className="backup-policy-controls">
+        <label className="backup-policy-field">备份间隔
+          <span className="backup-policy-value">
+            <input type="number" min={1} max={720} required value={intervalHours} disabled={saving}
+              onChange={(event) => setIntervalHours(event.target.value)} />
+            <span>小时</span>
+          </span>
+        </label>
+        <label className="backup-policy-field">保留份数
+          <span className="backup-policy-value">
+            <input type="number" min={1} max={30} required value={keep} disabled={saving}
+              onChange={(event) => setKeep(event.target.value)} />
+            <span>份</span>
+          </span>
+        </label>
+        <button type="submit" className="primary backup-policy-save" disabled={saving || !changed}>
+          {saving ? "保存中…" : "保存设置"}
+        </button>
+      </div>
+      <ErrorBox message={error || schedule.lastError} />
     </form>
   );
 }
@@ -2178,8 +2201,7 @@ function RetentionForm({ settings, onSaved }: { settings: RetentionSettings; onS
           <span className="selector-help">填 0 关闭容量限制。超限时从最旧的事件开始删除。</span>
         </label>
       </div>
-      <p className="site-drawer-hint">所有站点共用此策略，每小时检查一次。容量按事件数据估算，SQLite 文件大小还受索引、日志和可复用空间影响。</p>
-      <ErrorBox message={error} />
+     <ErrorBox message={error} />
       <div className="actions">
         <button type="submit" className="primary" disabled={saving || !changed}>{saving ? "保存中…" : "保存策略"}</button>
       </div>
