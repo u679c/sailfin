@@ -9,6 +9,7 @@ import (
 type Job struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
 	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
 	Time    int64  `json:"time"`

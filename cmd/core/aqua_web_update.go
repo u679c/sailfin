@@ -108,7 +108,7 @@ func executeWebUpdate(path string, key ed25519.PublicKey) error {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
-	if err := update.Verify(file, key, runtime.GOOS+"/"+runtime.GOARCH); err != nil {
+	if _, err := update.Verify(file, key, runtime.GOOS+"/"+runtime.GOARCH); err != nil {
 		return err
 	}
 	for _, option := range []string{"--check", "--apply"} {

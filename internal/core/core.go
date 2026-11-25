@@ -158,6 +158,10 @@ func Open(c Config) (*Server, error) {
 		tx.Rollback()
 		return nil, e
 	}
+	if e = migrateWebUpdateVersions(tx); e != nil {
+		tx.Rollback()
+		return nil, e
+	}
 	if e = tx.Commit(); e != nil {
 		return nil, e
 	}

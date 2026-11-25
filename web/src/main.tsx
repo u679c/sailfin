@@ -2764,6 +2764,10 @@ function SystemInfo({
                 render: (row) => when(row.created_at),
               },
               {
+                key: "package_version",
+                label: "包版本",
+              },
+              {
                 key: "package_name",
                 label: "包名",
                 render: (row) => row.package_name || "未知更新包",

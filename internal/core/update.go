@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"net/http"
@@ -10,6 +11,16 @@ import (
 
 	"sailfin/internal/update"
 )
+
+func migrateWebUpdateVersions(tx *sql.Tx) error {
+	var applied bool
+	if err := tx.QueryRow("SELECT EXISTS(SELECT 1 FROM migrations WHERE version=5)").Scan(&applied); err != nil || applied {
+		return err
+	}
+	_, err := tx.Exec(`ALTER TABLE web_update_packages ADD COLUMN version TEXT NOT NULL DEFAULT '';
+		INSERT INTO migrations VALUES(5,unixepoch()*1000)`)
+	return err
+}
 
 func (s *Server) uploadUpdate(w http.ResponseWriter, r *http.Request) error {
 	if len(s.cfg.WebUpdateKey) == 0 {
@@ -69,14 +80,18 @@ func (s *Server) uploadUpdate(w http.ResponseWriter, r *http.Request) error {
 	if _, err := pkg.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
-	if err := update.Verify(pkg, s.cfg.WebUpdateKey, s.cfg.WebUpdatePlatform); err != nil {
+	version, err := update.Verify(pkg, s.cfg.WebUpdateKey, s.cfg.WebUpdatePlatform)
+	if err != nil {
 		return fail(400, err.Error())
 	}
 	if err := pkg.Sync(); err != nil {
 		return err
 	}
-	job := update.Job{ID: filepath.Base(stage), Name: part.FileName(), Status: "started", Time: Now()}
+	job := update.Job{ID: filepath.Base(stage), Name: part.FileName(), Version: version, Status: "started", Time: Now()}
 	if err := update.WriteJob(filepath.Join(stage, "job.json"), job); err != nil {
+		return err
+	}
+	if err := s.rememberUpdatePackage(r.Context(), job); err != nil {
 		return err
 	}
 	if err := os.Rename(stage, active); err != nil {
@@ -119,7 +134,7 @@ func (s *Server) webUpdateHistory(w http.ResponseWriter, r *http.Request) error 
 		FROM audit_logs
 		WHERE action IN ('system.update.started', 'system.update.succeeded', 'system.update.failed', 'system.update.rolled_back')
 	)
-	SELECT e.target AS id, e.started_at AS created_at, p.name AS package_name, e.action
+	SELECT e.target AS id, e.started_at AS created_at, p.name AS package_name, NULLIF(p.version,'') AS package_version, e.action
 	FROM job_events e LEFT JOIN web_update_packages p ON p.job_id=e.target
 	WHERE e.latest=1 ORDER BY e.started_at DESC, e.target DESC LIMIT ? OFFSET ?`)
 }
@@ -128,7 +143,9 @@ func (s *Server) rememberUpdatePackage(ctx context.Context, job update.Job) erro
 	if !update.ID.MatchString(job.ID) || !update.PackageName.MatchString(job.Name) {
 		return nil
 	}
-	_, err := s.DB.ExecContext(ctx, "INSERT OR IGNORE INTO web_update_packages(job_id,name) VALUES(?,?)", job.ID, job.Name)
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO web_update_packages(job_id,name,version) VALUES(?,?,?)
+		ON CONFLICT(job_id) DO UPDATE SET version=excluded.version
+		WHERE web_update_packages.version='' AND excluded.version<>''`, job.ID, job.Name, job.Version)
 	return err
 }
 

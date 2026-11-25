@@ -39,7 +39,7 @@
 | POST /system/update/verify-password | 以 `{password}` 验证当前管理员密码                                                                         |
 | POST /system/update/install         | 按 `password`、`package` 的顺序上传 multipart 表单，包最大 256 MiB。验签通过后返回 HTTP 202 和更新任务     |
 | GET /system/update/status/{id}      | 查询更新任务，返回 `id,name,status,time,message?`                                                          |
-| GET /system/update/history          | 分页更新记录，每个任务一条，返回 `id,created_at,package_name,action`                                       |
+| GET /system/update/history          | 分页更新记录，每个任务一条，返回 `id,created_at,package_name,package_version,action`                       |
 | POST /system/backup                 | 下载 SQLite 一致性快照                                                                                     |
 | GET /system/backups                 | 服务器备份列表，返回 `name,kind,createdAt,bytes`                                                           |
 | POST /system/backups                | 创建手动备份，返回 HTTP 201 和备份记录                                                                     |
@@ -53,6 +53,8 @@
 元素规则的 `clickSelectors` 为补充自动点击采集的选择器数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
 
 `/events` 返回的 `click_description` 根据浏览器点击事件的 `ruleSelector` 读取站点当前配置。没有命中自定义规则或该规则未配置说明时返回 `null`。
+
+更新日志的 `package_version` 来自通过签名校验的更新包头部。没有保存版本的历史记录返回 `null`。
 
 ## 点击统计
 
