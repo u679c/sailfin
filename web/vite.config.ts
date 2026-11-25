@@ -4,7 +4,8 @@ import { ServerResponse } from "node:http";
 export default defineConfig(({ mode }) => {
   const e = loadEnv(mode, process.cwd(), "");
   for (const [key, value] of Object.entries(e)) {
-    if (key.startsWith("TRACELITE_")) e["SAILFIN_" + key.slice("TRACELITE_".length)] ??= value;
+    if (key.startsWith("TRACELITE_"))
+      e["SAILFIN_" + key.slice("TRACELITE_".length)] ??= value;
   }
   return {
     plugins: [react()],

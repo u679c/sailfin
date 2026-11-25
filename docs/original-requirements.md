@@ -1,6 +1,5 @@
 # Sailfin — 通用轻量级 Web 埋点与 Agent 管理平台
 
-
 **产品需求文档（PRD）+ 技术设计文档（TDD）+ Codex 开发任务书**
 
 版本：V1.0  
@@ -62,17 +61,17 @@ V1 暂不实现：
 
 ## 2.1 最低目标环境
 
-| 项目 | 要求 |
-|---|---|
-| 操作系统 | 主流 Linux 发行版 |
+| 项目     | 要求                    |
+| -------- | ----------------------- |
+| 操作系统 | 主流 Linux 发行版       |
 | CPU 架构 | 首期 x86_64，预留 ARM64 |
-| 内存 | 2GB |
-| 磁盘 | 建议至少 1GB 可用空间 |
-| Docker | 可选 |
-| 数据库 | SQLite |
-| 服务端 | Go |
-| 前端 | React + TypeScript |
-| 网络 | 单机及多主机部署均可 |
+| 内存     | 2GB                     |
+| 磁盘     | 建议至少 1GB 可用空间   |
+| Docker   | 可选                    |
+| 数据库   | SQLite                  |
+| 服务端   | Go                      |
+| 前端     | React + TypeScript      |
+| 网络     | 单机及多主机部署均可    |
 
 优先支持 systemd 管理的 Linux 发行版。
 
@@ -744,23 +743,23 @@ POST /api/v1/collect/browser
 
 主要表：
 
-| 表名 | 用途 |
-|---|---|
-| users | 管理用户 |
-| projects | 项目信息 |
-| agents | Agent 注册记录 |
+| 表名              | 用途             |
+| ----------------- | ---------------- |
+| users             | 管理用户         |
+| projects          | 项目信息         |
+| agents            | Agent 注册记录   |
 | agent_credentials | Agent 凭据元数据 |
-| agent_heartbeats | Agent 状态与心跳 |
-| agent_configs | 配置及版本 |
-| sources | 日志来源 |
-| events | 原始事件 |
-| sessions | 匿名会话 |
-| device_info | UA 解析结果 |
-| daily_stats | 每日聚合 |
-| hourly_stats | 小时聚合 |
-| security_counters | 安全计数 |
-| audit_logs | 管理审计 |
-| system_settings | 系统设置 |
+| agent_heartbeats  | Agent 状态与心跳 |
+| agent_configs     | 配置及版本       |
+| sources           | 日志来源         |
+| events            | 原始事件         |
+| sessions          | 匿名会话         |
+| device_info       | UA 解析结果      |
+| daily_stats       | 每日聚合         |
+| hourly_stats      | 小时聚合         |
+| security_counters | 安全计数         |
+| audit_logs        | 管理审计         |
+| system_settings   | 系统设置         |
 
 要求：
 

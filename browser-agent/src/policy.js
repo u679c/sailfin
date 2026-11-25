@@ -19,9 +19,12 @@ export function safePath(value, base = "http://localhost") {
 export function pagePath(value) {
   const url = new URL(value, "http://localhost");
   const route = url.hash.replace(/^#!?/, "");
-  return (url.pathname + (route.startsWith("/") ? "#" + route.split(/[?#]/)[0] : "")).slice(0, 200);
+  return (
+    url.pathname + (route.startsWith("/") ? "#" + route.split(/[?#]/)[0] : "")
+  ).slice(0, 200);
 }
-const privateElements = "input,textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],script,style,[hidden],[aria-hidden='true']";
+const privateElements =
+  "input,textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],script,style,[hidden],[aria-hidden='true']";
 const domTag = /^[a-z][a-z0-9_.:-]{0,63}$/;
 export function configuredClickTarget(target, selectors) {
   let closest = null;
@@ -29,7 +32,11 @@ export function configuredClickTarget(target, selectors) {
     try {
       const match = target.closest(selector);
       if (match === target) return { element: match, selector };
-      if (match && (!closest || (closest.element !== match && closest.element.contains(match)))) {
+      if (
+        match &&
+        (!closest ||
+          (closest.element !== match && closest.element.contains(match)))
+      ) {
         closest = { element: match, selector };
       }
     } catch {
@@ -39,31 +46,52 @@ export function configuredClickTarget(target, selectors) {
   return closest;
 }
 export function clickProperties(el, { includeText = true } = {}) {
-  const clean = (value) => (value || "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const clean = (value) =>
+    (value || "").replace(/\s+/g, " ").trim().slice(0, 200);
   function text(node) {
     const copy = node.cloneNode(true);
     copy.querySelectorAll(privateElements).forEach((child) => child.remove());
-    return clean(node.querySelector(privateElements) ? copy.textContent : (node.innerText || copy.textContent));
+    return clean(
+      node.querySelector(privateElements)
+        ? copy.textContent
+        : node.innerText || copy.textContent,
+    );
   }
   let label = clean(el.getAttribute("aria-label"));
   if (includeText && !label) {
-    const refs = (el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean).slice(0, 5);
-    label = clean(refs.map((ref) => {
-      const node = el.ownerDocument.getElementById(ref);
-      return node && !node.closest(privateElements) ? text(node) : "";
-    }).join(" "));
+    const refs = (el.getAttribute("aria-labelledby") || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 5);
+    label = clean(
+      refs
+        .map((ref) => {
+          const node = el.ownerDocument.getElementById(ref);
+          return node && !node.closest(privateElements) ? text(node) : "";
+        })
+        .join(" "),
+    );
   }
   const isInput = el.tagName.toLowerCase() === "input";
   if (includeText) label ||= isInput ? clean(el.value) : text(el);
   label ||= clean(el.getAttribute("title"));
   if (includeText && !label) {
-    label = clean(Array.from(el.querySelectorAll("img[alt]")).filter((img) => !img.closest(privateElements)).map((img) => img.getAttribute("alt")).join(" "));
+    label = clean(
+      Array.from(el.querySelectorAll("img[alt]"))
+        .filter((img) => !img.closest(privateElements))
+        .map((img) => img.getAttribute("alt"))
+        .join(" "),
+    );
   }
   const parts = [];
   for (let node = el; node && parts.length < 32; node = node.parentElement) {
     const tag = node.tagName.toLowerCase();
     let position = 1;
-    for (let sibling = node.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+    for (
+      let sibling = node.previousElementSibling;
+      sibling;
+      sibling = sibling.previousElementSibling
+    ) {
       if (sibling.tagName === node.tagName) position++;
     }
     parts.unshift(`${tag}:nth-of-type(${position})`);
@@ -75,18 +103,30 @@ export function clickProperties(el, { includeText = true } = {}) {
     selectorParts.unshift(part);
   }
   const selector = selectorParts.join(" > ");
-  const region = el.closest("header,nav,main,aside,footer,section,form,[role='dialog'],[role='region']");
-  const explicitID = clean(el.getAttribute("data-sailfin-id") || el.getAttribute("data-tracelite-id"));
+  const region = el.closest(
+    "header,nav,main,aside,footer,section,form,[role='dialog'],[role='region']",
+  );
+  const explicitID = clean(
+    el.getAttribute("data-sailfin-id") || el.getAttribute("data-tracelite-id"),
+  );
   // Structural identity does not change when a button's label changes.
-  const source = pagePath(el.ownerDocument.location.href) + "|" + parts.join(" > ");
+  const source =
+    pagePath(el.ownerDocument.location.href) + "|" + parts.join(" > ");
   let hash = 2166136261;
-  for (let i = 0; i < source.length; i++) hash = Math.imul(hash ^ source.charCodeAt(i), 16777619);
+  for (let i = 0; i < source.length; i++)
+    hash = Math.imul(hash ^ source.charCodeAt(i), 16777619);
   return {
     element: el.tagName.toLowerCase(),
     elementId: explicitID || `auto_${(hash >>> 0).toString(16)}`,
     label,
     selector,
-    region: region ? clean(region.getAttribute("aria-label") || region.getAttribute("role") || region.tagName.toLowerCase()) : "",
+    region: region
+      ? clean(
+          region.getAttribute("aria-label") ||
+            region.getAttribute("role") ||
+            region.tagName.toLowerCase(),
+        )
+      : "",
   };
 }
 export function safeProps(properties = {}) {
@@ -94,11 +134,29 @@ export function safeProps(properties = {}) {
   for (const [k, v] of Object.entries(properties)) {
     if (k === "domPath" && Array.isArray(v)) {
       if (v.length) {
-        out.domPath = v.slice(0, 32).map((tag) => typeof tag === "string" && domTag.test(tag) ? tag : "element");
+        out.domPath = v
+          .slice(0, 32)
+          .map((tag) =>
+            typeof tag === "string" && domTag.test(tag) ? tag : "element",
+          );
       }
       continue;
     }
-    if (!["element", "elementId", "label", "selector", "ruleSelector", "region", "pagePath", "pageTitle", "durationMs", "metric", "value"].includes(k))
+    if (
+      ![
+        "element",
+        "elementId",
+        "label",
+        "selector",
+        "ruleSelector",
+        "region",
+        "pagePath",
+        "pageTitle",
+        "durationMs",
+        "metric",
+        "value",
+      ].includes(k)
+    )
       continue;
     if (typeof v === "string") {
       // Core limits strings in UTF-8 bytes; Chinese labels must fit that limit too.

@@ -1,4 +1,11 @@
-import { clickProperties, configuredClickTarget, pagePath, safePath, safeProps, shouldCollect } from "./policy.js";
+import {
+  clickProperties,
+  configuredClickTarget,
+  pagePath,
+  safePath,
+  safeProps,
+  shouldCollect,
+} from "./policy.js";
 
 const clickTargets = [
   "button",
@@ -49,18 +56,26 @@ export function init(options) {
   let activePage = currentPage();
   const listeners = [];
   const project = options.projectId;
-  const id = () => crypto.randomUUID?.() ??
-    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const id = () =>
+    crypto.randomUUID?.() ??
+    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
   const key = `sailfin:${project}`;
   const legacyKey = `tracelite:${project}`;
   const disabled = () => window.SAILFIN_DISABLED || window.TRACELITE_DISABLED;
   function identity() {
     const now = Date.now();
     try {
-      visitor = localStorage.getItem(`${key}:visitor`) || localStorage.getItem(`${legacyKey}:visitor`) || id();
+      visitor =
+        localStorage.getItem(`${key}:visitor`) ||
+        localStorage.getItem(`${legacyKey}:visitor`) ||
+        id();
       localStorage.setItem(`${key}:visitor`, visitor);
       const old = JSON.parse(
-        sessionStorage.getItem(`${key}:session`) || sessionStorage.getItem(`${legacyKey}:session`) || "null",
+        sessionStorage.getItem(`${key}:session`) ||
+          sessionStorage.getItem(`${legacyKey}:session`) ||
+          "null",
       );
       if (!session) {
         session = old?.id || id();
@@ -111,15 +126,23 @@ export function init(options) {
       type !== "session_start" &&
       shouldCollect("session_start", path, config)
     )
-      push("session_start", safeProps({
+      push(
+        "session_start",
+        safeProps({
+          pagePath: page.pagePath,
+          ...(page.pageTitle ? { pageTitle: page.pageTitle } : {}),
+        }),
+        page,
+      );
+    push(
+      type,
+      safeProps({
+        ...properties,
         pagePath: page.pagePath,
         ...(page.pageTitle ? { pageTitle: page.pageTitle } : {}),
-      }), page);
-    push(type, safeProps({
-      ...properties,
-      pagePath: page.pagePath,
-      ...(page.pageTitle ? { pageTitle: page.pageTitle } : {}),
-    }), page);
+      }),
+      page,
+    );
   }
   function push(type, properties, page) {
     if (queue.length >= 200) queue.shift();
@@ -148,7 +171,13 @@ export function init(options) {
     if (inflight || !queue.length) return;
     inflight = true;
     try {
-      while (queue.length && !stopped && config.enabled && !disabled() && navigator.doNotTrack !== "1") {
+      while (
+        queue.length &&
+        !stopped &&
+        config.enabled &&
+        !disabled() &&
+        navigator.doNotTrack !== "1"
+      ) {
         const batch = [];
         let bytes = 32;
         const limit = Math.max(1, Math.min(config.batchSize || 20, 100));
@@ -175,11 +204,13 @@ export function init(options) {
             break;
           }
           if (res.status === 429 || res.status >= 500) {
-            if (!stopped && config.enabled) queue = [...batch, ...queue].slice(0, 200);
+            if (!stopped && config.enabled)
+              queue = [...batch, ...queue].slice(0, 200);
             break;
           }
         } catch {
-          if (!stopped && config.enabled) queue = [...batch, ...queue].slice(0, 200);
+          if (!stopped && config.enabled)
+            queue = [...batch, ...queue].slice(0, 200);
           break;
         } finally {
           clearTimeout(timeout);
@@ -233,7 +264,8 @@ export function init(options) {
     if (next.pagePath === activePage.pagePath) return;
     endVisiblePeriod();
     activePage = next;
-    activeStart = config.enabled && document.visibilityState === "visible" ? Date.now() : 0;
+    activeStart =
+      config.enabled && document.visibilityState === "visible" ? Date.now() : 0;
     track("route_change");
   }
   function wrappedPush(...args) {
@@ -248,27 +280,40 @@ export function init(options) {
   history.replaceState = wrappedReplace;
   on(window, "popstate", route);
   on(window, "hashchange", route);
-  on(document, "click", (e) => {
-    const target = e.target;
-    if (!config.enabled || !(target instanceof Element)) return;
-    try {
-      if (target.closest(ignoredClickTargets)) return;
-      const automatic = target.closest(clickTargets);
-      const custom = configuredClickTarget(automatic ?? target, config.clickSelectors ?? []);
-      const el = automatic ?? custom?.element;
-      if (!el) return;
-      const path = e.composedPath().filter((node) => node instanceof Element);
-      if (path.some((node) => node.matches(ignoredClickTargets))) return;
-      if ((config.excludeElements || []).some((s) => target.closest(s) || path.some((node) => node.matches(s)))) return;
-      track("click", {
-        ...clickProperties(el, { includeText: el.matches(clickTargets) }),
-        ruleSelector: custom?.element === el ? custom.selector : undefined,
-        domPath: path.map((node) => node.localName.toLowerCase()),
-      });
-    } catch {
-      // Instrumentation must never interrupt the site's own click handler.
-    }
-  }, true);
+  on(
+    document,
+    "click",
+    (e) => {
+      const target = e.target;
+      if (!config.enabled || !(target instanceof Element)) return;
+      try {
+        if (target.closest(ignoredClickTargets)) return;
+        const automatic = target.closest(clickTargets);
+        const custom = configuredClickTarget(
+          automatic ?? target,
+          config.clickSelectors ?? [],
+        );
+        const el = automatic ?? custom?.element;
+        if (!el) return;
+        const path = e.composedPath().filter((node) => node instanceof Element);
+        if (path.some((node) => node.matches(ignoredClickTargets))) return;
+        if (
+          (config.excludeElements || []).some(
+            (s) => target.closest(s) || path.some((node) => node.matches(s)),
+          )
+        )
+          return;
+        track("click", {
+          ...clickProperties(el, { includeText: el.matches(clickTargets) }),
+          ruleSelector: custom?.element === el ? custom.selector : undefined,
+          domPath: path.map((node) => node.localName.toLowerCase()),
+        });
+      } catch {
+        // Instrumentation must never interrupt the site's own click handler.
+      }
+    },
+    true,
+  );
   on(document, "visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       endVisiblePeriod();
@@ -280,7 +325,12 @@ export function init(options) {
     void flush();
   });
   on(window, "pageshow", () => {
-    if (config.enabled && document.visibilityState === "visible" && !activeStart) activeStart = Date.now();
+    if (
+      config.enabled &&
+      document.visibilityState === "visible" &&
+      !activeStart
+    )
+      activeStart = Date.now();
   });
   // Error messages and rejected values may contain secrets. Record only the error category.
   on(window, "error", () => track("js_error", {}));

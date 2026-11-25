@@ -8,7 +8,8 @@ export async function api<T = Row[]>(
   options: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(options.headers);
-  if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+  if (!(options.body instanceof FormData))
+    headers.set("Content-Type", "application/json");
   if (csrf) headers.set("X-CSRF-Token", csrf);
   const res = await fetch(`/api/v1${path}`, {
     ...options,
@@ -26,10 +27,14 @@ export async function api<T = Row[]>(
   }
   const data = await res.json();
   if (Array.isArray(data) && res.headers.has("X-Has-More")) {
-    Object.defineProperty(data, "hasMore", { value: res.headers.get("X-Has-More") === "true" });
+    Object.defineProperty(data, "hasMore", {
+      value: res.headers.get("X-Has-More") === "true",
+    });
   }
   if (Array.isArray(data) && res.headers.has("X-Total-Count")) {
-    Object.defineProperty(data, "total", { value: Number(res.headers.get("X-Total-Count")) });
+    Object.defineProperty(data, "total", {
+      value: Number(res.headers.get("X-Total-Count")),
+    });
   }
   return data;
 }

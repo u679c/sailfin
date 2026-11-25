@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useState, useEffect, useMemo, useRef } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -33,7 +41,11 @@ function useTimeFormatter() {
 }
 
 function listTotal(rows: Row[] | null | undefined) {
-  return (rows as (Row[] & { total?: number }) | null | undefined)?.total ?? rows?.length ?? 0;
+  return (
+    (rows as (Row[] & { total?: number }) | null | undefined)?.total ??
+    rows?.length ??
+    0
+  );
 }
 const sections = [
   { id: "sites", name: "站点" },
@@ -51,12 +63,26 @@ const sections = [
   { id: "backups", name: "备份管理" },
 ];
 const siteSections = sections.filter((s) =>
-  ["overview", "pages", "clicks", "elements", "sessions", "events", "devices"].includes(s.id),
+  [
+    "overview",
+    "pages",
+    "clicks",
+    "elements",
+    "sessions",
+    "events",
+    "devices",
+  ].includes(s.id),
 );
 const eventLabels: Record<string, string> = {
-  http_request: "HTTP 请求", page_view: "页面浏览", route_change: "页面切换",
-  click: "点击", session_start: "会话开始", page_hidden: "页面停留",
-  js_error: "脚本错误", unhandled_rejection: "异步错误", performance_event: "性能记录",
+  http_request: "HTTP 请求",
+  page_view: "页面浏览",
+  route_change: "页面切换",
+  click: "点击",
+  session_start: "会话开始",
+  page_hidden: "页面停留",
+  js_error: "脚本错误",
+  unhandled_rejection: "异步错误",
+  performance_event: "性能记录",
 };
 function eventLabel(row: Row) {
   const props = parse<Row>(row.properties, {});
@@ -69,7 +95,9 @@ function eventRecordLabel(row: Row) {
     const props = parse<Row>(row.properties, {});
     if (props.ruleSelector) {
       const label = props.label || "未命名元素";
-      const description = row.click_description ? `（${row.click_description}）` : "";
+      const description = row.click_description
+        ? `（${row.click_description}）`
+        : "";
       return `点击「自定义元素：${label}${description}」`;
     }
   }
@@ -181,7 +209,15 @@ function Badge({ value }: { value: string }) {
     <span
       className={`badge ${value === "Online" || value === "active" ? "good" : value === "Warning" || value === "paused" ? "warn" : "neutral"}`}
     >
-      {({ browser: "浏览器", host: "访问日志", Online: "在线", active: "启用", paused: "暂停" } as Record<string, string>)[value] || value}
+      {(
+        {
+          browser: "浏览器",
+          host: "访问日志",
+          Online: "在线",
+          active: "启用",
+          paused: "暂停",
+        } as Record<string, string>
+      )[value] || value}
     </span>
   );
 }
@@ -212,17 +248,28 @@ function Table({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   useEffect(() => {
-    setPage((previous) => keepPage ? Math.min(previous, Math.max(1, Math.ceil(rows.length / pageSize))) : 1);
+    setPage((previous) =>
+      keepPage
+        ? Math.min(previous, Math.max(1, Math.ceil(rows.length / pageSize)))
+        : 1,
+    );
   }, [rows, pageSize, keepPage]);
-  const currentPage = Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)));
-  const visible = manual ? rows : rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const currentPage = Math.min(
+    page,
+    Math.max(1, Math.ceil(rows.length / pageSize)),
+  );
+  const visible = manual
+    ? rows
+    : rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   if (!rows.length && loading === undefined) return <Empty>{emptyLabel}</Empty>;
   const grid = (
     <div className="table-wrap">
       <table>
         {columns.some((column) => column.width) && (
           <colgroup>
-            {columns.map((column) => <col key={column.key} style={{ width: column.width }} />)}
+            {columns.map((column) => (
+              <col key={column.key} style={{ width: column.width }} />
+            ))}
           </colgroup>
         )}
         <thead>
@@ -233,13 +280,27 @@ function Table({
           </tr>
         </thead>
         <tbody>
-          {!rows.length && <tr><td colSpan={columns.length} className="table-refresh-empty">{emptyLabel}</td></tr>}
+          {!rows.length && (
+            <tr>
+              <td colSpan={columns.length} className="table-refresh-empty">
+                {emptyLabel}
+              </td>
+            </tr>
+          )}
           {visible.map((r, i) => (
-            <tr key={rowKey?.(r) ?? (r.id || `${r.project_id}:${r.session_id || i}`)}>
+            <tr
+              key={
+                rowKey?.(r) ?? (r.id || `${r.project_id}:${r.session_id || i}`)
+              }
+            >
               {columns.map((c, j) => (
                 <td key={c.key}>
                   {j === 0 && onRow ? (
-                    <button className="text-button" type="button" onClick={() => onRow(r)}>
+                    <button
+                      className="text-button"
+                      type="button"
+                      onClick={() => onRow(r)}
+                    >
                       {c.render ? c.render(r) : String(r[c.key] ?? "—")}
                     </button>
                   ) : c.render ? (
@@ -257,22 +318,41 @@ function Table({
   );
   return (
     <>
-    {loading === undefined ? grid : (
-      <div className="table-refresh-frame" aria-busy={loading}>
-        {grid}
-        {loading && (
-          <div className="table-refresh-overlay" role="status" aria-label="正在刷新列表">
-            <LoaderCircle size={20} aria-hidden="true" />
-          </div>
-        )}
-      </div>
-    )}
-    {!manual && rows.length > 0 && <Pager page={currentPage} setPage={setPage} total={rows.length}
-      pageSize={pageSize} setPageSize={setPageSize} />}
+      {loading === undefined ? (
+        grid
+      ) : (
+        <div className="table-refresh-frame" aria-busy={loading}>
+          {grid}
+          {loading && (
+            <div
+              className="table-refresh-overlay"
+              role="status"
+              aria-label="正在刷新列表"
+            >
+              <LoaderCircle size={20} aria-hidden="true" />
+            </div>
+          )}
+        </div>
+      )}
+      {!manual && rows.length > 0 && (
+        <Pager
+          page={currentPage}
+          setPage={setPage}
+          total={rows.length}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+        />
+      )}
     </>
   );
 }
-function Pager({ page, setPage, total, pageSize, setPageSize }: {
+function Pager({
+  page,
+  setPage,
+  total,
+  pageSize,
+  setPageSize,
+}: {
   page: number;
   setPage: (n: number) => void;
   total: number;
@@ -282,7 +362,9 @@ function Pager({ page, setPage, total, pageSize, setPageSize }: {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const [jump, setJump] = useState("");
   useEffect(() => setJump(""), [page, pageSize, total]);
-  useEffect(() => { if (page > pages) setPage(pages); }, [page, pages, setPage]);
+  useEffect(() => {
+    if (page > pages) setPage(pages);
+  }, [page, pages, setPage]);
   const start = Math.max(1, Math.min(page - 2, pages - 4));
   const end = Math.min(pages, start + 4);
   const items: (number | string)[] = [];
@@ -302,20 +384,66 @@ function Pager({ page, setPage, total, pageSize, setPageSize }: {
     <div className="pager" aria-label="分页">
       <span className="pager-total">共 {number(total)} 条</span>
       <div className="pager-pages">
-        <button disabled={page <= 1} onClick={() => go(page - 1)} aria-label="上一页"><ChevronLeft size={16} /></button>
-        {items.map((item) => typeof item === "number"
-          ? <button key={item} className={item === page ? "current" : ""}
-              aria-label={`第 ${item} 页`} aria-current={item === page ? "page" : undefined}
-              onClick={() => go(item)}>{item}</button>
-          : <span key={item} className="pager-ellipsis">…</span>)}
-        <button disabled={page >= pages} onClick={() => go(page + 1)} aria-label="下一页"><ChevronRight size={16} /></button>
+        <button
+          disabled={page <= 1}
+          onClick={() => go(page - 1)}
+          aria-label="上一页"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        {items.map((item) =>
+          typeof item === "number" ? (
+            <button
+              key={item}
+              className={item === page ? "current" : ""}
+              aria-label={`第 ${item} 页`}
+              aria-current={item === page ? "page" : undefined}
+              onClick={() => go(item)}
+            >
+              {item}
+            </button>
+          ) : (
+            <span key={item} className="pager-ellipsis">
+              …
+            </span>
+          ),
+        )}
+        <button
+          disabled={page >= pages}
+          onClick={() => go(page + 1)}
+          aria-label="下一页"
+        >
+          <ChevronRight size={16} />
+        </button>
       </div>
-      <Select ariaLabel="每页条数" value={String(pageSize)}
-        options={[20, 50, 100].map((size) => ({ value: String(size), label: `${size} 条/页` }))}
-        onChange={(value) => { setPageSize(Number(value)); setPage(1); }} />
-      <label className="pager-jump">跳至<input aria-label="跳转页码" inputMode="numeric" value={jump}
-        onChange={(event) => setJump(event.target.value.replace(/[^0-9]/g, ""))}
-        onBlur={commitJump} onKeyDown={(event) => { if (event.key === "Enter") commitJump(); }} />页</label>
+      <Select
+        ariaLabel="每页条数"
+        value={String(pageSize)}
+        options={[20, 50, 100].map((size) => ({
+          value: String(size),
+          label: `${size} 条/页`,
+        }))}
+        onChange={(value) => {
+          setPageSize(Number(value));
+          setPage(1);
+        }}
+      />
+      <label className="pager-jump">
+        跳至
+        <input
+          aria-label="跳转页码"
+          inputMode="numeric"
+          value={jump}
+          onChange={(event) =>
+            setJump(event.target.value.replace(/[^0-9]/g, ""))
+          }
+          onBlur={commitJump}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") commitJump();
+          }}
+        />
+        页
+      </label>
     </div>
   );
 }
@@ -344,7 +472,10 @@ function Login({ onLogin }: { onLogin: () => void }) {
     <div className="login">
       <div className="login-brand">
         <img className="brand-logo" src="/assets/sailfin-logo.svg" alt="" />
-        <span className="brand-name"><span>帆鳍</span><small>Sailfin</small></span>
+        <span className="brand-name">
+          <span>帆鳍</span>
+          <small>Sailfin</small>
+        </span>
       </div>
       <form
         onSubmit={async (e) => {
@@ -395,7 +526,12 @@ function Login({ onLogin }: { onLogin: () => void }) {
     </div>
   );
 }
-function SiteAssets({ state, selected, siteHref, onNavigate }: {
+function SiteAssets({
+  state,
+  selected,
+  siteHref,
+  onNavigate,
+}: {
   state: { data: Row[] | null; loading: boolean; error: string };
   selected: string;
   siteHref: (id: string) => string;
@@ -404,30 +540,57 @@ function SiteAssets({ state, selected, siteHref, onNavigate }: {
   const [search, setSearch] = useState("");
   const sites = state.data || [];
   const term = search.trim().toLocaleLowerCase();
-  const matches = sites.filter((site) => String(site.name).toLocaleLowerCase().includes(term));
+  const matches = sites.filter((site) =>
+    String(site.name).toLocaleLowerCase().includes(term),
+  );
   return (
     <aside className="site-assets" aria-label="站点资产">
       <div className="asset-search">
         <Search size={16} aria-hidden="true" />
-        <input type="search" aria-label="搜索站点" placeholder="搜索站点" value={search}
-          onChange={(event) => setSearch(event.target.value)} />
+        <input
+          type="search"
+          aria-label="搜索站点"
+          placeholder="搜索站点"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
       </div>
       <ErrorBox message={state.error} />
-      {state.loading && !state.data ? <div className="loading">加载中…</div> : (
+      {state.loading && !state.data ? (
+        <div className="loading">加载中…</div>
+      ) : (
         <>
-          <a className={`asset-all ${!selected ? "selected" : ""}`} href={siteHref("")}
-            onClick={onNavigate} aria-current={!selected ? "page" : undefined}>
-            <Globe size={16} aria-hidden="true" /><span>全部站点</span><span className="asset-count">{state.data ? sites.length : "—"}</span>
+          <a
+            className={`asset-all ${!selected ? "selected" : ""}`}
+            href={siteHref("")}
+            onClick={onNavigate}
+            aria-current={!selected ? "page" : undefined}
+          >
+            <Globe size={16} aria-hidden="true" />
+            <span>全部站点</span>
+            <span className="asset-count">
+              {state.data ? sites.length : "—"}
+            </span>
           </a>
           <nav className="asset-items" aria-label="站点列表">
             {matches.map((site) => (
-              <a key={site.id} href={siteHref(site.id)} onClick={onNavigate}
+              <a
+                key={site.id}
+                href={siteHref(site.id)}
+                onClick={onNavigate}
                 className={`asset-item ${selected === site.id ? "selected" : ""}`}
-                title={site.name} aria-current={selected === site.id ? "page" : undefined}>
-                <Globe size={15} aria-hidden="true" /><span>{site.name}</span>
+                title={site.name}
+                aria-current={selected === site.id ? "page" : undefined}
+              >
+                <Globe size={15} aria-hidden="true" />
+                <span>{site.name}</span>
               </a>
             ))}
-            {!matches.length && <div className="asset-empty">{term ? "无匹配站点" : "暂无站点"}</div>}
+            {!matches.length && (
+              <div className="asset-empty">
+                {term ? "无匹配站点" : "暂无站点"}
+              </div>
+            )}
           </nav>
         </>
       )}
@@ -447,14 +610,16 @@ function App() {
   const customFrom = params.get("from") ?? "";
   const customTo = params.get("to") ?? "";
   const selectedEventType = params.get("eventType") ?? "";
-  const eventType = Object.hasOwn(eventLabels, selectedEventType) ? selectedEventType : "";
+  const eventType = Object.hasOwn(eventLabels, selectedEventType)
+    ? selectedEventType
+    : "";
   const projects = useData(
     () => (authenticated ? api("/sites") : Promise.resolve([])),
     [authenticated, revision],
     authenticated ? 10000 : 0,
   );
   const system = useData(
-    () => authenticated ? api<Row>("/system/status") : Promise.resolve(null),
+    () => (authenticated ? api<Row>("/system/status") : Promise.resolve(null)),
     [authenticated, revision],
   );
   const timezone = system.data?.timezone ?? "UTC";
@@ -500,138 +665,324 @@ function App() {
     navigate(link.pathname + link.search);
   }
   const siteView = siteSections.some((item) => item.id === section);
-  const settingsView = section === "system-info" || section === "system" || section === "security";
+  const settingsView =
+    section === "system-info" || section === "system" || section === "security";
   const probeView = section === "collection";
   const backupView = section === "backups";
   const backupPane = params.get("view") === "retention" ? "retention" : "files";
   const probePane = params.get("view") === "probes" ? "probes" : "sites";
   const selectedSite = projects.data?.find((item) => item.id === project);
-  const primarySection = settingsView ? "system-info" : probeView || backupView ? section : "sites";
+  const primarySection = settingsView
+    ? "system-info"
+    : probeView || backupView
+      ? section
+      : "sites";
   const filters = (
     <>
-      <Select label="时间" ariaLabel="时间范围" value={range}
+      <Select
+        label="时间"
+        ariaLabel="时间范围"
+        value={range}
         options={[
-          { value: "24", label: "最近 24 小时" }, { value: "168", label: "最近 7 天" },
-          { value: "720", label: "最近 30 天" }, { value: "custom", label: "自定义" },
+          { value: "24", label: "最近 24 小时" },
+          { value: "168", label: "最近 7 天" },
+          { value: "720", label: "最近 30 天" },
+          { value: "custom", label: "自定义" },
         ]}
-        onChange={(value) => navigate(href(section, { range: value === "24" ? "" : value }), true)} />
-      {section === "events" && <Select label="事件类型" ariaLabel="事件类型" value={eventType}
-        options={[{ value: "", label: "全部事件" }, ...Object.entries(eventLabels).map(([value, label]) => ({ value, label }))]}
-        onChange={(value) => navigate(href(section, { eventType: value }), true)} />}
-      {range === "custom" && <>
-        <label>开始：<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
-        <label>结束：<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
-        <span className="site-meta">{timezone}</span>
-      </>}
-      {selectedSite && <span className="site-meta">{selectedSite.last_event ? `最近上报：${formatTime(selectedSite.last_event, timezone)}` : "等待首批数据"}</span>}
+        onChange={(value) =>
+          navigate(href(section, { range: value === "24" ? "" : value }), true)
+        }
+      />
+      {section === "events" && (
+        <Select
+          label="事件类型"
+          ariaLabel="事件类型"
+          value={eventType}
+          options={[
+            { value: "", label: "全部事件" },
+            ...Object.entries(eventLabels).map(([value, label]) => ({
+              value,
+              label,
+            })),
+          ]}
+          onChange={(value) =>
+            navigate(href(section, { eventType: value }), true)
+          }
+        />
+      )}
+      {range === "custom" && (
+        <>
+          <label>
+            开始：
+            <input
+              type="datetime-local"
+              value={customFrom}
+              onChange={(e) =>
+                navigate(href(section, { from: e.target.value }), true)
+              }
+            />
+          </label>
+          <label>
+            结束：
+            <input
+              type="datetime-local"
+              value={customTo}
+              onChange={(e) =>
+                navigate(href(section, { to: e.target.value }), true)
+              }
+            />
+          </label>
+          <span className="site-meta">{timezone}</span>
+        </>
+      )}
+      {selectedSite && (
+        <span className="site-meta">
+          {selectedSite.last_event
+            ? `最近上报：${formatTime(selectedSite.last_event, timezone)}`
+            : "等待首批数据"}
+        </span>
+      )}
     </>
   );
   return (
     <TimezoneContext.Provider value={timezone}>
-    <div className="shell site-shell">
-      <header className="topbar">
-        <a className="brand" href={href("sites", { projectId: "" })} onClick={followLink}>
-          <img className="brand-logo" src="/assets/sailfin-logo.svg" alt="" /><span className="brand-name"><span>帆鳍</span><small>Sailfin</small></span>
-        </a>
-        <nav className="primary-nav" aria-label="主导航">
-          {[
-            { id: "sites", name: "站点" },
-            { id: "collection", name: "探针管理" },
-            { id: "backups", name: "备份管理" },
-            { id: "system-info", name: "系统设置" },
-          ].map((item) => (
-            <a key={item.id} href={href(item.id, item.id === "sites" ? { projectId: "" } : {})}
-              className={primarySection === item.id ? "selected" : ""}
-              aria-current={primarySection === item.id ? "page" : undefined} onClick={followLink}>
-              {item.name}
-            </a>
-          ))}
-        </nav>
-        <div className="header-actions">
-          <Button onClick={refresh} aria-label="刷新数据" title="刷新"><RefreshCw aria-hidden="true" /></Button>
-        </div>
-      </header>
-      <main className="site-main" aria-label={siteView ? selectedSite?.name || "全部站点" : current.name}>
-        <div className="workspace site-workspace">
-          {siteView && <SiteAssets state={projects} selected={project}
-            siteHref={(id) => href(section, { projectId: id })} onNavigate={followLink} />}
-          {probeView && <aside className="site-assets module-menu" aria-label="探针导航">
-            <nav>
-              {[{ id: "sites", name: "站点接入", icon: Globe }, { id: "probes", name: "探针管理", icon: Activity }].map((item) => (
-                <a key={item.id} className={`asset-item ${probePane === item.id ? "selected" : ""}`}
-                  href={href("collection", { view: item.id })} onClick={followLink}
-                  aria-current={probePane === item.id ? "page" : undefined}>
-                  <item.icon size={16} aria-hidden="true" /><span>{item.name}</span>
-                </a>
-              ))}
-            </nav>
-          </aside>}
-          {settingsView && <aside className="site-assets module-menu" aria-label="设置导航">
-            <nav>
-              {[{ id: "system-info", name: "系统信息", icon: Info }, { id: "system", name: "运行设置", icon: Settings }, { id: "security", name: "安全审计", icon: ShieldCheck }].map((item) => (
-                <a key={item.id} className={`asset-item ${section === item.id ? "selected" : ""}`}
-                  href={href(item.id)} onClick={followLink}
-                  aria-current={section === item.id ? "page" : undefined}>
-                  <item.icon size={16} aria-hidden="true" /><span>{item.name}</span>
-                </a>
-              ))}
-            </nav>
-          </aside>}
-          {backupView && <aside className="site-assets module-menu" aria-label="备份导航">
-            <nav>
-              {[{ id: "files", name: "备份文件", icon: DatabaseBackup }, { id: "retention", name: "数据保留", icon: Settings }].map((item) => (
-                <a key={item.id} className={`asset-item ${backupPane === item.id ? "selected" : ""}`}
-                  href={href("backups", { view: item.id })} onClick={followLink}
-                  aria-current={backupPane === item.id ? "page" : undefined}>
-                  <item.icon size={16} aria-hidden="true" /><span>{item.name}</span>
-                </a>
-              ))}
-            </nav>
-          </aside>}
-          <div className="detail-workspace">
-          {siteView && <div className="site-sticky-header">
-          {siteView && (
-              <nav className="tabs" aria-label="站点导航">
-                {siteSections.map((item) => (
-                  <a key={item.id} href={href(item.id)} onClick={followLink}
-                    className={section === item.id ? "active" : ""}
-                    aria-current={section === item.id ? "page" : undefined}>{item.name}</a>
-                ))}
-              </nav>
-          )}
-          </div>}
-          <div className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}${backupView && backupPane === "files" ? " backup-workspace" : ""}`}>
-          {siteView && section !== "elements" && section !== "clicks" && (
-            <div className="filterbar"><div className="filters">{filters}</div></div>
-          )}
-          {section === "overview" && <Overview query={query} revision={revision} />}
-          {section === "pages" && <DataTable path="/stats/pages" query={query} revision={revision} columns={[
-            { key: "path", label: "页面 / 请求路径" }, { key: "pv", label: "浏览量" },
-            { key: "requests", label: "HTTP 请求" },
-          ]} />}
-          {section === "devices" && <DataTable path="/stats/devices" query={query} revision={revision} columns={[
-            { key: "device", label: "设备类型" }, { key: "browser", label: "浏览器" }, { key: "os", label: "操作系统" },
-            { key: "requests", label: "HTTP 请求" }, { key: "pv", label: "浏览量" }, { key: "uv", label: "匿名访客" }, { key: "events", label: "事件总数" },
-          ]} />}
-          {section === "events" && <Events key="events" query={query} revision={revision} eventType={eventType} />}
-          {section === "clicks" && <Clicks query={query} revision={revision} filters={filters} />}
-          {section === "elements" && (project
-            ? <SiteElements key={project} project={project} revision={revision} />
-            : <Empty>请从左侧选择要管理的站点</Empty>)}
-          {section === "sessions" && <Sessions query={query} revision={revision} />}
-          {probeView && (probePane === "sites" ? <NginxCollection revision={revision} onChange={refresh} /> : <LocalProbe revision={revision} />)}
-          {section === "security" && <Security revision={revision} />}
-          {section === "system-info" && <SystemInfo state={system} revision={revision} onChange={refresh} />}
-          {backupView && (backupPane === "files" ? <BackupManagement revision={revision} /> : <DataRetention revision={revision} />)}
-          {section === "system" && <SystemSettings onLogout={() => {
-            setCSRF("");
-            setAuthenticated(false);
-          }} />}
+      <div className="shell site-shell">
+        <header className="topbar">
+          <a
+            className="brand"
+            href={href("sites", { projectId: "" })}
+            onClick={followLink}
+          >
+            <img className="brand-logo" src="/assets/sailfin-logo.svg" alt="" />
+            <span className="brand-name">
+              <span>帆鳍</span>
+              <small>Sailfin</small>
+            </span>
+          </a>
+          <nav className="primary-nav" aria-label="主导航">
+            {[
+              { id: "sites", name: "站点" },
+              { id: "collection", name: "探针管理" },
+              { id: "backups", name: "备份管理" },
+              { id: "system-info", name: "系统设置" },
+            ].map((item) => (
+              <a
+                key={item.id}
+                href={href(
+                  item.id,
+                  item.id === "sites" ? { projectId: "" } : {},
+                )}
+                className={primarySection === item.id ? "selected" : ""}
+                aria-current={primarySection === item.id ? "page" : undefined}
+                onClick={followLink}
+              >
+                {item.name}
+              </a>
+            ))}
+          </nav>
+          <div className="header-actions">
+            <Button onClick={refresh} aria-label="刷新数据" title="刷新">
+              <RefreshCw aria-hidden="true" />
+            </Button>
           </div>
+        </header>
+        <main
+          className="site-main"
+          aria-label={
+            siteView ? selectedSite?.name || "全部站点" : current.name
+          }
+        >
+          <div className="workspace site-workspace">
+            {siteView && (
+              <SiteAssets
+                state={projects}
+                selected={project}
+                siteHref={(id) => href(section, { projectId: id })}
+                onNavigate={followLink}
+              />
+            )}
+            {probeView && (
+              <aside className="site-assets module-menu" aria-label="探针导航">
+                <nav>
+                  {[
+                    { id: "sites", name: "站点接入", icon: Globe },
+                    { id: "probes", name: "探针管理", icon: Activity },
+                  ].map((item) => (
+                    <a
+                      key={item.id}
+                      className={`asset-item ${probePane === item.id ? "selected" : ""}`}
+                      href={href("collection", { view: item.id })}
+                      onClick={followLink}
+                      aria-current={probePane === item.id ? "page" : undefined}
+                    >
+                      <item.icon size={16} aria-hidden="true" />
+                      <span>{item.name}</span>
+                    </a>
+                  ))}
+                </nav>
+              </aside>
+            )}
+            {settingsView && (
+              <aside className="site-assets module-menu" aria-label="设置导航">
+                <nav>
+                  {[
+                    { id: "system-info", name: "系统信息", icon: Info },
+                    { id: "system", name: "运行设置", icon: Settings },
+                    { id: "security", name: "安全审计", icon: ShieldCheck },
+                  ].map((item) => (
+                    <a
+                      key={item.id}
+                      className={`asset-item ${section === item.id ? "selected" : ""}`}
+                      href={href(item.id)}
+                      onClick={followLink}
+                      aria-current={section === item.id ? "page" : undefined}
+                    >
+                      <item.icon size={16} aria-hidden="true" />
+                      <span>{item.name}</span>
+                    </a>
+                  ))}
+                </nav>
+              </aside>
+            )}
+            {backupView && (
+              <aside className="site-assets module-menu" aria-label="备份导航">
+                <nav>
+                  {[
+                    { id: "files", name: "备份文件", icon: DatabaseBackup },
+                    { id: "retention", name: "数据保留", icon: Settings },
+                  ].map((item) => (
+                    <a
+                      key={item.id}
+                      className={`asset-item ${backupPane === item.id ? "selected" : ""}`}
+                      href={href("backups", { view: item.id })}
+                      onClick={followLink}
+                      aria-current={backupPane === item.id ? "page" : undefined}
+                    >
+                      <item.icon size={16} aria-hidden="true" />
+                      <span>{item.name}</span>
+                    </a>
+                  ))}
+                </nav>
+              </aside>
+            )}
+            <div className="detail-workspace">
+              {siteView && (
+                <div className="site-sticky-header">
+                  {siteView && (
+                    <nav className="tabs" aria-label="站点导航">
+                      {siteSections.map((item) => (
+                        <a
+                          key={item.id}
+                          href={href(item.id)}
+                          onClick={followLink}
+                          className={section === item.id ? "active" : ""}
+                          aria-current={
+                            section === item.id ? "page" : undefined
+                          }
+                        >
+                          {item.name}
+                        </a>
+                      ))}
+                    </nav>
+                  )}
+                </div>
+              )}
+              <div
+                className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}${backupView && backupPane === "files" ? " backup-workspace" : ""}`}
+              >
+                {siteView && section !== "elements" && section !== "clicks" && (
+                  <div className="filterbar">
+                    <div className="filters">{filters}</div>
+                  </div>
+                )}
+                {section === "overview" && (
+                  <Overview query={query} revision={revision} />
+                )}
+                {section === "pages" && (
+                  <DataTable
+                    path="/stats/pages"
+                    query={query}
+                    revision={revision}
+                    columns={[
+                      { key: "path", label: "页面 / 请求路径" },
+                      { key: "pv", label: "浏览量" },
+                      { key: "requests", label: "HTTP 请求" },
+                    ]}
+                  />
+                )}
+                {section === "devices" && (
+                  <DataTable
+                    path="/stats/devices"
+                    query={query}
+                    revision={revision}
+                    columns={[
+                      { key: "device", label: "设备类型" },
+                      { key: "browser", label: "浏览器" },
+                      { key: "os", label: "操作系统" },
+                      { key: "requests", label: "HTTP 请求" },
+                      { key: "pv", label: "浏览量" },
+                      { key: "uv", label: "匿名访客" },
+                      { key: "events", label: "事件总数" },
+                    ]}
+                  />
+                )}
+                {section === "events" && (
+                  <Events
+                    key="events"
+                    query={query}
+                    revision={revision}
+                    eventType={eventType}
+                  />
+                )}
+                {section === "clicks" && (
+                  <Clicks query={query} revision={revision} filters={filters} />
+                )}
+                {section === "elements" &&
+                  (project ? (
+                    <SiteElements
+                      key={project}
+                      project={project}
+                      revision={revision}
+                    />
+                  ) : (
+                    <Empty>请从左侧选择要管理的站点</Empty>
+                  ))}
+                {section === "sessions" && (
+                  <Sessions query={query} revision={revision} />
+                )}
+                {probeView &&
+                  (probePane === "sites" ? (
+                    <NginxCollection revision={revision} onChange={refresh} />
+                  ) : (
+                    <LocalProbe revision={revision} />
+                  ))}
+                {section === "security" && <Security revision={revision} />}
+                {section === "system-info" && (
+                  <SystemInfo
+                    state={system}
+                    revision={revision}
+                    onChange={refresh}
+                  />
+                )}
+                {backupView &&
+                  (backupPane === "files" ? (
+                    <BackupManagement revision={revision} />
+                  ) : (
+                    <DataRetention revision={revision} />
+                  ))}
+                {section === "system" && (
+                  <SystemSettings
+                    onLogout={() => {
+                      setCSRF("");
+                      setAuthenticated(false);
+                    }}
+                  />
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
     </TimezoneContext.Provider>
   );
 }
@@ -696,7 +1047,11 @@ function Overview({ query, revision }: { query: string; revision: number }) {
               <div className="panel-title">
                 <h2>热门路径</h2>
               </div>
-              <DataTable bare path="/stats/pages" query={query} revision={revision}
+              <DataTable
+                bare
+                path="/stats/pages"
+                query={query}
+                revision={revision}
                 columns={[
                   { key: "path", label: "页面 / 请求路径" },
                   { key: "pv", label: "PV" },
@@ -718,9 +1073,7 @@ function Overview({ query, revision }: { query: string; revision: number }) {
                   {(Number(d.overview.avg_duration_ms) / 1000).toFixed(1)} 秒
                 </dd>
               </dl>
-              <p className="hint">
-                单段停留最多计 30 分钟。
-              </p>
+              <p className="hint">单段停留最多计 30 分钟。</p>
             </section>
           </div>
         </>
@@ -730,7 +1083,8 @@ function Overview({ query, revision }: { query: string; revision: number }) {
 }
 function Trend({ rows }: { rows: Row[] }) {
   const when = useTimeFormatter();
-  const hour = (row: Row) => when(Date.parse(String(row.time).replace(" ", "T") + ":00Z"));
+  const hour = (row: Row) =>
+    when(Date.parse(String(row.time).replace(" ", "T") + ":00Z"));
   const max = Math.max(
     1,
     ...rows.flatMap((r) => [Number(r.pv), Number(r.requests)]),
@@ -792,7 +1146,15 @@ function Trend({ rows }: { rows: Row[] }) {
     </div>
   );
 }
-function DataTable({ path, query, revision, columns, bare = false, emptyLabel, pollMs = 0 }: {
+function DataTable({
+  path,
+  query,
+  revision,
+  columns,
+  bare = false,
+  emptyLabel,
+  pollMs = 0,
+}: {
   path: string;
   query: string;
   revision: number;
@@ -809,17 +1171,46 @@ function DataTable({ path, query, revision, columns, bare = false, emptyLabel, p
     [path, query, page, pageSize, revision],
     pollMs,
   );
-  const content = <AsyncPanel state={state}>
-    <Table manual rows={state.data || []} columns={columns} emptyLabel={emptyLabel} />
-    <Pager page={page} setPage={setPage} total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize} />
-  </AsyncPanel>;
-  return bare ? content : <section className="panel list-panel">{content}</section>;
+  const content = (
+    <AsyncPanel state={state}>
+      <Table
+        manual
+        rows={state.data || []}
+        columns={columns}
+        emptyLabel={emptyLabel}
+      />
+      <Pager
+        page={page}
+        setPage={setPage}
+        total={listTotal(state.data)}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+      />
+    </AsyncPanel>
+  );
+  return bare ? (
+    content
+  ) : (
+    <section className="panel list-panel">{content}</section>
+  );
 }
-function Clicks({ query, revision, filters }: { query: string; revision: number; filters: React.ReactNode }) {
+function Clicks({
+  query,
+  revision,
+  filters,
+}: {
+  query: string;
+  revision: number;
+  filters: React.ReactNode;
+}) {
   const when = useTimeFormatter();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [selection, setSelection] = useState<{ projectId: string; path: string; keys: Set<string> } | null>(null);
+  const [selection, setSelection] = useState<{
+    projectId: string;
+    path: string;
+    keys: Set<string>;
+  } | null>(null);
   const [merging, setMerging] = useState(false);
   const [mergeError, setMergeError] = useState("");
   const [mergeRevision, setMergeRevision] = useState(0);
@@ -837,7 +1228,11 @@ function Clicks({ query, revision, filters }: { query: string; revision: number;
   const allSites = !new URLSearchParams(query).get("projectId");
   const selectedCount = selection?.keys.size ?? 0;
   function samePage(row: Row) {
-    return selection !== null && selection.projectId === row.project_id && selection.path === row.path;
+    return (
+      selection !== null &&
+      selection.projectId === row.project_id &&
+      selection.path === row.path
+    );
   }
   function toggle(row: Row, checked: boolean) {
     setMergeError("");
@@ -846,7 +1241,9 @@ function Clicks({ query, revision, filters }: { query: string; revision: number;
       const keys = new Set(current?.keys);
       if (checked) keys.add(row.element_key);
       else keys.delete(row.element_key);
-      return keys.size ? { projectId: row.project_id, path: row.path, keys } : null;
+      return keys.size
+        ? { projectId: row.project_id, path: row.path, keys }
+        : null;
     });
   }
   async function merge() {
@@ -856,7 +1253,11 @@ function Clicks({ query, revision, filters }: { query: string; revision: number;
     try {
       await api("/stats/clicks/merge" + query, {
         method: "POST",
-        body: JSON.stringify({ projectId: selection.projectId, page: selection.path, elementKeys: [...selection.keys] }),
+        body: JSON.stringify({
+          projectId: selection.projectId,
+          page: selection.path,
+          elementKeys: [...selection.keys],
+        }),
       });
       setSelection(null);
       setMerged(true);
@@ -870,46 +1271,115 @@ function Clicks({ query, revision, filters }: { query: string; revision: number;
   }
   return (
     <>
-    <div className="filterbar">
-      <div className="filters">
-        {filters}
-        {(selection || merged) && <div className="click-merge-actions">
-          <span className="site-meta" role="status">{selection
-            ? selectedCount === 1 ? "请选择同站点同页面的另一条记录" : `已选 ${selectedCount} 条`
-            : "已合并"}</span>
-          {selection && <>
-            <button className="text-button" type="button" disabled={merging}
-              onClick={() => { setSelection(null); setMergeError(""); }}>清空选择</button>
-            <Button variant="soft" disabled={selectedCount < 2 || merging || state.loading}
-              onClick={() => void merge()}>{merging ? "合并中…" : "合并事件"}</Button>
-          </>}
-        </div>}
+      <div className="filterbar">
+        <div className="filters">
+          {filters}
+          {(selection || merged) && (
+            <div className="click-merge-actions">
+              <span className="site-meta" role="status">
+                {selection
+                  ? selectedCount === 1
+                    ? "请选择同站点同页面的另一条记录"
+                    : `已选 ${selectedCount} 条`
+                  : "已合并"}
+              </span>
+              {selection && (
+                <>
+                  <button
+                    className="text-button"
+                    type="button"
+                    disabled={merging}
+                    onClick={() => {
+                      setSelection(null);
+                      setMergeError("");
+                    }}
+                  >
+                    清空选择
+                  </button>
+                  <Button
+                    variant="soft"
+                    disabled={selectedCount < 2 || merging || state.loading}
+                    onClick={() => void merge()}
+                  >
+                    {merging ? "合并中…" : "合并事件"}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <ErrorBox message={mergeError} />
       </div>
-      <ErrorBox message={mergeError} />
-    </div>
-    <section className="panel list-panel">
-      <AsyncPanel state={state}>
-        <Table manual rows={state.data || []} rowKey={(row) => JSON.stringify([row.project_id, row.path, row.element_key])} columns={[
-          { key: "selection", label: "选择", width: "50px", render: (row) => (
-            <input type="checkbox" className="site-select" aria-label={`选择 ${row.label || "未命名元素"}`}
-              checked={samePage(row) && (selection?.keys.has(row.element_key) ?? false)}
-              disabled={merging || Boolean(selection && !samePage(row))}
-              onChange={(event) => toggle(row, event.target.checked)} />
-          ) },
-          ...(allSites ? [{ key: "site_name", label: "站点" }] : []),
-          { key: "path", label: "页面" },
-          { key: "label", label: "元素名称", render: (row) => {
-            const label = row.label || "未命名元素";
-            return row.description ? `${label}「${row.description}」` : label;
-          } },
-          { key: "region", label: "区域", render: (row) => row.region || "—" },
-          { key: "clicks", label: "点击次数", render: (row) => number(row.clicks) },
-          { key: "visitors", label: "匿名访客", render: (row) => number(row.visitors) },
-          { key: "last_click", label: "最近点击", render: (row) => when(row.last_click) },
-        ]} />
-        <Pager page={page} setPage={setPage} total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize} />
-      </AsyncPanel>
-    </section>
+      <section className="panel list-panel">
+        <AsyncPanel state={state}>
+          <Table
+            manual
+            rows={state.data || []}
+            rowKey={(row) =>
+              JSON.stringify([row.project_id, row.path, row.element_key])
+            }
+            columns={[
+              {
+                key: "selection",
+                label: "选择",
+                width: "50px",
+                render: (row) => (
+                  <input
+                    type="checkbox"
+                    className="site-select"
+                    aria-label={`选择 ${row.label || "未命名元素"}`}
+                    checked={
+                      samePage(row) &&
+                      (selection?.keys.has(row.element_key) ?? false)
+                    }
+                    disabled={merging || Boolean(selection && !samePage(row))}
+                    onChange={(event) => toggle(row, event.target.checked)}
+                  />
+                ),
+              },
+              ...(allSites ? [{ key: "site_name", label: "站点" }] : []),
+              { key: "path", label: "页面" },
+              {
+                key: "label",
+                label: "元素名称",
+                render: (row) => {
+                  const label = row.label || "未命名元素";
+                  return row.description
+                    ? `${label}「${row.description}」`
+                    : label;
+                },
+              },
+              {
+                key: "region",
+                label: "区域",
+                render: (row) => row.region || "—",
+              },
+              {
+                key: "clicks",
+                label: "点击次数",
+                render: (row) => number(row.clicks),
+              },
+              {
+                key: "visitors",
+                label: "匿名访客",
+                render: (row) => number(row.visitors),
+              },
+              {
+                key: "last_click",
+                label: "最近点击",
+                render: (row) => when(row.last_click),
+              },
+            ]}
+          />
+          <Pager
+            page={page}
+            setPage={setPage}
+            total={listTotal(state.data)}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+          />
+        </AsyncPanel>
+      </section>
     </>
   );
 }
@@ -927,10 +1397,19 @@ type ElementDrawer = {
   description: string;
 };
 
-function SiteElements({ project, revision }: { project: string; revision: number }) {
+function SiteElements({
+  project,
+  revision,
+}: {
+  project: string;
+  revision: number;
+}) {
   const path = `/sites/${encodeURIComponent(project)}/elements`;
   const [refresh, setRefresh] = useState(0);
-  const state = useData(() => api<SiteElementSettings>(path), [path, revision, refresh]);
+  const state = useData(
+    () => api<SiteElementSettings>(path),
+    [path, revision, refresh],
+  );
   const dialog = useRef<HTMLDialogElement>(null);
   const [drawer, setDrawer] = useState<ElementDrawer | null>(null);
   const [saving, setSaving] = useState(false);
@@ -940,7 +1419,12 @@ function SiteElements({ project, revision }: { project: string; revision: number
   const rows = useMemo(() => {
     const descriptions = state.data?.clickDescriptions ?? {};
     return (state.data?.clickSelectors ?? []).map((selector, index) => ({
-      id: index + 1, index, selector, description: Object.hasOwn(descriptions, selector) ? descriptions[selector] : "",
+      id: index + 1,
+      index,
+      selector,
+      description: Object.hasOwn(descriptions, selector)
+        ? descriptions[selector]
+        : "",
     }));
   }, [state.data]);
   const drawerOpen = drawer !== null;
@@ -948,10 +1432,19 @@ function SiteElements({ project, revision }: { project: string; revision: number
   const disabled = saving || state.loading || !state.data;
   const selectorInput = removing ? "" : (drawer?.selector ?? "").trim();
   const selectorAnalysis = useMemo(() => {
-    if (new TextEncoder().encode(selectorInput).length > 200 || /[\r\n\0]/.test(selectorInput)) {
-      return { description: null, error: "选择器必须为单行，最多 200 字节", warnings: [] };
+    if (
+      new TextEncoder().encode(selectorInput).length > 200 ||
+      /[\r\n\0]/.test(selectorInput)
+    ) {
+      return {
+        description: null,
+        error: "选择器必须为单行，最多 200 字节",
+        warnings: [],
+      };
     }
-    return analyzeSelector(selectorInput, (source) => { document.createElement("div").closest(source); });
+    return analyzeSelector(selectorInput, (source) => {
+      document.createElement("div").closest(source);
+    });
   }, [selectorInput]);
 
   useEffect(() => {
@@ -966,7 +1459,13 @@ function SiteElements({ project, revision }: { project: string; revision: number
     setError("");
     setInvalidSelector(false);
     setSaved(false);
-    setDrawer({ mode, index, snapshot: state.data, selector: row?.selector ?? "", description: row?.description ?? "" });
+    setDrawer({
+      mode,
+      index,
+      snapshot: state.data,
+      selector: row?.selector ?? "",
+      description: row?.description ?? "",
+    });
   }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
@@ -993,7 +1492,8 @@ function SiteElements({ project, revision }: { project: string; revision: number
         selectors.push(selector);
       } else {
         selectors[drawer.index] = selector;
-        if (selector !== original && !selectors.includes(original)) descriptions.delete(original);
+        if (selector !== original && !selectors.includes(original))
+          descriptions.delete(original);
       }
       const description = drawer.description.trim();
       if (description) descriptions.set(selector, description);
@@ -1020,73 +1520,174 @@ function SiteElements({ project, revision }: { project: string; revision: number
   }
 
   return (
-    <section className="panel list-panel site-element-list" aria-label="元素管理">
+    <section
+      className="panel list-panel site-element-list"
+      aria-label="元素管理"
+    >
       <div className="panel-title site-management-toolbar">
-        <span role="status">{state.data && (
-          !state.data.browserConfigured ? "此站点尚未配置浏览器采集"
-            : rows.length >= 50 ? "已达 50 条规则上限"
-            : saved ? "规则已更新" : "添加规则可补充自动点击采集"
-        )}</span>
-        <Button variant="soft" disabled={disabled || rows.length >= 50} onClick={() => openDrawer("add")}>
-          <Plus aria-hidden="true" />新增元素
+        <span role="status">
+          {state.data &&
+            (!state.data.browserConfigured
+              ? "此站点尚未配置浏览器采集"
+              : rows.length >= 50
+                ? "已达 50 条规则上限"
+                : saved
+                  ? "规则已更新"
+                  : "添加规则可补充自动点击采集")}
+        </span>
+        <Button
+          variant="soft"
+          disabled={disabled || rows.length >= 50}
+          onClick={() => openDrawer("add")}
+        >
+          <Plus aria-hidden="true" />
+          新增元素
         </Button>
       </div>
       <ErrorBox message={state.error} />
-      <Table rows={rows} loading={state.loading} keepPage
+      <Table
+        rows={rows}
+        loading={state.loading}
+        keepPage
         emptyLabel={state.data ? "暂无元素规则" : ""}
         columns={[
-          { key: "selector", label: "CSS 选择器", render: (row) => <code>{row.selector}</code> },
-          { key: "description", label: "说明", render: (row) => row.description || "—" },
-          { key: "actions", label: "操作", width: "150px", render: (row) => (
-            <div className="actions">
-              <button className="text-button" type="button" disabled={disabled}
-                onClick={() => openDrawer("edit", row.index)}>编辑</button>
-              <button className="text-button text-button-danger" type="button" disabled={disabled}
-                onClick={() => openDrawer("remove", row.index)}>移除</button>
-            </div>
-          ) },
-        ]} />
-      <dialog ref={dialog} className="site-drawer" aria-labelledby="element-drawer-title"
-        onCancel={(event) => { event.preventDefault(); if (!saving) setDrawer(null); }}>
+          {
+            key: "selector",
+            label: "CSS 选择器",
+            render: (row) => <code>{row.selector}</code>,
+          },
+          {
+            key: "description",
+            label: "说明",
+            render: (row) => row.description || "—",
+          },
+          {
+            key: "actions",
+            label: "操作",
+            width: "150px",
+            render: (row) => (
+              <div className="actions">
+                <button
+                  className="text-button"
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => openDrawer("edit", row.index)}
+                >
+                  编辑
+                </button>
+                <button
+                  className="text-button text-button-danger"
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => openDrawer("remove", row.index)}
+                >
+                  移除
+                </button>
+              </div>
+            ),
+          },
+        ]}
+      />
+      <dialog
+        ref={dialog}
+        className="site-drawer"
+        aria-labelledby="element-drawer-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!saving) setDrawer(null);
+        }}
+      >
         {drawer && (
           <form className="site-drawer-layout" onSubmit={save}>
             <header className="site-drawer-header">
-              <h2 id="element-drawer-title">{removing ? "移除元素" : drawer.mode === "edit" ? "编辑元素" : "新增元素"}</h2>
-              <button type="button" aria-label="关闭" className="site-drawer-close" disabled={saving}
-                onClick={() => setDrawer(null)}><X size={20} aria-hidden="true" /></button>
+              <h2 id="element-drawer-title">
+                {removing
+                  ? "移除元素"
+                  : drawer.mode === "edit"
+                    ? "编辑元素"
+                    : "新增元素"}
+              </h2>
+              <button
+                type="button"
+                aria-label="关闭"
+                className="site-drawer-close"
+                disabled={saving}
+                onClick={() => setDrawer(null)}
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
             </header>
             <div className="site-drawer-body">
               {removing ? (
                 <>
                   <code>{drawer.selector}</code>
-                  <p className="site-drawer-hint">移除这条补充规则后，默认点击采集继续生效。</p>
+                  <p className="site-drawer-hint">
+                    移除这条补充规则后，默认点击采集继续生效。
+                  </p>
                 </>
               ) : (
                 <>
-                  <label>CSS 选择器
-                    <input className="click-selectors" placeholder=".timeline-item" required spellCheck={false}
-                      value={drawer.selector} disabled={saving} aria-describedby="element-selector-preview"
-                      aria-invalid={(invalidSelector || Boolean(selectorAnalysis.error)) || undefined}
+                  <label>
+                    CSS 选择器
+                    <input
+                      className="click-selectors"
+                      placeholder=".timeline-item"
+                      required
+                      spellCheck={false}
+                      value={drawer.selector}
+                      disabled={saving}
+                      aria-describedby="element-selector-preview"
+                      aria-invalid={
+                        invalidSelector ||
+                        Boolean(selectorAnalysis.error) ||
+                        undefined
+                      }
                       onChange={(event) => {
                         setError("");
                         setInvalidSelector(false);
                         setDrawer({ ...drawer, selector: event.target.value });
-                      }} />
+                      }}
+                    />
                   </label>
                   <SelectorRulePreview analysis={selectorAnalysis} />
-                  <label>说明
-                    <input value={drawer.description} disabled={saving} aria-describedby="element-description-hint"
-                      onChange={(event) => setDrawer({ ...drawer, description: event.target.value })} />
-                    <span id="element-description-hint" className="selector-help">选填，建议不超过 10 个字符。说明会显示在点击行为和事件记录中。</span>
+                  <label>
+                    说明
+                    <input
+                      value={drawer.description}
+                      disabled={saving}
+                      aria-describedby="element-description-hint"
+                      onChange={(event) =>
+                        setDrawer({
+                          ...drawer,
+                          description: event.target.value,
+                        })
+                      }
+                    />
+                    <span
+                      id="element-description-hint"
+                      className="selector-help"
+                    >
+                      选填，建议不超过 10
+                      个字符。说明会显示在点击行为和事件记录中。
+                    </span>
                   </label>
                 </>
               )}
               <ErrorBox message={error} />
             </div>
             <footer className="site-drawer-footer">
-              <Button disabled={saving} onClick={() => setDrawer(null)}>取消</Button>
-              <Button type="submit" variant={removing ? "danger" : "primary"}
-                disabled={saving || (!removing && (!selectorInput || Boolean(selectorAnalysis.error)))}>
+              <Button disabled={saving} onClick={() => setDrawer(null)}>
+                取消
+              </Button>
+              <Button
+                type="submit"
+                variant={removing ? "danger" : "primary"}
+                disabled={
+                  saving ||
+                  (!removing &&
+                    (!selectorInput || Boolean(selectorAnalysis.error)))
+                }
+              >
                 {saving ? "保存中…" : removing ? "确认移除" : "保存元素"}
               </Button>
             </footer>
@@ -1096,13 +1697,24 @@ function SiteElements({ project, revision }: { project: string; revision: number
     </section>
   );
 }
-function Events({ query, revision, eventType = "" }: { query: string; revision: number; eventType?: string }) {
+function Events({
+  query,
+  revision,
+  eventType = "",
+}: {
+  query: string;
+  revision: number;
+  eventType?: string;
+}) {
   const when = useTimeFormatter();
   const type = eventType;
   const [page, setPage] = useState(1),
     [detail, setDetail] = useState<Row | null>(null);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  useEffect(() => { setPage(1); setDetail(null); }, [query, type]);
+  useEffect(() => {
+    setPage(1);
+    setDetail(null);
+  }, [query, type]);
   const state = useData(
     () =>
       api(
@@ -1116,7 +1728,8 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
     <div className="list-view">
       <section className="panel list-panel">
         <AsyncPanel state={state}>
-          <Table manual
+          <Table
+            manual
             rows={state.data || []}
             onRow={setDetail}
             columns={[
@@ -1127,11 +1740,26 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
                 render: (r) => when(r.timestamp),
               },
               { key: "path", label: "页面", render: eventPath },
-              ...(eventType === "click" ? [{
-                key: "region", label: "区域",
-                render: (row: Row) => parse<Row>(row.properties, {}).region || "—",
-              }] : []),
-              { key: "source_type", label: "来源", render: (row) => row.source_type === "browser" ? "浏览器" : row.source_type === "host" ? "访问日志" : row.source_type },
+              ...(eventType === "click"
+                ? [
+                    {
+                      key: "region",
+                      label: "区域",
+                      render: (row: Row) =>
+                        parse<Row>(row.properties, {}).region || "—",
+                    },
+                  ]
+                : []),
+              {
+                key: "source_type",
+                label: "来源",
+                render: (row) =>
+                  row.source_type === "browser"
+                    ? "浏览器"
+                    : row.source_type === "host"
+                      ? "访问日志"
+                      : row.source_type,
+              },
               { key: "device", label: "设备" },
               { key: "browser", label: "浏览器" },
             ]}
@@ -1139,7 +1767,9 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
           <Pager
             page={page}
             setPage={setPage}
-            total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize}
+            total={listTotal(state.data)}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
           />
         </AsyncPanel>
       </section>
@@ -1150,15 +1780,35 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
             <Button onClick={() => setDetail(null)}>关闭详情</Button>
           </div>
           <dl className="facts">
-            <dt>行为</dt><dd>{eventRecordLabel(detail)}</dd>
-            <dt>时间</dt><dd>{when(detail.timestamp)}</dd>
-            <dt>页面</dt><dd>{eventPath(detail)}</dd>
-            <dt>所在区域</dt><dd>{parse<Row>(detail.properties, {}).region || "—"}</dd>
-            <dt>设备</dt><dd>{[detail.device, detail.browser, detail.os].filter(Boolean).join(" / ") || "—"}</dd>
+            <dt>行为</dt>
+            <dd>{eventRecordLabel(detail)}</dd>
+            <dt>时间</dt>
+            <dd>{when(detail.timestamp)}</dd>
+            <dt>页面</dt>
+            <dd>{eventPath(detail)}</dd>
+            <dt>所在区域</dt>
+            <dd>{parse<Row>(detail.properties, {}).region || "—"}</dd>
+            <dt>设备</dt>
+            <dd>
+              {[detail.device, detail.browser, detail.os]
+                .filter(Boolean)
+                .join(" / ") || "—"}
+            </dd>
           </dl>
-          <details><summary>原始数据</summary><pre>{JSON.stringify({
-            ...detail, properties: parse(detail.properties, {}), device_info: parse(detail.device_info, {}),
-          }, null, 2)}</pre></details>
+          <details>
+            <summary>原始数据</summary>
+            <pre>
+              {JSON.stringify(
+                {
+                  ...detail,
+                  properties: parse(detail.properties, {}),
+                  device_info: parse(detail.device_info, {}),
+                },
+                null,
+                2,
+              )}
+            </pre>
+          </details>
         </section>
       )}
     </div>
@@ -1192,7 +1842,8 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
     <div className="list-view">
       <section className="panel list-panel">
         <AsyncPanel state={state}>
-          <Table manual
+          <Table
+            manual
             rows={state.data || []}
             onRow={(r) => {
               setSelected(r);
@@ -1220,7 +1871,9 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
           <Pager
             page={page}
             setPage={setPage}
-            total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize}
+            total={listTotal(state.data)}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
           />
         </AsyncPanel>
       </section>
@@ -1253,7 +1906,9 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
             <Pager
               page={eventPage}
               setPage={setEventPage}
-              total={listTotal(timeline.data)} pageSize={eventPageSize} setPageSize={setEventPageSize}
+              total={listTotal(timeline.data)}
+              pageSize={eventPageSize}
+              setPageSize={setEventPageSize}
             />
           </AsyncPanel>
         </section>
@@ -1332,7 +1987,11 @@ function Security({ revision }: { revision: number }) {
           </section>
           <section className="panel">
             <h2>管理审计</h2>
-            <DataTable bare path="/security/audit" query="?" revision={revision}
+            <DataTable
+              bare
+              path="/security/audit"
+              query="?"
+              revision={revision}
               columns={[
                 {
                   key: "created_at",
@@ -1389,25 +2048,75 @@ function LocalProbe({ revision }: { revision: number }) {
     <section className="panel list-panel">
       <AsyncPanel state={state}>
         <ErrorBox message={error || probe?.error || ""} />
-        <Table rows={probe ? [probe] : []} columns={[
-          { key: "name", label: "探针", render: (row) => row.name || "本机探针" },
-          { key: "hostname", label: "主机", render: (row) => row.hostname || "—" },
-          { key: "status", label: "健康状态", render: (row) => (
-            <span className={`probe-health ${row.status === "Online" ? "healthy" : "unhealthy"}`}>
-              <span aria-hidden="true" />{row.status === "Online" ? "正常" : labels[row.status] || "未就绪"}
-            </span>
-          ) },
-          { key: "platform", label: "平台", render: (row) => [row.os, row.arch].filter(Boolean).join(" / ") || "—" },
-          { key: "version", label: "版本", render: (row) => row.version || "—" },
-          { key: "sites", label: "配置站点数", render: (row) => parse<Row>(row.metrics, {}).configuredSites ?? "—" },
-          { key: "last_seen", label: "最后心跳", render: (row) => when(row.last_seen) },
-          { key: "actions", label: "操作", render: (row) => (
-            <button className="text-button" type="button" disabled={busy || row.status === "Failed"}
-              onClick={() => void toggle(!row.enabled)}>
-              {busy ? "处理中…" : row.enabled ? "暂停全部采集" : "恢复全部采集"}
-            </button>
-          ) },
-        ]} />
+        <Table
+          rows={probe ? [probe] : []}
+          columns={[
+            {
+              key: "name",
+              label: "探针",
+              render: (row) => row.name || "本机探针",
+            },
+            {
+              key: "hostname",
+              label: "主机",
+              render: (row) => row.hostname || "—",
+            },
+            {
+              key: "status",
+              label: "健康状态",
+              render: (row) => (
+                <span
+                  className={`probe-health ${row.status === "Online" ? "healthy" : "unhealthy"}`}
+                >
+                  <span aria-hidden="true" />
+                  {row.status === "Online"
+                    ? "正常"
+                    : labels[row.status] || "未就绪"}
+                </span>
+              ),
+            },
+            {
+              key: "platform",
+              label: "平台",
+              render: (row) =>
+                [row.os, row.arch].filter(Boolean).join(" / ") || "—",
+            },
+            {
+              key: "version",
+              label: "版本",
+              render: (row) => row.version || "—",
+            },
+            {
+              key: "sites",
+              label: "配置站点数",
+              render: (row) =>
+                parse<Row>(row.metrics, {}).configuredSites ?? "—",
+            },
+            {
+              key: "last_seen",
+              label: "最后心跳",
+              render: (row) => when(row.last_seen),
+            },
+            {
+              key: "actions",
+              label: "操作",
+              render: (row) => (
+                <button
+                  className="text-button"
+                  type="button"
+                  disabled={busy || row.status === "Failed"}
+                  onClick={() => void toggle(!row.enabled)}
+                >
+                  {busy
+                    ? "处理中…"
+                    : row.enabled
+                      ? "暂停全部采集"
+                      : "恢复全部采集"}
+                </button>
+              ),
+            },
+          ]}
+        />
       </AsyncPanel>
     </section>
   );
@@ -1437,7 +2146,11 @@ type SiteDraft = {
 };
 
 const emptySite: SiteDraft = {
-  id: "", name: "", accessLog: "", browserOrigin: "", requireConsent: true,
+  id: "",
+  name: "",
+  accessLog: "",
+  browserOrigin: "",
+  requireConsent: true,
 };
 
 const siteSDKStatuses: Record<string, { label: string; tone: string }> = {
@@ -1449,7 +2162,13 @@ const siteSDKStatuses: Record<string, { label: string; tone: string }> = {
   check_failed: { label: "检查失败", tone: "warn" },
 };
 
-function NginxCollection({ revision, onChange }: { revision: number; onChange: () => void }) {
+function NginxCollection({
+  revision,
+  onChange,
+}: {
+  revision: number;
+  onChange: () => void;
+}) {
   const when = useTimeFormatter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [drawer, setDrawer] = useState<"add" | "edit" | null>(null);
@@ -1462,7 +2181,10 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   const [draft, setDraft] = useState<SiteDraft>(emptySite);
   const registered = useData(() => api("/system/sites"), [revision], 10000);
   const showLogs = drawer !== null && tab === "manual";
-  const logPaths = useData(() => showLogs ? api<string[]>("/system/site-logs") : Promise.resolve([]), [showLogs, revision]);
+  const logPaths = useData(
+    () => (showLogs ? api<string[]>("/system/site-logs") : Promise.resolve([])),
+    [showLogs, revision],
+  );
   const rows = (registered.data ?? []).filter((row) => row.source !== "scan");
 
   useEffect(() => {
@@ -1478,8 +2200,11 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
     setDrawerError("");
     if (site) {
       setDraft({
-        id: site.siteId, name: site.name, accessLog: site.accessLog,
-        browserOrigin: site.browserOrigin, requireConsent: Boolean(site.requireConsent),
+        id: site.siteId,
+        name: site.name,
+        accessLog: site.accessLog,
+        browserOrigin: site.browserOrigin,
+        requireConsent: Boolean(site.requireConsent),
       });
       setDrawer("edit");
     } else {
@@ -1504,17 +2229,21 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   }
 
   const selectable = (row: NginxScan["sites"][number]) =>
-    Boolean(row.siteId && row.status === "ready" && (!row.added || row.needsSdk));
+    Boolean(
+      row.siteId && row.status === "ready" && (!row.added || row.needsSdk),
+    );
 
   async function apply() {
     if (!plan || chosen.length === 0) return;
     setDrawerError("");
     setPending("apply");
     try {
-      setPlan(await api<NginxScan>("/system/nginx/apply", {
-        method: "POST",
-        body: JSON.stringify({ id: plan.id, siteIds: chosen }),
-      }));
+      setPlan(
+        await api<NginxScan>("/system/nginx/apply", {
+          method: "POST",
+          body: JSON.stringify({ id: plan.id, siteIds: chosen }),
+        }),
+      );
       setChosen([]);
       onChange();
     } catch (error) {
@@ -1544,13 +2273,19 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setDrawerError("");
-    if (drawer === "add" && rows.some((row) => row.siteId === draft.id.trim())) {
+    if (
+      drawer === "add" &&
+      rows.some((row) => row.siteId === draft.id.trim())
+    ) {
       setDrawerError("此站点已添加，可在列表中编辑。");
       return;
     }
     setPending("save");
     try {
-      await api("/system/sites", { method: "POST", body: JSON.stringify(draft) });
+      await api("/system/sites", {
+        method: "POST",
+        body: JSON.stringify(draft),
+      });
       setDrawer(null);
       onChange();
     } catch (error) {
@@ -1563,122 +2298,350 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   return (
     <section className="panel list-panel" aria-label="站点接入">
       <div className="panel-title site-management-toolbar">
-        <Button variant="soft" disabled={pending !== null} onClick={() => openDrawer()}>
-          <Plus aria-hidden="true" />添加站点
+        <Button
+          variant="soft"
+          disabled={pending !== null}
+          onClick={() => openDrawer()}
+        >
+          <Plus aria-hidden="true" />
+          添加站点
         </Button>
       </div>
       <ErrorBox message={error} />
       <ErrorBox message={registered.error} />
-        <Table rows={rows} loading={registered.loading} keepPage
-          emptyLabel={registered.data !== null || !registered.loading ? "暂无站点" : ""}
-          columns={[
+      <Table
+        rows={rows}
+        loading={registered.loading}
+        keepPage
+        emptyLabel={
+          registered.data !== null || !registered.loading ? "暂无站点" : ""
+        }
+        columns={[
           { key: "name", label: "站点", width: "18%" },
-          { key: "source", label: "采集来源", width: "17%", render: (row) => [row.accessLog && "访问日志", row.browserOrigin && "浏览器事件"].filter(Boolean).join("、") || "已有采集" },
           {
-            key: "sdkStatus", label: "SDK 状态", width: "16%", render: (row) => {
-              const status = siteSDKStatuses[row.sdkStatus] || siteSDKStatuses[row.browserOrigin ? "pending" : "unconfigured"];
-              const detail = [row.sdkDetail, row.sdkCheckedAt && `检查时间 ${when(row.sdkCheckedAt)}`].filter(Boolean).join(" · ");
-              return <span className={`badge ${status.tone}`} title={detail || undefined}>{status.label}</span>;
+            key: "source",
+            label: "采集来源",
+            width: "17%",
+            render: (row) =>
+              [row.accessLog && "访问日志", row.browserOrigin && "浏览器事件"]
+                .filter(Boolean)
+                .join("、") || "已有采集",
+          },
+          {
+            key: "sdkStatus",
+            label: "SDK 状态",
+            width: "16%",
+            render: (row) => {
+              const status =
+                siteSDKStatuses[row.sdkStatus] ||
+                siteSDKStatuses[row.browserOrigin ? "pending" : "unconfigured"];
+              const detail = [
+                row.sdkDetail,
+                row.sdkCheckedAt && `检查时间 ${when(row.sdkCheckedAt)}`,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <span
+                  className={`badge ${status.tone}`}
+                  title={detail || undefined}
+                >
+                  {status.label}
+                </span>
+              );
             },
           },
-          { key: "last_event", label: "最近上报", width: "24%", render: (row) => row.enabled && !row.last_event ? "等待首批数据" : when(row.last_event) },
           {
-            key: "enabled", label: "采集状态", width: "15%", render: (row) => (
-              <button className="site-collection-switch" type="button" role="switch"
-                aria-checked={Boolean(row.enabled)} aria-label={`${row.name} 采集状态`}
-                aria-busy={pending === row.id} disabled={pending !== null}
-                onClick={() => void toggle(row)}>
+            key: "last_event",
+            label: "最近上报",
+            width: "24%",
+            render: (row) =>
+              row.enabled && !row.last_event
+                ? "等待首批数据"
+                : when(row.last_event),
+          },
+          {
+            key: "enabled",
+            label: "采集状态",
+            width: "15%",
+            render: (row) => (
+              <button
+                className="site-collection-switch"
+                type="button"
+                role="switch"
+                aria-checked={Boolean(row.enabled)}
+                aria-label={`${row.name} 采集状态`}
+                aria-busy={pending === row.id}
+                disabled={pending !== null}
+                onClick={() => void toggle(row)}
+              >
                 <span aria-hidden="true" />
               </button>
             ),
           },
           {
-            key: "edit", label: "操作", width: "10%", render: (row) => row.siteId ? (
-              <button className="text-button" type="button" disabled={pending !== null}
-                onClick={() => openDrawer(row)}>编辑</button>
-            ) : null,
+            key: "edit",
+            label: "操作",
+            width: "10%",
+            render: (row) =>
+              row.siteId ? (
+                <button
+                  className="text-button"
+                  type="button"
+                  disabled={pending !== null}
+                  onClick={() => openDrawer(row)}
+                >
+                  编辑
+                </button>
+              ) : null,
           },
-        ]} />
-      <dialog ref={dialog} className="site-drawer" aria-labelledby="site-drawer-title"
+        ]}
+      />
+      <dialog
+        ref={dialog}
+        className="site-drawer"
+        aria-labelledby="site-drawer-title"
         onCancel={(event) => {
           event.preventDefault();
           if (pending === null) setDrawer(null);
-        }}>
+        }}
+      >
         {drawer && (
           <div className="site-drawer-layout">
             <header className="site-drawer-header">
-              <h2 id="site-drawer-title">{drawer === "edit" ? "编辑站点" : "添加站点"}</h2>
-              <button type="button" aria-label="关闭" className="site-drawer-close"
-                disabled={pending !== null} onClick={() => setDrawer(null)}><X size={20} aria-hidden="true" /></button>
+              <h2 id="site-drawer-title">
+                {drawer === "edit" ? "编辑站点" : "添加站点"}
+              </h2>
+              <button
+                type="button"
+                aria-label="关闭"
+                className="site-drawer-close"
+                disabled={pending !== null}
+                onClick={() => setDrawer(null)}
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
             </header>
             {drawer === "add" && (
-              <div className="site-drawer-tabs" role="tablist" aria-label="添加方式"
+              <div
+                className="site-drawer-tabs"
+                role="tablist"
+                aria-label="添加方式"
                 onKeyDown={(event) => {
-                  if (pending !== null || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+                  if (
+                    pending !== null ||
+                    !["ArrowLeft", "ArrowRight"].includes(event.key)
+                  )
+                    return;
                   event.preventDefault();
                   const next = tab === "manual" ? "scan" : "manual";
                   setTab(next);
                   setDrawerError("");
-                  dialog.current?.querySelector<HTMLElement>(`#site-tab-${next}`)?.focus();
-                }}>
-                {([["manual", "手动添加"], ["scan", "一键扫描"]] as const).map(([key, label]) => (
-                  <button type="button" key={key} id={`site-tab-${key}`} role="tab" aria-selected={tab === key}
-                    aria-controls="site-drawer-panel" tabIndex={tab === key ? 0 : -1}
-                    disabled={pending !== null} onClick={() => { setTab(key); setDrawerError(""); }}>
+                  dialog.current
+                    ?.querySelector<HTMLElement>(`#site-tab-${next}`)
+                    ?.focus();
+                }}
+              >
+                {(
+                  [
+                    ["manual", "手动添加"],
+                    ["scan", "一键扫描"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    type="button"
+                    key={key}
+                    id={`site-tab-${key}`}
+                    role="tab"
+                    aria-selected={tab === key}
+                    aria-controls="site-drawer-panel"
+                    tabIndex={tab === key ? 0 : -1}
+                    disabled={pending !== null}
+                    onClick={() => {
+                      setTab(key);
+                      setDrawerError("");
+                    }}
+                  >
                     {label}
                   </button>
                 ))}
               </div>
             )}
-            <div id="site-drawer-panel" className="site-drawer-body"
+            <div
+              id="site-drawer-panel"
+              className="site-drawer-body"
               role={drawer === "add" ? "tabpanel" : undefined}
-              aria-labelledby={drawer === "add" ? `site-tab-${tab}` : undefined}>
+              aria-labelledby={drawer === "add" ? `site-tab-${tab}` : undefined}
+            >
               <ErrorBox message={drawerError} />
               {tab === "manual" ? (
                 <div className="form-panel">
                   <form id="site-drawer-form" onSubmit={save}>
                     <div className="form-grid">
-                      <label>站点标识<input required disabled={drawer === "edit" || pending !== null} pattern={"[a-z0-9][a-z0-9._\\-]*"} maxLength={120} placeholder="example.com" value={draft.id} onChange={(e) => setDraft({ ...draft, id: e.target.value })} /></label>
-                      <label>站点名称<input required maxLength={120} disabled={pending !== null} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
+                      <label>
+                        站点标识
+                        <input
+                          required
+                          disabled={drawer === "edit" || pending !== null}
+                          pattern={"[a-z0-9][a-z0-9._\\-]*"}
+                          maxLength={120}
+                          placeholder="example.com"
+                          value={draft.id}
+                          onChange={(e) =>
+                            setDraft({ ...draft, id: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label>
+                        站点名称
+                        <input
+                          required
+                          maxLength={120}
+                          disabled={pending !== null}
+                          value={draft.name}
+                          onChange={(e) =>
+                            setDraft({ ...draft, name: e.target.value })
+                          }
+                        />
+                      </label>
                     </div>
-                    <label>访问日志路径<input placeholder="/path/to/access.log" disabled={pending !== null} value={draft.accessLog} onChange={(e) => setDraft({ ...draft, accessLog: e.target.value })} /></label>
-                    {!!logPaths.data?.length && <Select label="已授权日志" ariaLabel="选择已授权的访问日志文件"
-                      value={logPaths.data.includes(draft.accessLog) ? draft.accessLog : ""}
-                      options={[{ value: "", label: "选择日志文件" }, ...logPaths.data.map((path) => ({ value: path, label: path }))]}
-                      disabled={pending !== null}
-                      onChange={(path) => setDraft({ ...draft, accessLog: path })} />}
-                    <label>浏览器采集地址<input type="url" placeholder="https://example.com" disabled={pending !== null} value={draft.browserOrigin} onChange={(e) => setDraft({ ...draft, browserOrigin: e.target.value })} /></label>
-                    <p className="site-drawer-hint">至少填写一个采集来源。浏览器采集需要站点已配置同源 SDK 路由。</p>
-                    {draft.browserOrigin && <label className="checkbox"><input type="checkbox" checked={draft.requireConsent} disabled={pending !== null} onChange={(e) => setDraft({ ...draft, requireConsent: e.target.checked })} />等待站点同意信号</label>}
+                    <label>
+                      访问日志路径
+                      <input
+                        placeholder="/path/to/access.log"
+                        disabled={pending !== null}
+                        value={draft.accessLog}
+                        onChange={(e) =>
+                          setDraft({ ...draft, accessLog: e.target.value })
+                        }
+                      />
+                    </label>
+                    {!!logPaths.data?.length && (
+                      <Select
+                        label="已授权日志"
+                        ariaLabel="选择已授权的访问日志文件"
+                        value={
+                          logPaths.data.includes(draft.accessLog)
+                            ? draft.accessLog
+                            : ""
+                        }
+                        options={[
+                          { value: "", label: "选择日志文件" },
+                          ...logPaths.data.map((path) => ({
+                            value: path,
+                            label: path,
+                          })),
+                        ]}
+                        disabled={pending !== null}
+                        onChange={(path) =>
+                          setDraft({ ...draft, accessLog: path })
+                        }
+                      />
+                    )}
+                    <label>
+                      浏览器采集地址
+                      <input
+                        type="url"
+                        placeholder="https://example.com"
+                        disabled={pending !== null}
+                        value={draft.browserOrigin}
+                        onChange={(e) =>
+                          setDraft({ ...draft, browserOrigin: e.target.value })
+                        }
+                      />
+                    </label>
+                    <p className="site-drawer-hint">
+                      至少填写一个采集来源。浏览器采集需要站点已配置同源 SDK
+                      路由。
+                    </p>
+                    {draft.browserOrigin && (
+                      <label className="checkbox">
+                        <input
+                          type="checkbox"
+                          checked={draft.requireConsent}
+                          disabled={pending !== null}
+                          onChange={(e) =>
+                            setDraft({
+                              ...draft,
+                              requireConsent: e.target.checked,
+                            })
+                          }
+                        />
+                        等待站点同意信号
+                      </label>
+                    )}
                   </form>
                 </div>
               ) : (
                 <>
-                  <Button variant={plan ? "outline" : "soft"} disabled={pending !== null} onClick={() => void scan()}>
+                  <Button
+                    variant={plan ? "outline" : "soft"}
+                    disabled={pending !== null}
+                    onClick={() => void scan()}
+                  >
                     <Search aria-hidden="true" />
-                    {pending === "scan" ? "扫描中…" : plan ? "重新扫描" : "扫描站点"}
+                    {pending === "scan"
+                      ? "扫描中…"
+                      : plan
+                        ? "重新扫描"
+                        : "扫描站点"}
                   </Button>
                   {plan && (
                     <div className="site-scan-results" aria-live="polite">
-                      {!plan.sites.length && <p className="site-drawer-hint">未扫描到站点</p>}
+                      {!plan.sites.length && (
+                        <p className="site-drawer-hint">未扫描到站点</p>
+                      )}
                       <ul aria-label="扫描结果">
                         {plan.sites.map((row, index) => {
-                          const added = row.added || row.status === "configured" || row.status === "applied";
+                          const added =
+                            row.added ||
+                            row.status === "configured" ||
+                            row.status === "applied";
                           const id = row.siteId;
                           return (
                             <li key={id || `${row.file || row.site}-${index}`}>
                               <div className="site-scan-name">
-                                {id && selectable(row) && <input type="checkbox" className="site-select"
-                                  aria-label={`选择 ${row.site}`} checked={chosen.includes(id)} disabled={pending !== null}
-                                  onChange={(event) => setChosen((ids) => event.target.checked ? [...ids, id] : ids.filter((selected) => selected !== id))} />}
+                                {id && selectable(row) && (
+                                  <input
+                                    type="checkbox"
+                                    className="site-select"
+                                    aria-label={`选择 ${row.site}`}
+                                    checked={chosen.includes(id)}
+                                    disabled={pending !== null}
+                                    onChange={(event) =>
+                                      setChosen((ids) =>
+                                        event.target.checked
+                                          ? [...ids, id]
+                                          : ids.filter(
+                                              (selected) => selected !== id,
+                                            ),
+                                      )
+                                    }
+                                  />
+                                )}
                                 <div>
                                   <strong>{row.origin || row.site}</strong>
-                                  {row.reason && !added && <p className="site-drawer-hint">{row.reason}</p>}
+                                  {row.reason && !added && (
+                                    <p className="site-drawer-hint">
+                                      {row.reason}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
-                              <span className={added ? "site-scan-added" : "site-scan-status"}>
-                                {row.needsSdk ? (row.status === "applied" ? "SDK 已配置" : "可补装 SDK") :
-                                  added ? "已添加" : row.status === "ready" ? "可添加" : "已跳过"}
+                              <span
+                                className={
+                                  added ? "site-scan-added" : "site-scan-status"
+                                }
+                              >
+                                {row.needsSdk
+                                  ? row.status === "applied"
+                                    ? "SDK 已配置"
+                                    : "可补装 SDK"
+                                  : added
+                                    ? "已添加"
+                                    : row.status === "ready"
+                                      ? "可添加"
+                                      : "已跳过"}
                               </span>
                             </li>
                           );
@@ -1686,11 +2649,23 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
                       </ul>
                       {plan.sites.some(selectable) && (
                         <div className="actions site-scan-actions">
-                          <Button variant="primary" disabled={pending !== null || !chosen.length}
-                            onClick={() => void apply()}>
-                            {pending === "apply" ? "应用中…" :
-                              plan.sites.some((row) => row.needsSdk && row.siteId && chosen.includes(row.siteId)) ? "应用所选配置" :
-                                chosen.length ? `接入并启用 ${chosen.length} 个站点` : "接入并启用"}
+                          <Button
+                            variant="primary"
+                            disabled={pending !== null || !chosen.length}
+                            onClick={() => void apply()}
+                          >
+                            {pending === "apply"
+                              ? "应用中…"
+                              : plan.sites.some(
+                                    (row) =>
+                                      row.needsSdk &&
+                                      row.siteId &&
+                                      chosen.includes(row.siteId),
+                                  )
+                                ? "应用所选配置"
+                                : chosen.length
+                                  ? `接入并启用 ${chosen.length} 个站点`
+                                  : "接入并启用"}
                           </Button>
                         </div>
                       )}
@@ -1701,9 +2676,21 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
             </div>
             {tab === "manual" && (
               <footer className="site-drawer-footer">
-                <Button disabled={pending !== null} onClick={() => setDrawer(null)}>取消</Button>
-                <Button variant="primary" type="submit" form="site-drawer-form"
-                  disabled={pending !== null || (!draft.accessLog.trim() && !draft.browserOrigin.trim())}>
+                <Button
+                  disabled={pending !== null}
+                  onClick={() => setDrawer(null)}
+                >
+                  取消
+                </Button>
+                <Button
+                  variant="primary"
+                  type="submit"
+                  form="site-drawer-form"
+                  disabled={
+                    pending !== null ||
+                    (!draft.accessLog.trim() && !draft.browserOrigin.trim())
+                  }
+                >
                   {pending === "save" ? "保存中…" : "保存站点"}
                 </Button>
               </footer>
@@ -1715,7 +2702,11 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   );
 }
 
-function SystemInfo({ state, revision, onChange }: {
+function SystemInfo({
+  state,
+  revision,
+  onChange,
+}: {
   state: ReturnType<typeof useData<Row | null>>;
   revision: number;
   onChange: () => void;
@@ -1741,24 +2732,58 @@ function SystemInfo({ state, revision, onChange }: {
                   : "Unknown"}
               </dd>
               <dt>统计时区</dt>
-              <dd><TimezoneSettings key={d.timezone} timezone={d.timezone} onChange={onChange} /></dd>
+              <dd>
+                <TimezoneSettings
+                  key={d.timezone}
+                  timezone={d.timezone}
+                  onChange={onChange}
+                />
+              </dd>
             </dl>
           </section>
         )}
       </AsyncPanel>
       <div className="split system-update-grid">
-        <UpdatePackage enabled={Boolean(d?.webUpdateEnabled)} onChange={onChange} />
+        <UpdatePackage
+          enabled={Boolean(d?.webUpdateEnabled)}
+          onChange={onChange}
+        />
         <section className="panel list-panel">
           <h2>更新日志</h2>
-          <DataTable bare path="/system/update/history" query="?" revision={revision} pollMs={2500}
-            emptyLabel="暂无更新记录" columns={[
-              { key: "created_at", label: "时间", render: (row) => when(row.created_at) },
-              { key: "package_name", label: "包名", render: (row) => row.package_name || "未知更新包" },
-              { key: "action", label: "状态", render: (row) => {
-                const status = updateHistoryStatuses[row.action];
-                return status ? <span className={`badge ${status.tone}`}>{status.label}</span> : "—";
-              } },
-            ]} />
+          <DataTable
+            bare
+            path="/system/update/history"
+            query="?"
+            revision={revision}
+            pollMs={2500}
+            emptyLabel="暂无更新记录"
+            columns={[
+              {
+                key: "created_at",
+                label: "时间",
+                render: (row) => when(row.created_at),
+              },
+              {
+                key: "package_name",
+                label: "包名",
+                render: (row) => row.package_name || "未知更新包",
+              },
+              {
+                key: "action",
+                label: "状态",
+                render: (row) => {
+                  const status = updateHistoryStatuses[row.action];
+                  return status ? (
+                    <span className={`badge ${status.tone}`}>
+                      {status.label}
+                    </span>
+                  ) : (
+                    "—"
+                  );
+                },
+              },
+            ]}
+          />
         </section>
       </div>
     </>
@@ -1770,38 +2795,63 @@ const commonTimezones = [
   { value: "Asia/Shanghai", label: "Asia/Shanghai（北京时间）" },
 ];
 
-function TimezoneSettings({ timezone, onChange }: { timezone: string; onChange: () => void }) {
+function TimezoneSettings({
+  timezone,
+  onChange,
+}: {
+  timezone: string;
+  onChange: () => void;
+}) {
   const [selected, setSelected] = useState(timezone);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const values = Intl.supportedValuesOf?.("timeZone") ?? ["Asia/Tokyo", "Europe/London", "America/New_York"];
+  const values = Intl.supportedValuesOf?.("timeZone") ?? [
+    "Asia/Tokyo",
+    "Europe/London",
+    "America/New_York",
+  ];
   const options = [
     ...commonTimezones,
     ...[...new Set([...values, timezone])]
-      .filter((value) => !commonTimezones.some((option) => option.value === value))
+      .filter(
+        (value) => !commonTimezones.some((option) => option.value === value),
+      )
       .map((value) => ({ value, label: value })),
   ];
   return (
     <>
-      <form className="timezone-settings" onSubmit={async (event) => {
-        event.preventDefault();
-        if (busy || selected === timezone) return;
-        setBusy(true);
-        setError("");
-        try {
-          await api("/system/timezone", {
-            method: "PATCH",
-            body: JSON.stringify({ timezone: selected }),
-          });
-          onChange();
-        } catch (error) {
-          setError((error as Error).message);
-        } finally {
-          setBusy(false);
-        }
-      }}>
-        <Select ariaLabel="统计时区" value={selected} options={options} onChange={setSelected} disabled={busy} />
-        <Button variant="primary" type="submit" disabled={busy || selected === timezone}>
+      <form
+        className="timezone-settings"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (busy || selected === timezone) return;
+          setBusy(true);
+          setError("");
+          try {
+            await api("/system/timezone", {
+              method: "PATCH",
+              body: JSON.stringify({ timezone: selected }),
+            });
+            onChange();
+          } catch (error) {
+            setError((error as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Select
+          ariaLabel="统计时区"
+          value={selected}
+          options={options}
+          onChange={setSelected}
+          disabled={busy}
+        />
+        <Button
+          variant="primary"
+          type="submit"
+          disabled={busy || selected === timezone}
+        >
           {busy ? "保存中…" : "保存"}
         </Button>
       </form>
@@ -1817,13 +2867,20 @@ const updateHistoryStatuses: Record<string, { label: string; tone: string }> = {
   "system.update.rolled_back": { label: "已回退", tone: "neutral" },
 };
 
-function UpdatePackageDrop({ onChoose, onFiles }: {
+function UpdatePackageDrop({
+  onChoose,
+  onFiles,
+}: {
   onChoose: () => void;
   onFiles: (files: FileList) => void;
 }) {
   const [dragging, setDragging] = useState(false);
   return (
-    <button type="button" className="update-package-drop" data-dragging={dragging} onClick={onChoose}
+    <button
+      type="button"
+      className="update-package-drop"
+      data-dragging={dragging}
+      onClick={onChoose}
       onDragEnter={(event) => {
         if (event.dataTransfer.types.includes("Files")) setDragging(true);
       }}
@@ -1837,7 +2894,8 @@ function UpdatePackageDrop({ onChoose, onFiles }: {
         event.preventDefault();
         setDragging(false);
         if (event.dataTransfer.files.length) onFiles(event.dataTransfer.files);
-      }}>
+      }}
+    >
       <Upload size={22} aria-hidden="true" />
       <span>拖入或选择更新包</span>
       <small>.bin 文件</small>
@@ -1853,7 +2911,12 @@ async function readUpdatePackage(file: File) {
   const decoder = new TextDecoder();
   const prefix = decoder.decode(bytes.subarray(0, 512));
   const payloadLine = Number(/^payload_line='(\d+)'$/m.exec(prefix)?.[1]);
-  if (!prefix.startsWith("#!/bin/bash\n") || !Number.isInteger(payloadLine) || payloadLine < 2 || payloadLine > bytes.length) {
+  if (
+    !prefix.startsWith("#!/bin/bash\n") ||
+    !Number.isInteger(payloadLine) ||
+    payloadLine < 2 ||
+    payloadLine > bytes.length
+  ) {
     throw new Error("无法识别 Sailfin 安装包格式。");
   }
   let payload = 0;
@@ -1866,24 +2929,51 @@ async function readUpdatePackage(file: File) {
   if (!/^package_kind='update'$/m.test(header)) {
     throw new Error("此文件不是 Sailfin 更新包。");
   }
-  const platform = /^platform='((?:linux|darwin)\/(?:amd64|arm64))'$/m.exec(header)?.[1];
-  const packageName = /^package='(sailfin-[0-9][A-Za-z0-9._-]*)'$/m.exec(header)?.[1];
+  const platform = /^platform='((?:linux|darwin)\/(?:amd64|arm64))'$/m.exec(
+    header,
+  )?.[1];
+  const packageName = /^package='(sailfin-[0-9][A-Za-z0-9._-]*)'$/m.exec(
+    header,
+  )?.[1];
   const suffix = platform && `-${platform.replace("/", "-")}`;
-  if (!suffix || !packageName?.endsWith(suffix) || bytes[payload] !== 0x1f || bytes[payload + 1] !== 0x8b) {
+  if (
+    !suffix ||
+    !packageName?.endsWith(suffix) ||
+    bytes[payload] !== 0x1f ||
+    bytes[payload + 1] !== 0x8b
+  ) {
     throw new Error("安装包的平台信息或压缩内容无效。");
   }
   const version = packageName.slice("sailfin-".length, -suffix.length);
   if (!/^\d/.test(version)) throw new Error("无法识别安装包版本。");
-  const notes = /^# sailfin-release-notes: ([A-Za-z0-9+/=]+)$/m.exec(header)?.[1];
+  const notes = /^# sailfin-release-notes: ([A-Za-z0-9+/=]+)$/m.exec(
+    header,
+  )?.[1];
   const signature = /^# sailfin-signature: ([a-f0-9]{128})$/m.exec(header)?.[1];
   return {
-    file, platform, version,
+    file,
+    platform,
+    version,
     signed: Boolean(signature && /[1-9a-f]/.test(signature)),
-    notes: notes ? decoder.decode(Uint8Array.from(atob(notes), (character) => character.charCodeAt(0))).trim() : "",
+    notes: notes
+      ? decoder
+          .decode(
+            Uint8Array.from(atob(notes), (character) =>
+              character.charCodeAt(0),
+            ),
+          )
+          .trim()
+      : "",
   };
 }
 
-function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+function UpdatePackage({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: () => void;
+}) {
   const drawer = useRef<HTMLDialogElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -1892,7 +2982,9 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
   const [busy, setBusy] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [fileError, setFileError] = useState("");
-  const [preview, setPreview] = useState<Awaited<ReturnType<typeof readUpdatePackage>> | null>(null);
+  const [preview, setPreview] = useState<Awaited<
+    ReturnType<typeof readUpdatePackage>
+  > | null>(null);
 
   useEffect(() => {
     if (confirming) title.current?.focus();
@@ -1964,34 +3056,72 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
   return (
     <section className="panel">
       <h2>软件更新</h2>
-      <input ref={picker} type="file" accept=".bin" hidden onChange={(event) => {
-        if (event.currentTarget.files?.length) void selectPackage(event.currentTarget.files);
-        event.currentTarget.value = "";
-      }} />
-      <UpdatePackageDrop onChoose={() => picker.current?.click()} onFiles={selectPackage} />
-      <dialog ref={drawer} className="site-drawer" aria-labelledby="update-drawer-title" onClose={reset}
-        onCancel={(event) => { if (busy) event.preventDefault(); }}>
+      <input
+        ref={picker}
+        type="file"
+        accept=".bin"
+        hidden
+        onChange={(event) => {
+          if (event.currentTarget.files?.length)
+            void selectPackage(event.currentTarget.files);
+          event.currentTarget.value = "";
+        }}
+      />
+      <UpdatePackageDrop
+        onChoose={() => picker.current?.click()}
+        onFiles={selectPackage}
+      />
+      <dialog
+        ref={drawer}
+        className="site-drawer"
+        aria-labelledby="update-drawer-title"
+        onClose={reset}
+        onCancel={(event) => {
+          if (busy) event.preventDefault();
+        }}
+      >
         <div className="site-drawer-layout">
           <header className="site-drawer-header">
-            <h2 ref={title} id="update-drawer-title" tabIndex={-1}>{confirming ? "确认安装" : "软件更新"}</h2>
-            <button type="button" aria-label="关闭" className="site-drawer-close" disabled={busy}
-              onClick={() => drawer.current?.close()}><X size={20} aria-hidden="true" /></button>
+            <h2 ref={title} id="update-drawer-title" tabIndex={-1}>
+              {confirming ? "确认安装" : "软件更新"}
+            </h2>
+            <button
+              type="button"
+              aria-label="关闭"
+              className="site-drawer-close"
+              disabled={busy}
+              onClick={() => drawer.current?.close()}
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
           </header>
           <div className="site-drawer-body">
             {preview ? (
               <>
                 <dl className="facts">
-                  <dt>文件名</dt><dd>{preview.file.name}</dd>
-                  <dt>目标版本</dt><dd>{preview.version}</dd>
-                  <dt>适用平台</dt><dd>{preview.platform}</dd>
+                  <dt>文件名</dt>
+                  <dd>{preview.file.name}</dd>
+                  <dt>目标版本</dt>
+                  <dd>{preview.version}</dd>
+                  <dt>适用平台</dt>
+                  <dd>{preview.platform}</dd>
                 </dl>
                 {confirming ? (
                   <>
                     <p className="notice update-package-message">
-                      安装将由更新包执行，可能替换程序文件并自动重启 Sailfin。管理页面和采集服务可能暂时中断。
+                      安装将由更新包执行，可能替换程序文件并自动重启
+                      Sailfin。管理页面和采集服务可能暂时中断。
                     </p>
-                    {!enabled && <p className="muted update-package-message">宿主机尚未配置网页更新公钥。</p>}
-                    {!preview.signed && <p className="muted update-package-message">此更新包没有发布签名。</p>}
+                    {!enabled && (
+                      <p className="muted update-package-message">
+                        宿主机尚未配置网页更新公钥。
+                      </p>
+                    )}
+                    {!preview.signed && (
+                      <p className="muted update-package-message">
+                        此更新包没有发布签名。
+                      </p>
+                    )}
                     <ErrorBox message={fileError} />
                   </>
                 ) : (
@@ -2001,12 +3131,22 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
                     </p>
                     <section aria-labelledby="update-release-notes">
                       <h3 id="update-release-notes">更新说明</h3>
-                      <p className="update-package-notes">{preview.notes || "此包未附更新说明。"}</p>
+                      <p className="update-package-notes">
+                        {preview.notes || "此包未附更新说明。"}
+                      </p>
                     </section>
                     <form id="update-password-form" onSubmit={verify}>
-                      <label>当前管理员密码
-                        <input type="password" autoComplete="current-password" required maxLength={256}
-                          value={password} disabled={busy} onChange={(event) => setPassword(event.target.value)} />
+                      <label>
+                        当前管理员密码
+                        <input
+                          type="password"
+                          autoComplete="current-password"
+                          required
+                          maxLength={256}
+                          value={password}
+                          disabled={busy}
+                          onChange={(event) => setPassword(event.target.value)}
+                        />
                       </label>
                       <ErrorBox message={passwordError} />
                     </form>
@@ -2014,11 +3154,16 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
                 )}
               </>
             ) : busy ? (
-              <p className="update-package-message" role="status">正在检查更新包…</p>
+              <p className="update-package-message" role="status">
+                正在检查更新包…
+              </p>
             ) : (
               <>
                 <ErrorBox message={fileError} />
-                <UpdatePackageDrop onChoose={() => picker.current?.click()} onFiles={selectPackage} />
+                <UpdatePackageDrop
+                  onChoose={() => picker.current?.click()}
+                  onFiles={selectPackage}
+                />
               </>
             )}
           </div>
@@ -2027,12 +3172,24 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
               取消
             </Button>
             {confirming ? (
-              <Button variant="primary" disabled={busy || !enabled || !preview?.signed}
-                onClick={() => void install()}>{busy ? "正在上传…" : "确认安装"}</Button>
-            ) : preview && (
-              <Button variant="primary" type="submit" form="update-password-form" disabled={busy || !password}>
-                {busy ? "验证中…" : "确认"}
+              <Button
+                variant="primary"
+                disabled={busy || !enabled || !preview?.signed}
+                onClick={() => void install()}
+              >
+                {busy ? "正在上传…" : "确认安装"}
               </Button>
+            ) : (
+              preview && (
+                <Button
+                  variant="primary"
+                  type="submit"
+                  form="update-password-form"
+                  disabled={busy || !password}
+                >
+                  {busy ? "验证中…" : "确认"}
+                </Button>
+              )
             )}
           </footer>
         </div>
@@ -2049,8 +3206,18 @@ type BackupSchedule = {
   lastSuccess: number;
   lastError: string;
 };
-type BackupEntry = { name: string; kind: "manual" | "auto"; createdAt: number; bytes: number };
-type RetentionSettings = { retentionDays: number | null; maxEventMiB: number; eventBytes: number; events: number };
+type BackupEntry = {
+  name: string;
+  kind: "manual" | "auto";
+  createdAt: number;
+  bytes: number;
+};
+type RetentionSettings = {
+  retentionDays: number | null;
+  maxEventMiB: number;
+  eventBytes: number;
+  events: number;
+};
 
 function mib(bytes: number) {
   return `${(bytes / 1_048_576).toLocaleString("zh-CN", { maximumFractionDigits: 2 })} MiB`;
@@ -2061,17 +3228,33 @@ function BackupManagement({ revision }: { revision: number }) {
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const schedule = useData(() => api<BackupSchedule>("/system/backup/schedule"), [revision, refresh], 15000);
-  const files = useData(() => api<BackupEntry[]>("/system/backups"), [revision, refresh], 15000);
-  const rows = useMemo(() => (files.data ?? []).map((entry) => ({ ...entry, id: entry.name })), [files.data]);
+  const schedule = useData(
+    () => api<BackupSchedule>("/system/backup/schedule"),
+    [revision, refresh],
+    15000,
+  );
+  const files = useData(
+    () => api<BackupEntry[]>("/system/backups"),
+    [revision, refresh],
+    15000,
+  );
+  const rows = useMemo(
+    () => (files.data ?? []).map((entry) => ({ ...entry, id: entry.name })),
+    [files.data],
+  );
 
   async function changeBackup(name?: string) {
-    if (busy || (name && !window.confirm(`删除服务器上的备份「${name}」？`))) return;
+    if (busy || (name && !window.confirm(`删除服务器上的备份「${name}」？`)))
+      return;
     setBusy(name ?? "create");
     setError("");
     try {
-      await api(name ? `/system/backups/${encodeURIComponent(name)}` : "/system/backups",
-        { method: name ? "DELETE" : "POST" });
+      await api(
+        name
+          ? `/system/backups/${encodeURIComponent(name)}`
+          : "/system/backups",
+        { method: name ? "DELETE" : "POST" },
+      );
       setRefresh((value) => value + 1);
     } catch (error) {
       setError((error as Error).message);
@@ -2082,14 +3265,28 @@ function BackupManagement({ revision }: { revision: number }) {
 
   return (
     <>
-      <section className="panel backup-schedule-panel" aria-labelledby="backup-schedule-title">
+      <section
+        className="panel backup-schedule-panel"
+        aria-labelledby="backup-schedule-title"
+      >
         {schedule.data ? (
-          <BackupScheduleForm key={JSON.stringify([schedule.data.enabled, schedule.data.intervalHours, schedule.data.keep])}
-            schedule={schedule.data} onSaved={() => setRefresh((value) => value + 1)} />
+          <BackupScheduleForm
+            key={JSON.stringify([
+              schedule.data.enabled,
+              schedule.data.intervalHours,
+              schedule.data.keep,
+            ])}
+            schedule={schedule.data}
+            onSaved={() => setRefresh((value) => value + 1)}
+          />
         ) : (
           <div className="backup-schedule-header">
             <h2 id="backup-schedule-title">自动备份</h2>
-            {schedule.loading && <span className="backup-schedule-meta" role="status">正在读取配置…</span>}
+            {schedule.loading && (
+              <span className="backup-schedule-meta" role="status">
+                正在读取配置…
+              </span>
+            )}
           </div>
         )}
         <ErrorBox message={schedule.error} />
@@ -2097,38 +3294,91 @@ function BackupManagement({ revision }: { revision: number }) {
       <section className="panel list-panel">
         <div className="panel-title site-management-toolbar">
           <span>备份包含账户及采集数据，请妥善保存。</span>
-          <Button variant="soft" disabled={Boolean(busy)} onClick={() => void changeBackup()}>
-            <Plus aria-hidden="true" />{busy === "create" ? "正在创建…" : "创建备份"}
+          <Button
+            variant="soft"
+            disabled={Boolean(busy)}
+            onClick={() => void changeBackup()}
+          >
+            <Plus aria-hidden="true" />
+            {busy === "create" ? "正在创建…" : "创建备份"}
           </Button>
         </div>
         <ErrorBox message={error || files.error} />
-        <Table rows={rows} loading={files.loading} keepPage emptyLabel={files.data ? "暂无备份" : ""}
+        <Table
+          rows={rows}
+          loading={files.loading}
+          keepPage
+          emptyLabel={files.data ? "暂无备份" : ""}
           columns={[
             { key: "name", label: "备份文件", width: "40%" },
-            { key: "kind", label: "类型", width: "10%", render: (row) => row.kind === "auto" ? "自动" : "手动" },
-            { key: "createdAt", label: "创建时间", width: "20%", render: (row) => when(row.createdAt) },
-            { key: "bytes", label: "大小", width: "12%", render: (row) => mib(row.bytes) },
-            { key: "actions", label: "操作", width: "18%", render: (row) => (
-              <div className="actions">
-                <a className="text-button" href={`/api/v1/system/backups/${encodeURIComponent(row.name)}`} download>下载</a>
-                <button className="text-button text-button-danger" type="button" disabled={Boolean(busy)}
-                  onClick={() => void changeBackup(row.name)}>{busy === row.name ? "删除中…" : "删除"}</button>
-              </div>
-            ) },
-          ]} />
+            {
+              key: "kind",
+              label: "类型",
+              width: "10%",
+              render: (row) => (row.kind === "auto" ? "自动" : "手动"),
+            },
+            {
+              key: "createdAt",
+              label: "创建时间",
+              width: "20%",
+              render: (row) => when(row.createdAt),
+            },
+            {
+              key: "bytes",
+              label: "大小",
+              width: "12%",
+              render: (row) => mib(row.bytes),
+            },
+            {
+              key: "actions",
+              label: "操作",
+              width: "18%",
+              render: (row) => (
+                <div className="actions">
+                  <a
+                    className="text-button"
+                    href={`/api/v1/system/backups/${encodeURIComponent(row.name)}`}
+                    download
+                  >
+                    下载
+                  </a>
+                  <button
+                    className="text-button text-button-danger"
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() => void changeBackup(row.name)}
+                  >
+                    {busy === row.name ? "删除中…" : "删除"}
+                  </button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </section>
     </>
   );
 }
 
-function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; onSaved: () => void }) {
+function BackupScheduleForm({
+  schedule,
+  onSaved,
+}: {
+  schedule: BackupSchedule;
+  onSaved: () => void;
+}) {
   const when = useTimeFormatter();
   const [enabled, setEnabled] = useState(schedule.enabled);
-  const [intervalHours, setIntervalHours] = useState(String(schedule.intervalHours));
+  const [intervalHours, setIntervalHours] = useState(
+    String(schedule.intervalHours),
+  );
   const [keep, setKeep] = useState(String(schedule.keep));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const changed = enabled !== schedule.enabled || Number(intervalHours) !== schedule.intervalHours || Number(keep) !== schedule.keep;
+  const changed =
+    enabled !== schedule.enabled ||
+    Number(intervalHours) !== schedule.intervalHours ||
+    Number(keep) !== schedule.keep;
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2138,7 +3388,11 @@ function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; o
     try {
       await api("/system/backup/schedule", {
         method: "PUT",
-        body: JSON.stringify({ enabled, intervalHours: Number(intervalHours), keep: Number(keep) }),
+        body: JSON.stringify({
+          enabled,
+          intervalHours: Number(intervalHours),
+          keep: Number(keep),
+        }),
       });
       onSaved();
     } catch (error) {
@@ -2154,34 +3408,67 @@ function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; o
         <div>
           <h2 id="backup-schedule-title">自动备份</h2>
           {schedule.lastSuccess > 0 ? (
-            <p className="backup-schedule-meta">上次成功备份 {when(schedule.lastSuccess)}</p>
-          ) : schedule.enabled && <p className="backup-schedule-meta">等待首次备份</p>}
+            <p className="backup-schedule-meta">
+              上次成功备份 {when(schedule.lastSuccess)}
+            </p>
+          ) : (
+            schedule.enabled && (
+              <p className="backup-schedule-meta">等待首次备份</p>
+            )
+          )}
         </div>
         <div className="backup-schedule-toggle">
           <span aria-hidden="true">{enabled ? "开启" : "关闭"}</span>
-          <button className="site-collection-switch" type="button" role="switch"
-            aria-labelledby="backup-schedule-title" aria-checked={enabled}
-            disabled={saving} onClick={() => setEnabled(!enabled)}>
+          <button
+            className="site-collection-switch"
+            type="button"
+            role="switch"
+            aria-labelledby="backup-schedule-title"
+            aria-checked={enabled}
+            disabled={saving}
+            onClick={() => setEnabled(!enabled)}
+          >
             <span aria-hidden="true" />
           </button>
         </div>
       </div>
       <div className="backup-policy-controls">
-        <label className="backup-policy-field">备份间隔
+        <label className="backup-policy-field">
+          备份间隔
           <span className="backup-policy-value">
-            <input type="number" min={1} max={720} required value={intervalHours} disabled={saving}
-              onChange={(event) => setIntervalHours(event.target.value)} />
+            <input
+              type="number"
+              min={1}
+              max={720}
+              required
+              value={intervalHours}
+              disabled={saving}
+              onChange={(event) => setIntervalHours(event.target.value)}
+            />
             <span>小时</span>
           </span>
         </label>
-        <label className="backup-policy-field">保留份数
+        <label className="backup-policy-field">
+          保留份数
           <span className="backup-policy-value">
-            <input type="number" min={1} max={30} required value={keep} disabled={saving}
-              onChange={(event) => setKeep(event.target.value)} />
+            <input
+              type="number"
+              min={1}
+              max={30}
+              required
+              value={keep}
+              disabled={saving}
+              onChange={(event) => setKeep(event.target.value)}
+            />
             <span>份</span>
           </span>
         </label>
-        <Button variant="primary" type="submit" className="backup-policy-save" disabled={saving || !changed}>
+        <Button
+          variant="primary"
+          type="submit"
+          className="backup-policy-save"
+          disabled={saving || !changed}
+        >
           {saving ? "保存中…" : "保存设置"}
         </Button>
       </div>
@@ -2192,43 +3479,72 @@ function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; o
 
 function DataRetention({ revision }: { revision: number }) {
   const [refresh, setRefresh] = useState(0);
-  const state = useData(() => api<RetentionSettings>("/system/data-retention"), [revision, refresh]);
+  const state = useData(
+    () => api<RetentionSettings>("/system/data-retention"),
+    [revision, refresh],
+  );
   return (
     <section className="panel form-panel">
       <h2>事件保留策略</h2>
       <AsyncPanel state={state}>
-        {state.data && <>
-          <dl className="facts">
-            <dt>已保存事件</dt><dd>{number(state.data.events)} 条</dd>
-            <dt>事件数据估算</dt><dd>{mib(state.data.eventBytes)}</dd>
-          </dl>
-          <RetentionForm settings={state.data} onSaved={() => setRefresh((value) => value + 1)} />
-        </>}
+        {state.data && (
+          <>
+            <dl className="facts">
+              <dt>已保存事件</dt>
+              <dd>{number(state.data.events)} 条</dd>
+              <dt>事件数据估算</dt>
+              <dd>{mib(state.data.eventBytes)}</dd>
+            </dl>
+            <RetentionForm
+              settings={state.data}
+              onSaved={() => setRefresh((value) => value + 1)}
+            />
+          </>
+        )}
       </AsyncPanel>
     </section>
   );
 }
 
-function RetentionForm({ settings, onSaved }: { settings: RetentionSettings; onSaved: () => void }) {
-  const [days, setDays] = useState(settings.retentionDays === null ? "" : String(settings.retentionDays));
+function RetentionForm({
+  settings,
+  onSaved,
+}: {
+  settings: RetentionSettings;
+  onSaved: () => void;
+}) {
+  const [days, setDays] = useState(
+    settings.retentionDays === null ? "" : String(settings.retentionDays),
+  );
   const [size, setSize] = useState(String(settings.maxEventMiB));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const retentionDays = days === "" ? null : Number(days);
   const maxEventMiB = Number(size);
-  const changed = retentionDays !== settings.retentionDays || maxEventMiB !== settings.maxEventMiB;
+  const changed =
+    retentionDays !== settings.retentionDays ||
+    maxEventMiB !== settings.maxEventMiB;
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving || !changed) return;
-    const mayDelete = (retentionDays !== settings.retentionDays && retentionDays !== 0) ||
-      (maxEventMiB > 0 && (settings.maxEventMiB === 0 || maxEventMiB < settings.maxEventMiB));
-    if (mayDelete && !window.confirm("保存后，达到清理条件的旧事件会在后台自动删除。确认保存？")) return;
+    const mayDelete =
+      (retentionDays !== settings.retentionDays && retentionDays !== 0) ||
+      (maxEventMiB > 0 &&
+        (settings.maxEventMiB === 0 || maxEventMiB < settings.maxEventMiB));
+    if (
+      mayDelete &&
+      !window.confirm(
+        "保存后，达到清理条件的旧事件会在后台自动删除。确认保存？",
+      )
+    )
+      return;
     setSaving(true);
     setError("");
     try {
       await api("/system/data-retention", {
-        method: "PUT", body: JSON.stringify({ retentionDays, maxEventMiB }),
+        method: "PUT",
+        body: JSON.stringify({ retentionDays, maxEventMiB }),
       });
       onSaved();
     } catch (error) {
@@ -2241,20 +3557,42 @@ function RetentionForm({ settings, onSaved }: { settings: RetentionSettings; onS
   return (
     <form onSubmit={save}>
       <div className="form-grid">
-        <label>保留天数
-          <input type="number" min={0} max={3650} placeholder="沿用站点保留期"
-            value={days} disabled={saving} onChange={(event) => setDays(event.target.value)} />
-          <span className="selector-help">留空沿用站点保留期（默认 30 天），填 0 关闭按时间清理。</span>
+        <label>
+          保留天数
+          <input
+            type="number"
+            min={0}
+            max={3650}
+            placeholder="沿用站点保留期"
+            value={days}
+            disabled={saving}
+            onChange={(event) => setDays(event.target.value)}
+          />
+          <span className="selector-help">
+            留空沿用站点保留期（默认 30 天），填 0 关闭按时间清理。
+          </span>
         </label>
-        <label>事件容量上限（MiB）
-          <input type="number" min={0} max={1048576} required value={size}
-            disabled={saving} onChange={(event) => setSize(event.target.value)} />
-          <span className="selector-help">填 0 关闭容量限制。超限时从最旧的事件开始删除。</span>
+        <label>
+          事件容量上限（MiB）
+          <input
+            type="number"
+            min={0}
+            max={1048576}
+            required
+            value={size}
+            disabled={saving}
+            onChange={(event) => setSize(event.target.value)}
+          />
+          <span className="selector-help">
+            填 0 关闭容量限制。超限时从最旧的事件开始删除。
+          </span>
         </label>
       </div>
-     <ErrorBox message={error} />
+      <ErrorBox message={error} />
       <div className="actions">
-        <Button variant="primary" type="submit" disabled={saving || !changed}>{saving ? "保存中…" : "保存策略"}</Button>
+        <Button variant="primary" type="submit" disabled={saving || !changed}>
+          {saving ? "保存中…" : "保存策略"}
+        </Button>
       </div>
     </form>
   );
@@ -2364,7 +3702,9 @@ function PasswordSettings() {
       </div>
       <ErrorBox message={error} />
       {notice && <p className="notice">{notice}</p>}
-      <Button variant="primary" type="submit" disabled={busy}>{busy ? "保存中…" : "更新密码"}</Button>
+      <Button variant="primary" type="submit" disabled={busy}>
+        {busy ? "保存中…" : "更新密码"}
+      </Button>
     </form>
   );
 }

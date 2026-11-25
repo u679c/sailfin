@@ -6,49 +6,49 @@
 
 ## 当前本机管理 API
 
-| 方法和路径 | 用途 |
-|---|---|
-| GET /sites | 已启用的站点目录，按最近收到数据排序，最多 500 条。未收到数据的站点仍会返回 |
-| GET /sites/{id}/elements | 读取站点的 `{clickSelectors,clickDescriptions,browserConfigured}` |
-| PUT /sites/{id}/elements | 保存 `{clickSelectors,clickDescriptions?,previous?}`，空数组清除补充规则 |
-| GET /system/sites | 站点登记、采集来源、启用状态和 SDK 检查结果 |
-| GET /system/site-logs | 探针发现的已授权访问日志路径 |
-| POST /system/sites | 以 `{id,name,accessLog?,browserOrigin?,requireConsent?}` 新增或编辑站点。新站点默认关闭采集 |
-| PATCH /system/sites/{id} | 以 `{enabled}` 启停已接入的站点，路径 ID 取登记响应的 `id` |
-| GET /system/probe | 本机探针 ID、名称、状态、主机、版本、心跳和指标 |
-| PATCH /system/probe | `{enabled}`，暂停或恢复全部采集 |
-| POST /system/nginx/scan | 点击「扫描站点」获取预览，并登记可接入的候选站点 |
-| POST /system/nginx/apply | `{id,siteIds}`，其中 `id` 为预览 ID，`siteIds` 为结果中选中的 1–50 个 `siteId`。应用时备份、校验并请求重载 |
-| GET /health | Core + SQLite 健康 |
-| POST /auth/login | `{name,password}` |
-| POST /auth/password | `{currentPassword,newPassword}`，撤销其他会话 |
-| GET /auth/me | 当前用户和 CSRF（数组） |
-| POST /auth/logout | 撤销会话 |
-| GET /events | 分页事件 |
-| GET /sessions | 按项目和匿名 ID 聚合会话 |
-| GET /sessions/{id}?projectId=... | 必须带项目 ID，分页时间线 |
-| GET /stats/overview | PV/UV、HTTP 请求、事件、会话、错误和可观测停留 |
-| GET /stats/trends | 按 UTC 小时分组 |
-| GET /stats/devices | 设备/浏览器/OS 分组 |
-| GET /stats/pages | 页面分组，浏览器优先使用 pagePath（保留 Hash 路由），HTTP 请求使用原始路径 |
-| GET /stats/clicks | 按站点、页面和元素聚合点击，按点击次数降序分页 |
-| GET /security/summary | 限流/拒绝计数、UTC 今日配额、管理审计 |
-| GET /security/audit | 分页管理审计 |
-| GET /system/status | 服务与数据库状态、统计时区、网页更新开关 |
-| PATCH /system/timezone | 以 `{timezone}` 设置统计时区，如 `UTC` 或 `Asia/Shanghai` |
-| POST /system/update/verify-password | 以 `{password}` 验证当前管理员密码 |
-| POST /system/update/install | 按 `password`、`package` 的顺序上传 multipart 表单，包最大 256 MiB。验签通过后返回 HTTP 202 和更新任务 |
-| GET /system/update/status/{id} | 查询更新任务，返回 `id,name,status,time,message?` |
-| GET /system/update/history | 分页更新记录，每个任务一条，返回 `id,created_at,package_name,action` |
-| POST /system/backup | 下载 SQLite 一致性快照 |
-| GET /system/backups | 服务器备份列表，返回 `name,kind,createdAt,bytes` |
-| POST /system/backups | 创建手动备份，返回 HTTP 201 和备份记录 |
-| GET /system/backups/{name} | 下载服务器上的备份 |
-| DELETE /system/backups/{name} | 删除指定备份 |
-| GET /system/backup/schedule | 读取自动备份策略和最近执行结果 |
-| PUT /system/backup/schedule | 保存 `{enabled,intervalHours,keep}`，默认关闭，缺省间隔 24 小时及保留 7 份 |
-| GET /system/data-retention | 读取事件保留配置、事件条数和估算数据字节数 |
-| PUT /system/data-retention | 保存 `{retentionDays,maxEventMiB}`，`null` 天数沿用站点策略，两项均可用 0 停用对应清理 |
+| 方法和路径                          | 用途                                                                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| GET /sites                          | 已启用的站点目录，按最近收到数据排序，最多 500 条。未收到数据的站点仍会返回                                |
+| GET /sites/{id}/elements            | 读取站点的 `{clickSelectors,clickDescriptions,browserConfigured}`                                          |
+| PUT /sites/{id}/elements            | 保存 `{clickSelectors,clickDescriptions?,previous?}`，空数组清除补充规则                                   |
+| GET /system/sites                   | 站点登记、采集来源、启用状态和 SDK 检查结果                                                                |
+| GET /system/site-logs               | 探针发现的已授权访问日志路径                                                                               |
+| POST /system/sites                  | 以 `{id,name,accessLog?,browserOrigin?,requireConsent?}` 新增或编辑站点。新站点默认关闭采集                |
+| PATCH /system/sites/{id}            | 以 `{enabled}` 启停已接入的站点，路径 ID 取登记响应的 `id`                                                 |
+| GET /system/probe                   | 本机探针 ID、名称、状态、主机、版本、心跳和指标                                                            |
+| PATCH /system/probe                 | `{enabled}`，暂停或恢复全部采集                                                                            |
+| POST /system/nginx/scan             | 点击「扫描站点」获取预览，并登记可接入的候选站点                                                           |
+| POST /system/nginx/apply            | `{id,siteIds}`，其中 `id` 为预览 ID，`siteIds` 为结果中选中的 1–50 个 `siteId`。应用时备份、校验并请求重载 |
+| GET /health                         | Core + SQLite 健康                                                                                         |
+| POST /auth/login                    | `{name,password}`                                                                                          |
+| POST /auth/password                 | `{currentPassword,newPassword}`，撤销其他会话                                                              |
+| GET /auth/me                        | 当前用户和 CSRF（数组）                                                                                    |
+| POST /auth/logout                   | 撤销会话                                                                                                   |
+| GET /events                         | 分页事件                                                                                                   |
+| GET /sessions                       | 按项目和匿名 ID 聚合会话                                                                                   |
+| GET /sessions/{id}?projectId=...    | 必须带项目 ID，分页时间线                                                                                  |
+| GET /stats/overview                 | PV/UV、HTTP 请求、事件、会话、错误和可观测停留                                                             |
+| GET /stats/trends                   | 按 UTC 小时分组                                                                                            |
+| GET /stats/devices                  | 设备/浏览器/OS 分组                                                                                        |
+| GET /stats/pages                    | 页面分组，浏览器优先使用 pagePath（保留 Hash 路由），HTTP 请求使用原始路径                                 |
+| GET /stats/clicks                   | 按站点、页面和元素聚合点击，按点击次数降序分页                                                             |
+| GET /security/summary               | 限流/拒绝计数、UTC 今日配额、管理审计                                                                      |
+| GET /security/audit                 | 分页管理审计                                                                                               |
+| GET /system/status                  | 服务与数据库状态、统计时区、网页更新开关                                                                   |
+| PATCH /system/timezone              | 以 `{timezone}` 设置统计时区，如 `UTC` 或 `Asia/Shanghai`                                                  |
+| POST /system/update/verify-password | 以 `{password}` 验证当前管理员密码                                                                         |
+| POST /system/update/install         | 按 `password`、`package` 的顺序上传 multipart 表单，包最大 256 MiB。验签通过后返回 HTTP 202 和更新任务     |
+| GET /system/update/status/{id}      | 查询更新任务，返回 `id,name,status,time,message?`                                                          |
+| GET /system/update/history          | 分页更新记录，每个任务一条，返回 `id,created_at,package_name,action`                                       |
+| POST /system/backup                 | 下载 SQLite 一致性快照                                                                                     |
+| GET /system/backups                 | 服务器备份列表，返回 `name,kind,createdAt,bytes`                                                           |
+| POST /system/backups                | 创建手动备份，返回 HTTP 201 和备份记录                                                                     |
+| GET /system/backups/{name}          | 下载服务器上的备份                                                                                         |
+| DELETE /system/backups/{name}       | 删除指定备份                                                                                               |
+| GET /system/backup/schedule         | 读取自动备份策略和最近执行结果                                                                             |
+| PUT /system/backup/schedule         | 保存 `{enabled,intervalHours,keep}`，默认关闭，缺省间隔 24 小时及保留 7 份                                 |
+| GET /system/data-retention          | 读取事件保留配置、事件条数和估算数据字节数                                                                 |
+| PUT /system/data-retention          | 保存 `{retentionDays,maxEventMiB}`，`null` 天数沿用站点策略，两项均可用 0 停用对应清理                     |
 
 元素规则的 `clickSelectors` 为补充自动点击采集的选择器数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
 
@@ -64,30 +64,39 @@
 
 以下接口仅在 Core.Config.LocalOnly=false 时注册。当前 cmd/core serve 固定使用本机模式，不开放这些路由。
 
-| 方法和路径 | 用途 |
-|---|---|
-| POST /agent/sites/batch | 已注册宿主机提交站点事件批次 |
-| GET /projects[/{id}] | 项目列表/记录数组 |
-| POST /projects | 新建项目 |
-| PATCH /projects/{id} | 保存完整项目配置 |
-| DELETE /projects/{id} | `{confirmName}`，删除项目内数据、Agent 与配置 |
-| GET /projects/{id}/config | 浏览器采集策略历史；载入旧值后 PATCH 保存新版本 |
-| DELETE /agents/{id} | `{confirmName}`，删除身份及配置，保留历史事件 |
-| GET /agents[/{id}] | Agent 列表/记录数组，支持 projectId |
-| POST /agents/enrollment | `{projectId,name}` → `{token,expiresAt}`，10 分钟单次令牌 |
-| PATCH /agents/{id} | `{enabled,revoke?}`，revoke 永久撤销现有凭据 |
-| GET /agents/{id}/config | 最近 20 个配置版本 |
-| PUT /agents/{id}/config | 保存配置；Core 分配递增 version |
-| GET /agents/{id}/metrics | 最新真实指标 |
-| GET /agents/{id}/logs | 最近 100 个上报错误 |
+| 方法和路径                | 用途                                                      |
+| ------------------------- | --------------------------------------------------------- |
+| POST /agent/sites/batch   | 已注册宿主机提交站点事件批次                              |
+| GET /projects[/{id}]      | 项目列表/记录数组                                         |
+| POST /projects            | 新建项目                                                  |
+| PATCH /projects/{id}      | 保存完整项目配置                                          |
+| DELETE /projects/{id}     | `{confirmName}`，删除项目内数据、Agent 与配置             |
+| GET /projects/{id}/config | 浏览器采集策略历史；载入旧值后 PATCH 保存新版本           |
+| DELETE /agents/{id}       | `{confirmName}`，删除身份及配置，保留历史事件             |
+| GET /agents[/{id}]        | Agent 列表/记录数组，支持 projectId                       |
+| POST /agents/enrollment   | `{projectId,name}` → `{token,expiresAt}`，10 分钟单次令牌 |
+| PATCH /agents/{id}        | `{enabled,revoke?}`，revoke 永久撤销现有凭据              |
+| GET /agents/{id}/config   | 最近 20 个配置版本                                        |
+| PUT /agents/{id}/config   | 保存配置；Core 分配递增 version                           |
+| GET /agents/{id}/metrics  | 最新真实指标                                              |
+| GET /agents/{id}/logs     | 最近 100 个上报错误                                       |
 
 项目写入字段：`name, description, domains: string[], status: active|paused|archived, retentionDays, dailyQuota, browserEnabled, collection`。PATCH 当前按完整表单保存，不能仅传一个字段。域名列表实际为精确 Origin，含 scheme 与可选端口，不带尾斜线/路径。暂停和归档均拒绝新采集，已有数据保留至保留期。
 
 `collection` 支持 `eventTypes:string[], sampleRate:0..1, excludePaths:string[], excludeElements:string[], clickSelectors:string[], clickDescriptions:Record<string,string>, batchSize:1..100, intervalSeconds:1..100`。点击选择器最多 50 条，每条最多 200 UTF-8 字节。
 
 Host 配置：
+
 ```json
-{"enabled":true,"sources":[{"id":"access","path":"/absolute/logs/access.log","parser":"nginx"}],"dockerTargets":[],"batchSize":50,"intervalSeconds":5}
+{
+  "enabled": true,
+  "sources": [
+    { "id": "access", "path": "/absolute/logs/access.log", "parser": "nginx" }
+  ],
+  "dockerTargets": [],
+  "batchSize": 50,
+  "intervalSeconds": 5
+}
 ```
 
 Agent API 独立使用 `Authorization: Bearer <运行凭据>`；`POST /agent/enroll` 仅使用 `{token}` 引导，响应为 `{agentId,projectId,token}`。运行凭据仅成功注册时返回一次。
