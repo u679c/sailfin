@@ -1808,8 +1808,6 @@ async function readUpdatePackage(file: File) {
   };
 }
 
-type WebUpdateJob = { id: string; status: "started" | "succeeded" | "failed"; message?: string };
-
 function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
   const drawer = useRef<HTMLDialogElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
@@ -1819,39 +1817,11 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
   const [busy, setBusy] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [fileError, setFileError] = useState("");
-  const [job, setJob] = useState<WebUpdateJob | null>(null);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof readUpdatePackage>> | null>(null);
 
   useEffect(() => {
     if (confirming) title.current?.focus();
   }, [confirming]);
-
-  useEffect(() => {
-    if (!job || job.status !== "started") return;
-    let active = true;
-    let timer: number;
-    const deadline = Date.now() + 15 * 60_000;
-    async function poll(id: string) {
-      try {
-        const result = await api<WebUpdateJob>(`/system/update/status/${encodeURIComponent(id)}`);
-        if (active && result.status !== "started") {
-          setJob(result);
-          onChange();
-          return;
-        }
-      } catch {
-        // Core can be unreachable while the host switches versions.
-      }
-      if (!active) return;
-      if (Date.now() >= deadline) {
-        setJob({ id, status: "failed", message: "更新结果尚未确认，请查看更新日志或宿主机日志。" });
-      } else {
-        timer = window.setTimeout(() => void poll(id), 2500);
-      }
-    }
-    timer = window.setTimeout(() => void poll(job.id), 2500);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [job, onChange]);
 
   async function selectPackage(files: FileList) {
     if (busy) return;
@@ -1898,7 +1868,7 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
     form.append("password", password);
     form.append("package", preview.file);
     try {
-      setJob(await api<WebUpdateJob>("/system/update/install", { method: "POST", body: form }));
+      await api("/system/update/install", { method: "POST", body: form });
       drawer.current?.close();
       onChange();
     } catch (error) {
@@ -1919,11 +1889,6 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
   return (
     <section className="panel">
       <h2>软件更新</h2>
-      {job?.status === "failed" ? <ErrorBox message={job.message || "更新失败"} /> : job && (
-        <p role="status" className="notice">
-          {job.status === "started" ? "更新任务已提交，服务重启后将自动检查结果。" : "更新成功。"}
-        </p>
-      )}
       <input ref={picker} type="file" accept=".bin" hidden onChange={(event) => {
         if (event.currentTarget.files?.length) void selectPackage(event.currentTarget.files);
         event.currentTarget.value = "";
@@ -1987,7 +1952,7 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
               取消
             </button>
             {confirming ? (
-              <button type="button" className="primary" disabled={busy || !enabled || !preview?.signed || job?.status === "started"}
+              <button type="button" className="primary" disabled={busy || !enabled || !preview?.signed}
                 onClick={() => void install()}>{busy ? "正在上传…" : "确认安装"}</button>
             ) : preview && (
               <button type="submit" form="update-password-form" className="primary" disabled={busy || !password}>
