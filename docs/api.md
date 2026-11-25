@@ -10,7 +10,7 @@
 |---|---|
 | GET /sites | 已启用的站点目录，按最近收到数据排序，最多 500 条。未收到数据的站点仍会返回 |
 | GET /sites/{id}/elements | 读取站点的 `{clickSelectors,clickDescriptions,browserConfigured}` |
-| PUT /sites/{id}/elements | 保存 `{clickSelectors,clickDescriptions?,previous?}`，空数组恢复默认自动点击采集 |
+| PUT /sites/{id}/elements | 保存 `{clickSelectors,clickDescriptions?,previous?}`，空数组清除补充规则 |
 | GET /system/sites | 站点登记、采集来源、启用状态和 SDK 检查结果 |
 | GET /system/site-logs | 探针发现的已授权访问日志路径 |
 | POST /system/sites | 以 `{id,name,accessLog?,browserOrigin?,requireConsent?}` 新增或编辑站点。新站点默认关闭采集 |
@@ -50,7 +50,7 @@
 | GET /system/data-retention | 读取事件保留配置、事件条数和估算数据字节数 |
 | PUT /system/data-retention | 保存 `{retentionDays,maxEventMiB}`，`null` 天数沿用站点策略，两项均可用 0 停用对应清理 |
 
-元素规则的 `clickSelectors` 为字符串数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
+元素规则的 `clickSelectors` 为补充自动点击采集的选择器数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
 
 `/events` 返回的 `click_description` 根据浏览器点击事件的 `ruleSelector` 读取站点当前配置。没有命中自定义规则或该规则未配置说明时返回 `null`。
 
@@ -102,7 +102,7 @@ Browser API：POST `/collect/browser?projectId=...`，`{events:[...]}`；GET `/c
 
 事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB，禁止嵌套属性、路径中的查询参数与任意字段。eventId 按项目去重。接受最多 31 天前至未来 5 分钟事件；统计只纳入查询范围。
 
-自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, ruleSelector, region, domPath, pagePath, pageTitle`。label 是自动读取的元素名称，selector 是 DOM 结构定位，ruleSelector 是实际命中的站点 CSS 规则，默认自动采集时省略。properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
+自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, ruleSelector, region, domPath, pagePath, pageTitle`。label 是自动读取的元素名称，selector 是 DOM 结构定位，ruleSelector 是采集目标命中的站点 CSS 规则，未命中自定义规则时省略。properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
 
 `properties.domPath` 保存浏览器点击事件的传播路径，按实际点击目标到外层祖先的顺序记录元素标签，例如 `["span","button","main","body","html"]`。路径最多保留靠近目标的 32 个元素，每个标签最多 64 个字符。它与其他属性一起存入现有 JSON；旧事件和没有 DOM 上下文的手动上报可省略此字段。
 

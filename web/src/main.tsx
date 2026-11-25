@@ -954,7 +954,7 @@ function SiteElements({ project, revision }: { project: string; revision: number
         <span role="status">{state.data && (
           !state.data.browserConfigured ? "此站点尚未配置浏览器采集"
             : rows.length >= 50 ? "已达 50 条规则上限"
-            : saved ? "规则已更新" : rows.length ? "仅采集匹配元素的点击" : "当前使用默认自动采集"
+            : saved ? "规则已更新" : "添加规则可补充自动点击采集"
         )}</span>
         <button className="primary" type="button" disabled={disabled || rows.length >= 50} onClick={() => openDrawer("add")}>
           <Plus size={16} aria-hidden="true" />新增元素
@@ -986,9 +986,7 @@ function SiteElements({ project, revision }: { project: string; revision: number
               {removing ? (
                 <>
                   <code>{drawer.selector}</code>
-                  <p className="site-drawer-hint">
-                    {drawer.snapshot.clickSelectors.length === 1 ? "移除最后一条规则后，将恢复默认自动采集。" : "移除后，SDK 将按其余规则采集点击。"}
-                  </p>
+                  <p className="site-drawer-hint">移除这条补充规则后，默认点击采集继续生效。</p>
                 </>
               ) : (
                 <>

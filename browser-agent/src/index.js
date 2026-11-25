@@ -253,17 +253,16 @@ export function init(options) {
     if (!config.enabled || !(target instanceof Element)) return;
     try {
       if (target.closest(ignoredClickTargets)) return;
-      const match = config.clickSelectors?.length
-        ? configuredClickTarget(target, config.clickSelectors)
-        : { element: target.closest(clickTargets) };
-      const el = match?.element;
+      const automatic = target.closest(clickTargets);
+      const custom = configuredClickTarget(automatic ?? target, config.clickSelectors ?? []);
+      const el = automatic ?? custom?.element;
       if (!el) return;
       const path = e.composedPath().filter((node) => node instanceof Element);
       if (path.some((node) => node.matches(ignoredClickTargets))) return;
       if ((config.excludeElements || []).some((s) => target.closest(s) || path.some((node) => node.matches(s)))) return;
       track("click", {
         ...clickProperties(el, { includeText: el.matches(clickTargets) }),
-        ruleSelector: match.selector,
+        ruleSelector: custom?.element === el ? custom.selector : undefined,
         domPath: path.map((node) => node.localName.toLowerCase()),
       });
     } catch {
