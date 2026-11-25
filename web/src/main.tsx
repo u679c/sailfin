@@ -238,9 +238,8 @@ function Table({
               {columns.map((c, j) => (
                 <td key={c.key}>
                   {j === 0 && onRow ? (
-                    <button className="text-button" onClick={() => onRow(r)}>
+                    <button className="text-button" type="button" onClick={() => onRow(r)}>
                       {c.render ? c.render(r) : String(r[c.key] ?? "—")}
-                      <ArrowRight size={13} />
                     </button>
                   ) : c.render ? (
                     c.render(r)
@@ -1039,8 +1038,10 @@ function SiteElements({ project, revision }: { project: string; revision: number
           { key: "description", label: "说明", render: (row) => row.description || "—" },
           { key: "actions", label: "操作", width: "150px", render: (row) => (
             <div className="actions">
-              <button type="button" disabled={disabled} onClick={() => openDrawer("edit", row.index)}>编辑</button>
-              <button type="button" disabled={disabled} onClick={() => openDrawer("remove", row.index)}>移除</button>
+              <button className="text-button" type="button" disabled={disabled}
+                onClick={() => openDrawer("edit", row.index)}>编辑</button>
+              <button className="text-button text-button-danger" type="button" disabled={disabled}
+                onClick={() => openDrawer("remove", row.index)}>移除</button>
             </div>
           ) },
         ]} />
@@ -1400,7 +1401,8 @@ function LocalProbe({ revision }: { revision: number }) {
           { key: "sites", label: "配置站点数", render: (row) => parse<Row>(row.metrics, {}).configuredSites ?? "—" },
           { key: "last_seen", label: "最后心跳", render: (row) => when(row.last_seen) },
           { key: "actions", label: "操作", render: (row) => (
-            <button disabled={busy || row.status === "Failed"} onClick={() => void toggle(!row.enabled)}>
+            <button className="text-button" type="button" disabled={busy || row.status === "Failed"}
+              onClick={() => void toggle(!row.enabled)}>
               {busy ? "处理中…" : row.enabled ? "暂停全部采集" : "恢复全部采集"}
             </button>
           ) },
@@ -1591,7 +1593,8 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
           },
           {
             key: "edit", label: "操作", width: "10%", render: (row) => row.siteId ? (
-              <button disabled={pending !== null} onClick={() => openDrawer(row)}>编辑</button>
+              <button className="text-button" type="button" disabled={pending !== null}
+                onClick={() => openDrawer(row)}>编辑</button>
             ) : null,
           },
         ]} />
@@ -2105,9 +2108,9 @@ function BackupManagement({ revision }: { revision: number }) {
             { key: "createdAt", label: "创建时间", width: "20%", render: (row) => when(row.createdAt) },
             { key: "bytes", label: "大小", width: "12%", render: (row) => mib(row.bytes) },
             { key: "actions", label: "操作", width: "18%", render: (row) => (
-              <div className="actions backup-actions">
-                <a href={`/api/v1/system/backups/${encodeURIComponent(row.name)}`} download>下载</a>
-                <button type="button" className="text-button" disabled={Boolean(busy)}
+              <div className="actions">
+                <a className="text-button" href={`/api/v1/system/backups/${encodeURIComponent(row.name)}`} download>下载</a>
+                <button className="text-button text-button-danger" type="button" disabled={Boolean(busy)}
                   onClick={() => void changeBackup(row.name)}>{busy === row.name ? "删除中…" : "删除"}</button>
               </div>
             ) },

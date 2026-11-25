@@ -440,9 +440,6 @@ a {
   .backup-policy-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .backup-policy-save { grid-column: 1 / -1; }
 }
-.backup-actions {
-  align-items: center;
-}
 .account-settings .password-settings {
   margin-top: 0;
 }
@@ -745,18 +742,29 @@ tbody tr:hover {
   background: #f9fbfe;
 }
 .text-button {
+  display: inline-flex;
+  align-items: center;
   border: 0;
   background: none;
   color: #285cae;
   padding: 0;
   min-height: 28px;
   text-align: left;
+  text-decoration: none;
   justify-content: flex-start;
 }
 .text-button:hover {
   background: transparent;
+}
+.text-button:not(:disabled):is(:hover, :focus-visible) {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+.text-button.text-button-danger {
+  color: var(--muted);
+}
+.text-button.text-button-danger:not(:disabled):is(:hover, :focus-visible) {
+  color: #b32634;
 }
 .empty {
   padding: 42px 18px;
