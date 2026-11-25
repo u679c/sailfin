@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sailfin/internal/branding"
 	"sailfin/internal/device"
 	"sailfin/internal/protocol"
@@ -20,6 +21,7 @@ import (
 
 var browserTypes = map[string]bool{"page_view": true, "route_change": true, "click": true, "session_start": true, "page_hidden": true, "js_error": true, "unhandled_rejection": true, "performance_event": true}
 var propertyTypes = map[string]bool{"element": true, "elementId": true, "label": true, "selector": true, "ruleSelector": true, "region": true, "pagePath": true, "pageTitle": true, "status": true, "method": true, "bytes": true, "durationMs": true, "message": true, "metric": true, "value": true, "referrer": true}
+var domTag = regexp.MustCompile(`^[a-z][a-z0-9_.:-]{0,63}$`)
 
 func (s *Server) browserProject(r *http.Request, p string) (map[string]any, error) {
 	rows, e := s.rows(r.Context(), "SELECT * FROM projects WHERE id=? AND status='active' AND browser_enabled=1", p)
@@ -143,6 +145,19 @@ func validateEvent(e protocol.Event, p string) error {
 		return fail(400, "browser events require anonymous session and visitor identifiers")
 	}
 	for k, v := range e.Properties {
+		if k == "domPath" {
+			path, ok := v.([]any)
+			if e.EventType != "click" || !ok || len(path) == 0 || len(path) > 32 {
+				return fail(400, "domPath must contain 1..32 element tags on a click event")
+			}
+			for _, node := range path {
+				tag, ok := node.(string)
+				if !ok || !domTag.MatchString(tag) {
+					return fail(400, "invalid domPath element tag")
+				}
+			}
+			continue
+		}
 		if !propertyTypes[k] {
 			return fail(400, "event property is not allowed: "+k)
 		}

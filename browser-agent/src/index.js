@@ -257,10 +257,14 @@ export function init(options) {
         ? configuredClickTarget(target, config.clickSelectors)
         : { element: target.closest(clickTargets) };
       const el = match?.element;
-      if (!el || (config.excludeElements || []).some((s) => target.closest(s))) return;
+      if (!el) return;
+      const path = e.composedPath().filter((node) => node instanceof Element);
+      if (path.some((node) => node.matches(ignoredClickTargets))) return;
+      if ((config.excludeElements || []).some((s) => target.closest(s) || path.some((node) => node.matches(s)))) return;
       track("click", {
         ...clickProperties(el, { includeText: el.matches(clickTargets) }),
         ruleSelector: match.selector,
+        domPath: path.map((node) => node.localName.toLowerCase()),
       });
     } catch {
       // Instrumentation must never interrupt the site's own click handler.

@@ -102,7 +102,9 @@ Browser API：POST `/collect/browser?projectId=...`，`{events:[...]}`；GET `/c
 
 事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB，禁止嵌套属性、路径中的查询参数与任意字段。eventId 按项目去重。接受最多 31 天前至未来 5 分钟事件；统计只纳入查询范围。
 
-自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, ruleSelector, region, pagePath, pageTitle`。label 是自动读取的元素名称，selector 是 DOM 结构定位，ruleSelector 是实际命中的站点 CSS 规则，默认自动采集时省略。properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。新字段直接存入现有 properties JSON，无需数据库迁移。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
+自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, ruleSelector, region, domPath, pagePath, pageTitle`。label 是自动读取的元素名称，selector 是 DOM 结构定位，ruleSelector 是实际命中的站点 CSS 规则，默认自动采集时省略。properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
+
+`properties.domPath` 保存浏览器点击事件的传播路径，按实际点击目标到外层祖先的顺序记录元素标签，例如 `["span","button","main","body","html"]`。路径最多保留靠近目标的 32 个元素，每个标签最多 64 个字符。它与其他属性一起存入现有 JSON；旧事件和没有 DOM 上下文的手动上报可省略此字段。
 
 事件、会话列表和统计查询支持 `projectId,agentId,eventType,from,to`。其中 `from/to` 为 Unix 毫秒，也可使用 `fromLocal/toLocal`，格式为 `YYYY-MM-DDTHH:mm`，按系统统计时区解析并覆盖对应的毫秒边界。默认查询最近 24 小时，范围最多 366 天。本机模式省略 `projectId` 时只统计已启用站点。趋势按 UTC 小时分桶，管理端按统计时区显示，写入配额仍按 UTC 日计算。
 

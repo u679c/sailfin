@@ -22,6 +22,7 @@ export function pagePath(value) {
   return (url.pathname + (route.startsWith("/") ? "#" + route.split(/[?#]/)[0] : "")).slice(0, 200);
 }
 const privateElements = "input,textarea,select,[contenteditable],[data-sailfin-ignore],[data-tracelite-ignore],script,style,[hidden],[aria-hidden='true']";
+const domTag = /^[a-z][a-z0-9_.:-]{0,63}$/;
 export function configuredClickTarget(target, selectors) {
   let closest = null;
   for (const selector of selectors) {
@@ -91,6 +92,12 @@ export function clickProperties(el, { includeText = true } = {}) {
 export function safeProps(properties = {}) {
   const out = {};
   for (const [k, v] of Object.entries(properties)) {
+    if (k === "domPath" && Array.isArray(v)) {
+      if (v.length) {
+        out.domPath = v.slice(0, 32).map((tag) => typeof tag === "string" && domTag.test(tag) ? tag : "element");
+      }
+      continue;
+    }
     if (!["element", "elementId", "label", "selector", "ruleSelector", "region", "pagePath", "pageTitle", "durationMs", "metric", "value"].includes(k))
       continue;
     if (typeof v === "string") {
