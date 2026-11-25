@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { api, setCSRF, parse, when as formatTime, number, Row } from "./api";
+import { Button } from "./components/Button";
 import { Select } from "./components/Select";
 import { SelectorRulePreview } from "./components/SelectorRulePreview";
 import { analyzeSelector } from "./selector-rule.mjs";
@@ -386,10 +387,10 @@ function Login({ onLogin }: { onLogin: () => void }) {
           />
         </label>
         <ErrorBox message={error} />
-        <button className="primary" disabled={busy}>
+        <Button variant="primary" type="submit" disabled={busy}>
           {busy ? "正在登录…" : "登录"}
-          <ArrowRight size={16} />
-        </button>
+          <ArrowRight aria-hidden="true" />
+        </Button>
       </form>
     </div>
   );
@@ -547,7 +548,7 @@ function App() {
           ))}
         </nav>
         <div className="header-actions">
-          <button onClick={refresh} aria-label="刷新数据" title="刷新"><RefreshCw size={16} /></button>
+          <Button onClick={refresh} aria-label="刷新数据" title="刷新"><RefreshCw aria-hidden="true" /></Button>
         </div>
       </header>
       <main className="site-main" aria-label={siteView ? selectedSite?.name || "全部站点" : current.name}>
@@ -879,8 +880,8 @@ function Clicks({ query, revision, filters }: { query: string; revision: number;
           {selection && <>
             <button className="text-button" type="button" disabled={merging}
               onClick={() => { setSelection(null); setMergeError(""); }}>清空选择</button>
-            <button className="primary" type="button" disabled={selectedCount < 2 || merging || state.loading}
-              onClick={() => void merge()}>{merging ? "合并中…" : "合并事件"}</button>
+            <Button variant="soft" disabled={selectedCount < 2 || merging || state.loading}
+              onClick={() => void merge()}>{merging ? "合并中…" : "合并事件"}</Button>
           </>}
         </div>}
       </div>
@@ -1026,9 +1027,9 @@ function SiteElements({ project, revision }: { project: string; revision: number
             : rows.length >= 50 ? "已达 50 条规则上限"
             : saved ? "规则已更新" : "添加规则可补充自动点击采集"
         )}</span>
-        <button className="primary" type="button" disabled={disabled || rows.length >= 50} onClick={() => openDrawer("add")}>
-          <Plus size={16} aria-hidden="true" />新增元素
-        </button>
+        <Button variant="soft" disabled={disabled || rows.length >= 50} onClick={() => openDrawer("add")}>
+          <Plus aria-hidden="true" />新增元素
+        </Button>
       </div>
       <ErrorBox message={state.error} />
       <Table rows={rows} loading={state.loading} keepPage
@@ -1083,11 +1084,11 @@ function SiteElements({ project, revision }: { project: string; revision: number
               <ErrorBox message={error} />
             </div>
             <footer className="site-drawer-footer">
-              <button type="button" disabled={saving} onClick={() => setDrawer(null)}>取消</button>
-              <button type="submit" className={removing ? "danger" : "primary"}
+              <Button disabled={saving} onClick={() => setDrawer(null)}>取消</Button>
+              <Button type="submit" variant={removing ? "danger" : "primary"}
                 disabled={saving || (!removing && (!selectorInput || Boolean(selectorAnalysis.error)))}>
                 {saving ? "保存中…" : removing ? "确认移除" : "保存元素"}
-              </button>
+              </Button>
             </footer>
           </form>
         )}
@@ -1146,7 +1147,7 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
         <section className="panel record-details" aria-label="事件详情">
           <div className="panel-title">
             <h2>事件详情</h2>
-            <button onClick={() => setDetail(null)}>关闭详情</button>
+            <Button onClick={() => setDetail(null)}>关闭详情</Button>
           </div>
           <dl className="facts">
             <dt>行为</dt><dd>{eventRecordLabel(detail)}</dd>
@@ -1227,7 +1228,7 @@ function Sessions({ query, revision }: { query: string; revision: number }) {
         <section className="panel record-details" aria-label="会话时间线">
           <div className="panel-title">
             <h2>会话时间线</h2>
-            <button onClick={() => setSelected(null)}>关闭</button>
+            <Button onClick={() => setSelected(null)}>关闭</Button>
           </div>
           <code>{selected.session_id}</code>
           <AsyncPanel state={timeline}>
@@ -1562,9 +1563,9 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
   return (
     <section className="panel list-panel" aria-label="站点接入">
       <div className="panel-title site-management-toolbar">
-        <button className="primary" disabled={pending !== null} onClick={() => openDrawer()}>
-          <Plus size={16} aria-hidden="true" />添加站点
-        </button>
+        <Button variant="soft" disabled={pending !== null} onClick={() => openDrawer()}>
+          <Plus aria-hidden="true" />添加站点
+        </Button>
       </div>
       <ErrorBox message={error} />
       <ErrorBox message={registered.error} />
@@ -1653,10 +1654,10 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
                 </div>
               ) : (
                 <>
-                  <button type="button" className={plan ? "" : "primary"} disabled={pending !== null} onClick={() => void scan()}>
-                    <Search size={16} aria-hidden="true" />
+                  <Button variant={plan ? "outline" : "soft"} disabled={pending !== null} onClick={() => void scan()}>
+                    <Search aria-hidden="true" />
                     {pending === "scan" ? "扫描中…" : plan ? "重新扫描" : "扫描站点"}
-                  </button>
+                  </Button>
                   {plan && (
                     <div className="site-scan-results" aria-live="polite">
                       {!plan.sites.length && <p className="site-drawer-hint">未扫描到站点</p>}
@@ -1685,12 +1686,12 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
                       </ul>
                       {plan.sites.some(selectable) && (
                         <div className="actions site-scan-actions">
-                          <button type="button" className="primary" disabled={pending !== null || !chosen.length}
+                          <Button variant="primary" disabled={pending !== null || !chosen.length}
                             onClick={() => void apply()}>
                             {pending === "apply" ? "应用中…" :
                               plan.sites.some((row) => row.needsSdk && row.siteId && chosen.includes(row.siteId)) ? "应用所选配置" :
                                 chosen.length ? `接入并启用 ${chosen.length} 个站点` : "接入并启用"}
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -1700,11 +1701,11 @@ function NginxCollection({ revision, onChange }: { revision: number; onChange: (
             </div>
             {tab === "manual" && (
               <footer className="site-drawer-footer">
-                <button type="button" disabled={pending !== null} onClick={() => setDrawer(null)}>取消</button>
-                <button type="submit" form="site-drawer-form" className="primary"
+                <Button disabled={pending !== null} onClick={() => setDrawer(null)}>取消</Button>
+                <Button variant="primary" type="submit" form="site-drawer-form"
                   disabled={pending !== null || (!draft.accessLog.trim() && !draft.browserOrigin.trim())}>
                   {pending === "save" ? "保存中…" : "保存站点"}
-                </button>
+                </Button>
               </footer>
             )}
           </div>
@@ -1800,9 +1801,9 @@ function TimezoneSettings({ timezone, onChange }: { timezone: string; onChange: 
         }
       }}>
         <Select ariaLabel="统计时区" value={selected} options={options} onChange={setSelected} disabled={busy} />
-        <button type="submit" className="primary" disabled={busy || selected === timezone}>
+        <Button variant="primary" type="submit" disabled={busy || selected === timezone}>
           {busy ? "保存中…" : "保存"}
-        </button>
+        </Button>
       </form>
       <ErrorBox message={error} />
     </>
@@ -2022,16 +2023,16 @@ function UpdatePackage({ enabled, onChange }: { enabled: boolean; onChange: () =
             )}
           </div>
           <footer className="site-drawer-footer">
-            <button type="button" disabled={busy} onClick={() => drawer.current?.close()}>
+            <Button disabled={busy} onClick={() => drawer.current?.close()}>
               取消
-            </button>
+            </Button>
             {confirming ? (
-              <button type="button" className="primary" disabled={busy || !enabled || !preview?.signed}
-                onClick={() => void install()}>{busy ? "正在上传…" : "确认安装"}</button>
+              <Button variant="primary" disabled={busy || !enabled || !preview?.signed}
+                onClick={() => void install()}>{busy ? "正在上传…" : "确认安装"}</Button>
             ) : preview && (
-              <button type="submit" form="update-password-form" className="primary" disabled={busy || !password}>
+              <Button variant="primary" type="submit" form="update-password-form" disabled={busy || !password}>
                 {busy ? "验证中…" : "确认"}
-              </button>
+              </Button>
             )}
           </footer>
         </div>
@@ -2096,9 +2097,9 @@ function BackupManagement({ revision }: { revision: number }) {
       <section className="panel list-panel">
         <div className="panel-title site-management-toolbar">
           <span>备份包含账户及采集数据，请妥善保存。</span>
-          <button type="button" className="primary" disabled={Boolean(busy)} onClick={() => void changeBackup()}>
-            <Plus size={16} aria-hidden="true" />{busy === "create" ? "正在创建…" : "创建备份"}
-          </button>
+          <Button variant="soft" disabled={Boolean(busy)} onClick={() => void changeBackup()}>
+            <Plus aria-hidden="true" />{busy === "create" ? "正在创建…" : "创建备份"}
+          </Button>
         </div>
         <ErrorBox message={error || files.error} />
         <Table rows={rows} loading={files.loading} keepPage emptyLabel={files.data ? "暂无备份" : ""}
@@ -2180,9 +2181,9 @@ function BackupScheduleForm({ schedule, onSaved }: { schedule: BackupSchedule; o
             <span>份</span>
           </span>
         </label>
-        <button type="submit" className="primary backup-policy-save" disabled={saving || !changed}>
+        <Button variant="primary" type="submit" className="backup-policy-save" disabled={saving || !changed}>
           {saving ? "保存中…" : "保存设置"}
-        </button>
+        </Button>
       </div>
       <ErrorBox message={error || schedule.lastError} />
     </form>
@@ -2253,7 +2254,7 @@ function RetentionForm({ settings, onSaved }: { settings: RetentionSettings; onS
       </div>
      <ErrorBox message={error} />
       <div className="actions">
-        <button type="submit" className="primary" disabled={saving || !changed}>{saving ? "保存中…" : "保存策略"}</button>
+        <Button variant="primary" type="submit" disabled={saving || !changed}>{saving ? "保存中…" : "保存策略"}</Button>
       </div>
     </form>
   );
@@ -2290,10 +2291,10 @@ function LogoutSettings({ onLogout }: { onLogout: () => void }) {
       <summary>退出登录</summary>
       <p className="muted">退出后需要重新登录。</p>
       <ErrorBox message={error} />
-      <button type="button" className="danger" disabled={busy} onClick={logout}>
-        <LogOut size={16} aria-hidden="true" />
+      <Button variant="primary" disabled={busy} onClick={logout}>
+        <LogOut aria-hidden="true" />
         {busy ? "正在退出…" : "确认退出"}
-      </button>
+      </Button>
     </details>
   );
 }
@@ -2363,7 +2364,7 @@ function PasswordSettings() {
       </div>
       <ErrorBox message={error} />
       {notice && <p className="notice">{notice}</p>}
-      <button disabled={busy}>{busy ? "保存中…" : "更新密码"}</button>
+      <Button variant="primary" type="submit" disabled={busy}>{busy ? "保存中…" : "更新密码"}</Button>
     </form>
   );
 }

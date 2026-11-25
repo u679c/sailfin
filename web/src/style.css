@@ -11,6 +11,23 @@
   --accent: #3267d6;
   --border: #dce4ee;
   --rail: #172e46;
+  --btn-primary-bg: #2563eb;
+  --btn-primary-hover: #1d4ed8;
+  --btn-primary-active: #1e40af;
+  --btn-primary-text: #ffffff;
+  --btn-soft-bg: #e8eefb;
+  --btn-soft-hover: #dbe7fc;
+  --btn-soft-active: #cbdcfa;
+  --btn-soft-text: #2563eb;
+  --btn-outline-bg: #ffffff;
+  --btn-outline-hover: #f4f4f5;
+  --btn-outline-active: #e4e4e7;
+  --btn-outline-text: #18181b;
+  --btn-outline-border: #e4e4e7;
+  --btn-danger-bg: #fee2e2;
+  --btn-danger-hover: #fecaca;
+  --btn-danger-active: #fca5a5;
+  --btn-danger-text: #dc2626;
 }
 * {
   box-sizing: border-box;
@@ -52,18 +69,6 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
-}
-button.primary:hover {
-  background: #2357c0;
-}
-button.danger {
-  color: #b32634;
-  border-color: #e5b9c0;
-}
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
@@ -72,6 +77,77 @@ select:focus-visible,
 summary:focus-visible {
   outline: 3px solid #7fa8f2;
   outline-offset: 3px;
+}
+.btn {
+  gap: 6px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--btn-border, transparent);
+  border-radius: 4px;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.btn:hover {
+  background-color: var(--btn-bg);
+}
+.btn:hover:not(:disabled) {
+  background-color: var(--btn-hover);
+}
+.btn:active:not(:disabled) {
+  background-color: var(--btn-active);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--btn-focus, var(--btn-primary-bg));
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.45;
+}
+.btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  stroke-width: 1.8;
+}
+.btn-primary {
+  --btn-bg: var(--btn-primary-bg);
+  --btn-hover: var(--btn-primary-hover);
+  --btn-active: var(--btn-primary-active);
+  --btn-text: var(--btn-primary-text);
+}
+.btn-soft {
+  --btn-bg: var(--btn-soft-bg);
+  --btn-hover: var(--btn-soft-hover);
+  --btn-active: var(--btn-soft-active);
+  --btn-text: var(--btn-soft-text);
+}
+.btn-outline {
+  --btn-bg: var(--btn-outline-bg);
+  --btn-hover: var(--btn-outline-hover);
+  --btn-active: var(--btn-outline-active);
+  --btn-text: var(--btn-outline-text);
+  --btn-border: var(--btn-outline-border);
+}
+.btn-danger {
+  --btn-bg: var(--btn-danger-bg);
+  --btn-hover: var(--btn-danger-hover);
+  --btn-active: var(--btn-danger-active);
+  --btn-text: var(--btn-danger-text);
+  --btn-focus: var(--btn-danger-text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none; }
+}
+@media (prefers-contrast: more) {
+  .btn-soft { --btn-text: var(--btn-primary-active); }
+  .btn-danger { --btn-text: #7f1d1d; }
 }
 ::selection {
   background: #c7dafb;
@@ -214,14 +290,6 @@ a {
   border-bottom-color: #8bb5ff;
 }
 .topbar .header-actions { margin-left: auto; }
-.topbar .header-actions button {
-  background: transparent;
-  border-color: #4b5c6f;
-  color: #e2e9f1;
-  min-height: 30px;
-  padding: 6px 10px;
-}
-.topbar .header-actions button:hover { background: #304255; }
 .shell main { min-width: 0; }
 .filterbar { margin: 0 0 16px; }
 .click-merge-actions {
@@ -310,9 +378,6 @@ a {
   display: flex;
   gap: 9px;
   flex-shrink: 0;
-}
-.header-actions button {
-  font-size: 12px;
 }
 .workspace {
   padding: 28px 32px;
@@ -426,12 +491,6 @@ a {
 .backup-policy-save {
   justify-self: end;
   white-space: nowrap;
-}
-.backup-policy-save.primary:disabled {
-  opacity: 1;
-  color: var(--muted);
-  background: #f3f6fa;
-  border-color: var(--border);
 }
 .backup-schedule-panel .error {
   margin: 12px 0 0;
@@ -1215,14 +1274,6 @@ footer span {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.timezone-settings > button {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: 4px;
-  font-size: 12px;
 }
 
 .timezone-settings > .ui-select {
