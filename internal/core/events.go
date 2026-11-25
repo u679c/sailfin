@@ -405,7 +405,12 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) error {
 	if e != nil {
 		return e
 	}
-	return s.pagedQuery(w, r, "SELECT * FROM events WHERE "+q+" ORDER BY timestamp DESC,id LIMIT ? OFFSET ?", a...)
+	return s.pagedQuery(w, r, `SELECT events.*,
+		CASE WHEN type='click' AND source_type='browser' THEN (
+			SELECT d.value FROM projects p CROSS JOIN json_each(p.collection,'$.clickDescriptions') d
+			WHERE p.id=events.project_id AND d.key=NULLIF(json_extract(events.properties,'$.ruleSelector'),'')
+		) END AS click_description
+		FROM events WHERE `+q+` ORDER BY timestamp DESC,id LIMIT ? OFFSET ?`, a...)
 }
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) error {
 	q, a, e := s.filter(r)

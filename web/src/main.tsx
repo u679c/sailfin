@@ -63,6 +63,17 @@ function eventLabel(row: Row) {
     ? `点击「${props.label}」`
     : eventLabels[row.type] || row.type;
 }
+function eventRecordLabel(row: Row) {
+  if (row.type === "click" && row.source_type === "browser") {
+    const props = parse<Row>(row.properties, {});
+    if (props.ruleSelector) {
+      const label = props.label || "未命名元素";
+      const description = row.click_description ? `（${row.click_description}）` : "";
+      return `点击「自定义元素：${label}${description}」`;
+    }
+  }
+  return eventLabel(row);
+}
 function eventPath(row: Row) {
   return parse<Row>(row.properties, {}).pagePath || row.path;
 }
@@ -817,8 +828,10 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
         <Table manual rows={state.data || []} columns={[
           ...(allSites ? [{ key: "site_name", label: "站点" }] : []),
           { key: "path", label: "页面" },
-          { key: "label", label: "元素名称", render: (row) => row.label || "未命名元素" },
-          { key: "description", label: "说明", render: (row) => row.description || "—" },
+          { key: "label", label: "元素名称", render: (row) => {
+            const label = row.label || "未命名元素";
+            return row.description ? `${label}「${row.description}」` : label;
+          } },
           { key: "region", label: "区域", render: (row) => row.region || "—" },
           { key: "clicks", label: "点击次数", render: (row) => number(row.clicks) },
           { key: "visitors", label: "匿名访客", render: (row) => number(row.visitors) },
@@ -993,7 +1006,7 @@ function SiteElements({ project, revision }: { project: string; revision: number
                   <label>说明
                     <input value={drawer.description} disabled={saving} aria-describedby="element-description-hint"
                       onChange={(event) => setDrawer({ ...drawer, description: event.target.value })} />
-                    <span id="element-description-hint" className="selector-help">选填，建议不超过 10 个字符。说明会显示在「点击行为」。</span>
+                    <span id="element-description-hint" className="selector-help">选填，建议不超过 10 个字符。说明会显示在点击行为和事件记录中。</span>
                   </label>
                 </>
               )}
@@ -1036,7 +1049,7 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
             rows={state.data || []}
             onRow={setDetail}
             columns={[
-              { key: "type", label: "行为", render: eventLabel },
+              { key: "type", label: "行为", render: eventRecordLabel },
               {
                 key: "timestamp",
                 label: "发生时间",
@@ -1066,7 +1079,7 @@ function Events({ query, revision, eventType = "" }: { query: string; revision: 
             <button onClick={() => setDetail(null)}>关闭详情</button>
           </div>
           <dl className="facts">
-            <dt>行为</dt><dd>{eventLabel(detail)}</dd>
+            <dt>行为</dt><dd>{eventRecordLabel(detail)}</dd>
             <dt>时间</dt><dd>{when(detail.timestamp)}</dd>
             <dt>页面</dt><dd>{eventPath(detail)}</dd>
             <dt>所在区域</dt><dd>{parse<Row>(detail.properties, {}).region || "—"}</dd>

@@ -52,6 +52,8 @@
 
 元素规则的 `clickSelectors` 为字符串数组，`clickDescriptions` 为以选择器为键的说明映射。`previous` 可携带上次读取的 `{clickSelectors,clickDescriptions}`，规则发生并发变更时返回 HTTP 409。
 
+`/events` 返回的 `click_description` 根据浏览器点击事件的 `ruleSelector` 读取站点当前配置。没有命中自定义规则或该规则未配置说明时返回 `null`。
+
 ## 点击统计
 
 `/stats/clicks` 使用 `projectId/from/to` 筛选和 `page/limit` 分页，返回 `project_id, site_name, path, element_key, label, description, region, element_id, selector, clicks, visitors, last_click`。仅统计浏览器 click 事件，页面优先使用 properties.pagePath（包含 Hash 路由），元素优先使用 elementId，其次 selector。历史事件缺少定位信息时按元素类型、名称和区域归并。名称、区域及定位信息取组内最近一次点击。说明根据该次点击的 `ruleSelector` 读取站点当前配置。匿名访客按 visitor_id 去重；不同站点和页面不合并。旧数据可能无法区分同名同类型元素。
