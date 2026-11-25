@@ -33,3 +33,11 @@ CREATE TABLE IF NOT EXISTS web_update_packages (
   job_id TEXT PRIMARY KEY, name TEXT NOT NULL
 );
 INSERT OR IGNORE INTO migrations VALUES(3,unixepoch()*1000);
+
+CREATE TABLE IF NOT EXISTS click_merge_members (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  page TEXT NOT NULL, element_key TEXT NOT NULL, group_key TEXT NOT NULL,
+  PRIMARY KEY(project_id,page,element_key)
+);
+CREATE INDEX IF NOT EXISTS click_merge_group ON click_merge_members(project_id,page,group_key);
+INSERT OR IGNORE INTO migrations VALUES(4,unixepoch()*1000);

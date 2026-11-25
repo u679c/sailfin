@@ -452,6 +452,7 @@ func (s *Server) routes() {
 		k := kind
 		s.route("GET /api/v1/stats/"+k, true, func(w http.ResponseWriter, r *http.Request) error { return s.stats(w, r, k) })
 	}
+	s.route("POST /api/v1/stats/clicks/merge", true, s.mergeClicks)
 	s.route("GET /api/v1/security/summary", true, s.security)
 	s.route("GET /api/v1/security/audit", true, func(w http.ResponseWriter, r *http.Request) error {
 		return s.pagedQuery(w, r, "SELECT * FROM audit_logs ORDER BY id DESC LIMIT ? OFFSET ?")

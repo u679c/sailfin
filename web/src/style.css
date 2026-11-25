@@ -224,6 +224,14 @@ a {
 .topbar .header-actions button:hover { background: #304255; }
 .shell main { min-width: 0; }
 .filterbar { margin: 0 0 16px; }
+.click-merge-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-inline-start: auto;
+}
 .filters {
   display: flex;
   gap: 10px;

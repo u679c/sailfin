@@ -58,6 +58,8 @@
 
 `/stats/clicks` 使用 `projectId/from/to` 筛选和 `page/limit` 分页，返回 `project_id, site_name, path, element_key, label, description, region, element_id, selector, clicks, visitors, last_click`。仅统计浏览器 click 事件，页面优先使用 properties.pagePath（包含 Hash 路由），元素优先使用 elementId，其次 selector。历史事件缺少定位信息时按元素类型、名称和区域归并。名称、区域及定位信息取组内最近一次点击。说明根据该次点击的 `ruleSelector` 读取站点当前配置。匿名访客按 visitor_id 去重；不同站点和页面不合并。旧数据可能无法区分同名同类型元素。
 
+`POST /stats/clicks/merge` 接受与点击统计相同的筛选参数。请求体为 `{projectId, page, elementKeys}`，其中 `elementKeys` 为同一站点、同一页面的至少两条统计记录的 `element_key`。合并规则持久保存，适用于已有和后续匹配的点击。统计在当前时间范围内重新计算点击次数和去重访客数。记录已变化时返回 HTTP 409，成功返回 `{ok:true}`。
+
 ## 兼容模式 API
 
 以下接口仅在 Core.Config.LocalOnly=false 时注册。当前 cmd/core serve 固定使用本机模式，不开放这些路由。

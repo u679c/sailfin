@@ -187,6 +187,7 @@ function Badge({ value }: { value: string }) {
 function Table({
   columns,
   rows,
+  rowKey,
   onRow,
   manual = false,
   loading,
@@ -200,6 +201,7 @@ function Table({
     render?: (r: Row) => React.ReactNode;
   }[];
   rows: Row[];
+  rowKey?: (row: Row) => string;
   onRow?: (r: Row) => void;
   manual?: boolean;
   loading?: boolean;
@@ -232,7 +234,7 @@ function Table({
         <tbody>
           {!rows.length && <tr><td colSpan={columns.length} className="table-refresh-empty">{emptyLabel}</td></tr>}
           {visible.map((r, i) => (
-            <tr key={r.id || `${r.project_id}:${r.session_id || i}`}>
+            <tr key={rowKey?.(r) ?? (r.id || `${r.project_id}:${r.session_id || i}`)}>
               {columns.map((c, j) => (
                 <td key={c.key}>
                   {j === 0 && onRow ? (
@@ -505,6 +507,25 @@ function App() {
   const probePane = params.get("view") === "probes" ? "probes" : "sites";
   const selectedSite = projects.data?.find((item) => item.id === project);
   const primarySection = settingsView ? "system-info" : probeView || backupView ? section : "sites";
+  const filters = (
+    <>
+      <Select label="时间" ariaLabel="时间范围" value={range}
+        options={[
+          { value: "24", label: "最近 24 小时" }, { value: "168", label: "最近 7 天" },
+          { value: "720", label: "最近 30 天" }, { value: "custom", label: "自定义" },
+        ]}
+        onChange={(value) => navigate(href(section, { range: value === "24" ? "" : value }), true)} />
+      {section === "events" && <Select label="事件类型" ariaLabel="事件类型" value={eventType}
+        options={[{ value: "", label: "全部事件" }, ...Object.entries(eventLabels).map(([value, label]) => ({ value, label }))]}
+        onChange={(value) => navigate(href(section, { eventType: value }), true)} />}
+      {range === "custom" && <>
+        <label>开始：<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
+        <label>结束：<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
+        <span className="site-meta">{timezone}</span>
+      </>}
+      {selectedSite && <span className="site-meta">{selectedSite.last_event ? `最近上报：${formatTime(selectedSite.last_event, timezone)}` : "等待首批数据"}</span>}
+    </>
+  );
   return (
     <TimezoneContext.Provider value={timezone}>
     <div className="shell site-shell">
@@ -580,26 +601,8 @@ function App() {
           )}
           </div>}
           <div className={`detail-scroll ${["pages", "devices", "clicks", "elements", "events", "sessions"].includes(section) || probeView ? "list-workspace" : ""}${section === "system-info" ? " system-info-workspace" : ""}${backupView && backupPane === "files" ? " backup-workspace" : ""}`}>
-          {siteView && section !== "elements" && (
-              <div className="filterbar">
-                <div className="filters">
-                  <Select label="时间" ariaLabel="时间范围" value={range}
-                    options={[
-                      { value: "24", label: "最近 24 小时" }, { value: "168", label: "最近 7 天" },
-                      { value: "720", label: "最近 30 天" }, { value: "custom", label: "自定义" },
-                    ]}
-                    onChange={(value) => navigate(href(section, { range: value === "24" ? "" : value }), true)} />
-                  {section === "events" && <Select label="事件类型" ariaLabel="事件类型" value={eventType}
-                    options={[{ value: "", label: "全部事件" }, ...Object.entries(eventLabels).map(([value, label]) => ({ value, label }))]}
-                    onChange={(value) => navigate(href(section, { eventType: value }), true)} />}
-                  {range === "custom" && <>
-                    <label>开始：<input type="datetime-local" value={customFrom} onChange={(e) => navigate(href(section, { from: e.target.value }), true)} /></label>
-                    <label>结束：<input type="datetime-local" value={customTo} onChange={(e) => navigate(href(section, { to: e.target.value }), true)} /></label>
-                    <span className="site-meta">{timezone}</span>
-                  </>}
-                  {selectedSite && <span className="site-meta">{selectedSite.last_event ? `最近上报：${formatTime(selectedSite.last_event, timezone)}` : "等待首批数据"}</span>}
-                </div>
-              </div>
+          {siteView && section !== "elements" && section !== "clicks" && (
+            <div className="filterbar"><div className="filters">{filters}</div></div>
           )}
           {section === "overview" && <Overview query={query} revision={revision} />}
           {section === "pages" && <DataTable path="/stats/pages" query={query} revision={revision} columns={[
@@ -611,7 +614,7 @@ function App() {
             { key: "requests", label: "HTTP 请求" }, { key: "pv", label: "浏览量" }, { key: "uv", label: "匿名访客" }, { key: "events", label: "事件总数" },
           ]} />}
           {section === "events" && <Events key="events" query={query} revision={revision} eventType={eventType} />}
-          {section === "clicks" && <Clicks query={query} revision={revision} />}
+          {section === "clicks" && <Clicks query={query} revision={revision} filters={filters} />}
           {section === "elements" && (project
             ? <SiteElements key={project} project={project} revision={revision} />
             : <Empty>请从左侧选择要管理的站点</Empty>)}
@@ -812,20 +815,87 @@ function DataTable({ path, query, revision, columns, bare = false, emptyLabel, p
   </AsyncPanel>;
   return bare ? content : <section className="panel list-panel">{content}</section>;
 }
-function Clicks({ query, revision }: { query: string; revision: number }) {
+function Clicks({ query, revision, filters }: { query: string; revision: number; filters: React.ReactNode }) {
   const when = useTimeFormatter();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  useEffect(() => setPage(1), [query]);
+  const [selection, setSelection] = useState<{ projectId: string; path: string; keys: Set<string> } | null>(null);
+  const [merging, setMerging] = useState(false);
+  const [mergeError, setMergeError] = useState("");
+  const [mergeRevision, setMergeRevision] = useState(0);
+  const [merged, setMerged] = useState(false);
+  useEffect(() => {
+    setPage(1);
+    setSelection(null);
+    setMergeError("");
+    setMerged(false);
+  }, [query]);
   const state = useData(
     () => api("/stats/clicks" + query + `&page=${page}&limit=${pageSize}`),
-    [query, page, pageSize, revision],
+    [query, page, pageSize, revision, mergeRevision],
   );
   const allSites = !new URLSearchParams(query).get("projectId");
+  const selectedCount = selection?.keys.size ?? 0;
+  function samePage(row: Row) {
+    return selection !== null && selection.projectId === row.project_id && selection.path === row.path;
+  }
+  function toggle(row: Row, checked: boolean) {
+    setMergeError("");
+    setMerged(false);
+    setSelection((current) => {
+      const keys = new Set(current?.keys);
+      if (checked) keys.add(row.element_key);
+      else keys.delete(row.element_key);
+      return keys.size ? { projectId: row.project_id, path: row.path, keys } : null;
+    });
+  }
+  async function merge() {
+    if (!selection || selectedCount < 2 || merging) return;
+    setMerging(true);
+    setMergeError("");
+    try {
+      await api("/stats/clicks/merge" + query, {
+        method: "POST",
+        body: JSON.stringify({ projectId: selection.projectId, page: selection.path, elementKeys: [...selection.keys] }),
+      });
+      setSelection(null);
+      setMerged(true);
+      setPage(1);
+      setMergeRevision((value) => value + 1);
+    } catch (error) {
+      setMergeError((error as Error).message);
+    } finally {
+      setMerging(false);
+    }
+  }
   return (
+    <>
+    <div className="filterbar">
+      <div className="filters">
+        {filters}
+        {(selection || merged) && <div className="click-merge-actions">
+          <span className="site-meta" role="status">{selection
+            ? selectedCount === 1 ? "请选择同站点同页面的另一条记录" : `已选 ${selectedCount} 条`
+            : "已合并"}</span>
+          {selection && <>
+            <button className="text-button" type="button" disabled={merging}
+              onClick={() => { setSelection(null); setMergeError(""); }}>清空选择</button>
+            <button className="primary" type="button" disabled={selectedCount < 2 || merging || state.loading}
+              onClick={() => void merge()}>{merging ? "合并中…" : "合并事件"}</button>
+          </>}
+        </div>}
+      </div>
+      <ErrorBox message={mergeError} />
+    </div>
     <section className="panel list-panel">
       <AsyncPanel state={state}>
-        <Table manual rows={state.data || []} columns={[
+        <Table manual rows={state.data || []} rowKey={(row) => JSON.stringify([row.project_id, row.path, row.element_key])} columns={[
+          { key: "selection", label: "选择", width: "50px", render: (row) => (
+            <input type="checkbox" className="site-select" aria-label={`选择 ${row.label || "未命名元素"}`}
+              checked={samePage(row) && (selection?.keys.has(row.element_key) ?? false)}
+              disabled={merging || Boolean(selection && !samePage(row))}
+              onChange={(event) => toggle(row, event.target.checked)} />
+          ) },
           ...(allSites ? [{ key: "site_name", label: "站点" }] : []),
           { key: "path", label: "页面" },
           { key: "label", label: "元素名称", render: (row) => {
@@ -840,6 +910,7 @@ function Clicks({ query, revision }: { query: string; revision: number }) {
         <Pager page={page} setPage={setPage} total={listTotal(state.data)} pageSize={pageSize} setPageSize={setPageSize} />
       </AsyncPanel>
     </section>
+    </>
   );
 }
 type SiteElementSettings = {
