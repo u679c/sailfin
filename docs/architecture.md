@@ -40,7 +40,7 @@ Docker 只读采集客户端保留在独立 Host Agent 中，Socket 和容器允
 
 Browser SDK 由 Nginx 注入 `sailfin-boot.js` 自动初始化，入口按内容指纹加载模块，配置和事件均走同源中继。新扫描接入的对外站点默认等待同意信号，手动添加和文件导入按各自的站点配置启动。中继检查站点 Origin，自动模式还验证代理元数据密钥；Core 执行大小、类型、时间、去重和配额校验。浏览器不持有管理员或 Agent 长期密钥。手动 init、项目浏览器开关及跨域 Origin 白名单属于兼容模式。
 
-当前本机中继按站点开关返回 `enabled`，下发站点的 `clickSelectors`，并固定使用 `batchSize=20` 和 `intervalSeconds=5`。暂停本机探针会阻止入库，浏览器 SDK 仍可能监听事件。采样和排除规则通过兼容模式的项目策略配置。
+当前本机中继按站点开关返回 `enabled`，下发用于补充默认点击采集的 `clickSelectors`，并固定使用 `batchSize=20` 和 `intervalSeconds=5`。暂停本机探针会阻止入库，浏览器 SDK 仍可能监听事件。采样和排除规则通过兼容模式的项目策略配置。
 
 ## 生命周期与容量
 

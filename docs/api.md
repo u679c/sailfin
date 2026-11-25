@@ -100,7 +100,7 @@ Browser API：POST `/collect/browser?projectId=...`，`{events:[...]}`；GET `/c
 
 事件字段：`eventId, projectId, sessionId, visitorId, eventType, timestamp(Unix ms), path, properties, ua?`。本机中继将站点 siteId/name/source 与 events 组成 SiteBatch。开发版提交给进程内的 `/api/v1/agent/sites/batch`，安装版通过带安装密钥的 `/_sailfin_host/` 桥接提交。Browser UA 使用 HTTP Header 覆盖，Host UA 来自访问日志。服务端维护 received_at/source_type/agent_id，不接受客户端声明。
 
-事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB，禁止嵌套属性、路径中的查询参数与任意字段。eventId 按项目去重。接受最多 31 天前至未来 5 分钟事件；统计只纳入查询范围。
+事件类型与属性白名单见 `internal/core/events.go`。每批 1–100，HTTP Body 256 KiB，单事件 8 KiB。属性使用白名单内的字符串或数字，点击事件另可包含 `domPath` 字符串数组。顶层 `path` 只接受 pathname。`eventId` 按项目去重。接受最多 31 天前至未来 5 分钟事件，统计只纳入查询范围。
 
 自动浏览器采集在 `properties.pagePath` 保存去查询参数的页面标识（保留 Hash 路由），顶层 `path` 保持 pathname。点击属性为 `element, elementId, label, selector, ruleSelector, region, domPath, pagePath, pageTitle`。label 是自动读取的元素名称，selector 是 DOM 结构定位，ruleSelector 是采集目标命中的站点 CSS 规则，未命中自定义规则时省略。properties.pageTitle 为页面标题，无 Hash 路由首页的 title 可更新站点名（最长 120 UTF-8 字节）。SDK 字符串最多 200 个 UTF-16 单元且不超过 480 UTF-8 字节，适配 Core 的 500 字节限制。本机 Nginx 中继限制每批 20 条、请求体 64 KiB，SDK 同时按数量与字节数分批。
 
